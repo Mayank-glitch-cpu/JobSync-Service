@@ -19,4 +19,6 @@ export const config = {
   airtableTableName: process.env.AIRTABLE_TABLE_NAME || 'Jobs',
   jobCount: parseInt(process.env.JOB_COUNT || '10', 10),
   rapidApiKey: process.env.RAPIDAPI_KEY || '',
+  jsearchQuery: process.env.JSEARCH_QUERY || 'software developer jobs in USA',
+  jsearchNumPages: parseInt(process.env.JSEARCH_NUM_PAGES || '1', 10),
 };

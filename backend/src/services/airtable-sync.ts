@@ -14,12 +14,12 @@ function mapToAirtableRecord(job: ProcessedJob): Record<string, unknown> {
     'Work Model': job.workModel || 'Onsite',
     Location: job.location || 'Not specified',
     Company: job.company,
-    // Tags omitted: Airtable select options must be pre-created in the base
-    // Tags: job.tags || [],
+    ...(job.tags?.length ? { Tags: job.tags } : {}),
     Industry: job.industry || 'Software Engineering',
     Salary: job.salary || 'Not listed',
     'Job Description': (job.jobDescription || '').slice(0, 100000), // Airtable long text limit
     Qualifications: job.qualifications || '',
+    ...(job.jobBoard ? { JobBoard: job.jobBoard } : {}),
     'H1B Sponsored': job.h1bSponsored ?? false,
     'Is New Grad': job.isNewGrad ?? false,
     'Is Internship': job.isInternship ?? false,
@@ -56,6 +56,7 @@ export async function syncToAirtable(): Promise<number> {
         'info',
         `  Syncing batch ${Math.floor(i / 10) + 1} (${batch.length} records)...`
       );
+      log('sync', 'debug', `  Batch fields sample: ${JSON.stringify(records[0]?.fields)}`);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const created = await (table as any).create(records);

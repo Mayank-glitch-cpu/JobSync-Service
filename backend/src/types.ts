@@ -15,11 +15,14 @@ export interface ScrapedJob extends RawJob {
   scrapeError?: string;
 }
 
+export type JobBoard = 'Lever' | 'Ashby' | 'Linkedin' | 'Greenhouse' | 'Workday' | null;
+
 export interface ProcessedJob extends ScrapedJob {
   workModel: 'Onsite' | 'Remote' | 'Hybrid' | null;
   industry: string | null;
   h1bSponsored: boolean | null;
   qualifications: string | null;
+  jobBoard: JobBoard;
   tags: string[];
   isNewGrad: boolean;
   isInternship: boolean;

@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { log } from '../logger.js';
 import { readStep, writeStep } from '../store.js';
 import { INDUSTRY_LIST, detectIndustry } from '../constants/industries.js';
-import type { ScrapedJob, ProcessedJob } from '../types.js';
+import type { ScrapedJob, ProcessedJob, JobBoard } from '../types.js';
 
 interface ExtractedFields {
   workModel: 'Onsite' | 'Remote' | 'Hybrid' | null;
@@ -32,6 +32,30 @@ Respond with valid JSON only.`;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const JOB_BOARD_PATTERNS: Array<{ pattern: RegExp; board: JobBoard }> = [
+  { pattern: /lever\.co/i, board: 'Lever' },
+  { pattern: /greenhouse\.io/i, board: 'Greenhouse' },
+  { pattern: /ashbyhq\.com/i, board: 'Ashby' },
+  { pattern: /linkedin\.com/i, board: 'Linkedin' },
+  { pattern: /myworkdayjobs\.com|workday\.com/i, board: 'Workday' },
+];
+
+function detectJobBoard(applyLink: string | null, description: string | null): JobBoard {
+  // Try URL first
+  if (applyLink) {
+    for (const { pattern, board } of JOB_BOARD_PATTERNS) {
+      if (pattern.test(applyLink)) return board;
+    }
+  }
+  // Fallback: check description for board-specific URLs
+  if (description) {
+    for (const { pattern, board } of JOB_BOARD_PATTERNS) {
+      if (pattern.test(description)) return board;
+    }
+  }
+  return null;
+}
+
 async function extractFields(
   client: Anthropic,
   job: ScrapedJob
@@ -41,6 +65,7 @@ async function extractFields(
 Title: ${job.positionTitle}
 Company: ${job.company}
 Location: ${job.location || 'Not specified'}
+Apply Link: ${job.applyLink || 'Not available'}
 Description: ${job.jobDescription || 'Not available'}
 
 Raw data: ${JSON.stringify(job.rawFields || {})}
@@ -144,7 +169,6 @@ const CRYPTO_WEB3 = [
 function detectTags(job: ScrapedJob): string[] {
   const tags: string[] = [];
   const company = job.company.toLowerCase();
-  const text = `${job.positionTitle} ${company} ${job.location || ''} ${job.jobDescription || ''}`.toLowerCase();
 
   if (FAANG_PLUS.some((c) => company.includes(c))) tags.push('FAANG+');
   if (QUANT_FIRMS.some((c) => company.includes(c))) tags.push('Quant');
@@ -152,12 +176,6 @@ function detectTags(job: ScrapedJob): string[] {
   if (UNICORN.some((c) => company.includes(c))) tags.push('Unicorn');
   if (YC_COMPANIES.some((c) => company.includes(c))) tags.push('YC');
   if (CRYPTO_WEB3.some((c) => company.includes(c))) tags.push('Crypto/Web3');
-  if (text.includes('intern')) tags.push('Internship');
-  if (text.includes('new grad') || text.includes('entry level') || text.includes('junior')) {
-    tags.push('New Grad');
-  }
-  if (text.includes('remote')) tags.push('Remote');
-  if (text.includes('startup')) tags.push('Startup');
 
   return tags;
 }
@@ -185,6 +203,7 @@ export async function processWithAI(): Promise<number> {
       industry: detectIndustry(job.positionTitle) || null,
       h1bSponsored: null,
       qualifications: null,
+      jobBoard: detectJobBoard(job.applyLink, job.jobDescription),
       tags: detectTags(job),
       isNewGrad: /new.?grad|entry.?level|junior/i.test(job.positionTitle),
       isInternship: /intern/i.test(job.positionTitle),

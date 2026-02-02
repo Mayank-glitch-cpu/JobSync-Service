@@ -19,6 +19,8 @@ const STEP_LABELS: Record<string, Record<number, string>> = {
   csv: { 1: 'Fetch CSV', 2: 'Scrape JDs', 3: 'AI Process', 4: 'Sync Airtable' },
   github: { 1: 'Fetch GitHub', 2: 'Scrape JDs', 3: 'AI Process', 4: 'Sync Airtable' },
   yc: { 1: 'Fetch YC', 2: 'Scrape JDs', 3: 'AI Process', 4: 'Sync Airtable' },
+  jsearch: { 1: 'Fetch JSearch', 2: 'Scrape JDs', 3: 'AI Process', 4: 'Sync Airtable' },
+  theirstack: { 1: 'Fetch Ashby', 2: 'Scrape JDs', 3: 'AI Process', 4: 'Sync Airtable' },
 };
 
 export function StepPanel({
@@ -72,6 +74,20 @@ export function StepPanel({
           disabled={isAnyRunning}
         >
           Y Combinator
+        </button>
+        <button
+          className={`source-btn ${source === 'jsearch' ? 'active' : ''}`}
+          onClick={() => onSourceChange('jsearch')}
+          disabled={isAnyRunning}
+        >
+          JSearch
+        </button>
+        <button
+          className={`source-btn ${source === 'theirstack' ? 'active' : ''}`}
+          onClick={() => onSourceChange('theirstack')}
+          disabled={isAnyRunning}
+        >
+          Ashby
         </button>
       </div>
       <div className="range-selector">

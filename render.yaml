@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: jobslist
+    runtime: node
+    plan: free
+    buildCommand: npm install -g pnpm && pnpm install && cd frontend && pnpm build && cd ../backend && pnpm build
+    startCommand: cd backend && node dist/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: PORT
+        value: 3001
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AIRTABLE_API_KEY
+        sync: false
+      - key: AIRTABLE_BASE_ID
+        sync: false
+      - key: AIRTABLE_TABLE_NAME
+        value: Jobs
+      - key: RAPIDAPI_KEY
+        sync: false

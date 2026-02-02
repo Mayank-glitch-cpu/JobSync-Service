@@ -4,6 +4,8 @@ import { clearAll } from '../store.js';
 import { fetchCsv } from '../services/csv-fetcher.js';
 import { fetchGitHub } from '../services/github-fetcher.js';
 import { fetchYC } from '../services/yc-fetcher.js';
+import { fetchJSearch } from '../services/jsearch-fetcher.js';
+import { fetchTheirStack } from '../services/theirstack-fetcher.js';
 import { scrapeJDs } from '../services/jd-scraper.js';
 import { processWithAI } from '../services/ai-processor.js';
 import { syncToAirtable } from '../services/airtable-sync.js';
@@ -62,6 +64,10 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
         runStep('step1', 'Step 1 (Fetch GitHub)', () => fetchGitHub(range));
       } else if (source === 'yc') {
         runStep('step1', 'Step 1 (Fetch YC)', () => fetchYC(range));
+      } else if (source === 'jsearch') {
+        runStep('step1', 'Step 1 (Fetch JSearch)', () => fetchJSearch(range));
+      } else if (source === 'theirstack') {
+        runStep('step1', 'Step 1 (Fetch TheirStack/Ashby)', () => fetchTheirStack(range));
       } else {
         runStep('step1', 'Step 1 (Fetch CSV)', () => fetchCsv(range));
       }

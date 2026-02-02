@@ -1,926 +1,315 @@
-# JobsList API Documentation
+# JobSync Service — API Documentation
 
-Complete API reference for all JobsList microservices.
+REST API reference for the JobSync pipeline backend.
+
+**Base URL:** `http://localhost:3001`
+
+---
 
 ## Table of Contents
 
-- [API Service (Port 3000)](#api-service-port-3000)
-  - [Health Endpoints](#health-endpoints)
-  - [Jobs Endpoints](#jobs-endpoints)
-  - [Sync Endpoints](#sync-endpoints)
-  - [Data Sources Endpoints](#data-sources-endpoints)
-- [GitHub Jobs Service (Port 3001)](#github-jobs-service-port-3001)
-  - [Health & Info](#health--info)
-  - [Sync Endpoints](#sync-endpoints-1)
-  - [Testing Endpoints](#testing-endpoints)
-- [Data Types & Enums](#data-types--enums)
-- [Error Handling](#error-handling)
+- [Health Check](#health-check)
+- [Pipeline](#pipeline)
+  - [Step 1 — Fetch Jobs](#step-1--fetch-jobs)
+  - [Step 2 — Scrape Job Descriptions](#step-2--scrape-job-descriptions)
+  - [Step 3 — AI Processing](#step-3--ai-processing)
+  - [Step 4 — Airtable Sync](#step-4--airtable-sync)
+  - [Pipeline Status](#pipeline-status)
+  - [Pipeline Reset](#pipeline-reset)
+- [Data](#data)
+- [Logs (SSE)](#logs-sse)
+- [Job Sources & Rate Limits](#job-sources--rate-limits)
+- [Environment Variables](#environment-variables)
 
 ---
 
-## API Service (Port 3000)
+## Health Check
 
-Base URL: `http://localhost:3000/api/v1`
-
-### Health Endpoints
-
-#### Health Check
-```http
-GET /api/v1/health
+```
+GET /api/health
 ```
 
-**Response (200 OK)**
+**Response:**
+
 ```json
-{
-  "status": "healthy",
-  "timestamp": "2026-01-28T12:00:00.000Z",
-  "service": "api-service",
-  "version": "1.0.0"
-}
-```
-
-#### Readiness Check
-```http
-GET /api/v1/ready
-```
-
-**Response (200 OK)**
-```json
-{
-  "ready": true,
-  "timestamp": "2026-01-28T12:00:00.000Z"
-}
+{ "status": "ok" }
 ```
 
 ---
 
-### Jobs Endpoints
+## Pipeline
 
-#### List Jobs
-```http
-GET /api/v1/jobs
+The pipeline runs in 4 sequential steps. Each step is triggered independently via a POST request and runs asynchronously. The response returns immediately with `{ "status": "started" }` while the step processes in the background.
+
+If a step is already running, the endpoint returns `409 Conflict`.
+
+### Step 1 — Fetch Jobs
+
+```
+POST /api/pipeline/step1
 ```
 
-Retrieve jobs with pagination and filtering.
+Fetches raw job listings from the selected source.
 
-**Query Parameters**
+**Query Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `page` | number | 1 | Page number (min: 1) |
-| `limit` | number | 50 | Items per page (min: 1, max: 100) |
-| `source` | string | - | Filter by job source (see [Job Sources](#job-sources)) |
-| `industry` | string | - | Filter by industry (see [Industries](#industries)) |
-| `workModel` | string | - | Filter by work model: `Onsite`, `Remote`, `Hybrid` |
-| `company` | string | - | Filter by company name |
-| `isNewGrad` | boolean | - | Filter new grad positions |
-| `isInternship` | boolean | - | Filter internship positions |
-| `h1bSponsored` | boolean | - | Filter H1B sponsored positions |
-| `aiProcessed` | boolean | - | Filter by AI processing status |
-| `syncedToAirtable` | boolean | - | Filter by Airtable sync status |
-| `search` | string | - | Full-text search |
+| Parameter | Type   | Default | Description                                      |
+|-----------|--------|---------|--------------------------------------------------|
+| `source`  | string | `csv`   | Job source: `csv`, `github`, `yc`, or `jsearch`  |
+| `from`    | number | —       | Start index (1-based, newest first)               |
+| `to`      | number | —       | End index (1-based, inclusive)                     |
 
-**Example Request**
+If `from` and `to` are omitted, defaults to the first `JOB_COUNT` jobs (default 10).
+
+**Examples:**
+
 ```bash
-curl "http://localhost:3000/api/v1/jobs?page=1&limit=10&source=github_speedyapply_ai&isNewGrad=true"
+# Fetch 10 newest jobs from Google Sheets
+curl -X POST "http://localhost:3001/api/pipeline/step1?source=csv"
+
+# Fetch jobs 1–5 from GitHub
+curl -X POST "http://localhost:3001/api/pipeline/step1?source=github&from=1&to=5"
+
+# Fetch from Y Combinator API
+curl -X POST "http://localhost:3001/api/pipeline/step1?source=yc&from=1&to=10"
+
+# Fetch from JSearch API
+curl -X POST "http://localhost:3001/api/pipeline/step1?source=jsearch&from=1&to=10"
 ```
 
-**Response (200 OK)**
+**Response:**
+
+```json
+{ "status": "started", "step": 1, "source": "csv" }
+```
+
+**Error (already running):**
+
+```json
+{ "error": "Step 1 is already running" }
+```
+
+### Step 2 — Scrape Job Descriptions
+
+```
+POST /api/pipeline/step2
+```
+
+Scrapes full job descriptions from the `applyLink` URLs found in Step 1 output using Cheerio.
+
+**Response:**
+
+```json
+{ "status": "started", "step": 2 }
+```
+
+### Step 3 — AI Processing
+
+```
+POST /api/pipeline/step3
+```
+
+Sends scraped job data to Claude AI for enrichment. Extracts structured fields (summary, salary, tags, etc.) and applies tag detection (FAANG+, Quant, Fortune 500, Unicorn, YC, Crypto/Web3, Internship, New Grad, Remote, Startup).
+
+**Response:**
+
+```json
+{ "status": "started", "step": 3 }
+```
+
+### Step 4 — Airtable Sync
+
+```
+POST /api/pipeline/step4
+```
+
+Syncs processed jobs to the configured Airtable base. Creates new records in batches of 10.
+
+**Response:**
+
+```json
+{ "status": "started", "step": 4 }
+```
+
+### Pipeline Status
+
+```
+GET /api/pipeline/status
+```
+
+Returns the current status of all four steps.
+
+**Response:**
+
 ```json
 {
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "positionTitle": "Software Engineer",
-      "company": "Google",
-      "location": "Mountain View, CA",
-      "workModel": "Hybrid",
-      "salary": "$150,000 - $200,000",
-      "applyLink": "https://careers.google.com/jobs/123",
-      "datePosted": "2026-01-25",
-      "industry": "Software Engineering",
-      "tags": ["FAANG+"],
-      "isNewGrad": true,
-      "isInternship": false,
-      "h1bSponsored": true,
-      "jobDescription": "Join our team...",
-      "qualifications": "BS in Computer Science...",
-      "source": "github_speedyapply_swe",
-      "sourceUrl": "https://raw.githubusercontent.com/...",
-      "aiProcessed": true,
-      "aiConfidence": 0.95,
-      "aiProcessedAt": "2026-01-26T10:00:00.000Z",
-      "syncedToAirtable": true,
-      "airtableRecordId": "rec123abc",
-      "lastSyncedAt": "2026-01-26T10:05:00.000Z",
-      "fingerprint": "sha256hash...",
-      "createdAt": "2026-01-25T08:00:00.000Z",
-      "updatedAt": "2026-01-26T10:05:00.000Z"
-    }
-  ],
-  "total": 150,
-  "page": 1,
-  "limit": 10,
-  "totalPages": 15
-}
-```
-
----
-
-#### Get Single Job
-```http
-GET /api/v1/jobs/:id
-```
-
-**Path Parameters**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `id` | UUID | Job ID |
-
-**Example Request**
-```bash
-curl http://localhost:3000/api/v1/jobs/550e8400-e29b-41d4-a716-446655440000
-```
-
-**Response (200 OK)**
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "positionTitle": "Software Engineer",
-  "company": "Google",
-  ...
-}
-```
-
-**Response (404 Not Found)**
-```json
-{
-  "error": "Job not found"
-}
-```
-
----
-
-#### Create Job
-```http
-POST /api/v1/jobs
-```
-
-Create a new job entry with automatic deduplication check.
-
-**Request Body**
-```json
-{
-  "positionTitle": "Software Engineer",
-  "company": "Acme Inc",
-  "applyLink": "https://acme.com/careers/123",
-  "source": "manual_test",
-  "location": "San Francisco, CA",
-  "workModel": "Remote",
-  "salary": "$120,000 - $150,000",
-  "datePosted": "2026-01-28",
-  "industry": "Software Engineering",
-  "tags": ["Unicorn"],
-  "isNewGrad": true,
-  "isInternship": false,
-  "h1bSponsored": true,
-  "jobDescription": "We are looking for...",
-  "qualifications": "3+ years experience..."
-}
-```
-
-**Required Fields**
-| Field | Type | Constraints |
-|-------|------|-------------|
-| `positionTitle` | string | Min 1 character |
-| `company` | string | Min 1 character |
-| `applyLink` | string | Valid URL |
-| `source` | string | Valid [Job Source](#job-sources) |
-
-**Optional Fields**
-| Field | Type | Description |
-|-------|------|-------------|
-| `location` | string | Job location |
-| `workModel` | string | `Onsite`, `Remote`, or `Hybrid` |
-| `salary` | string | Salary information |
-| `datePosted` | string | ISO date format |
-| `industry` | string | Industry category |
-| `tags` | string[] | Company tags |
-| `isNewGrad` | boolean | New grad position |
-| `isInternship` | boolean | Internship position |
-| `h1bSponsored` | boolean | H1B sponsorship available |
-| `jobDescription` | string | Full job description |
-| `qualifications` | string | Required qualifications |
-| `sourceUrl` | string | Original source URL |
-| `rawData` | object | Raw scraped data |
-
-**Response (201 Created)**
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "positionTitle": "Software Engineer",
-  ...
-}
-```
-
-**Response (409 Conflict)** - Duplicate detected
-```json
-{
-  "error": "Duplicate job",
-  "existingJobId": "550e8400-e29b-41d4-a716-446655440000",
-  "matchType": "fingerprint"
-}
-```
-
----
-
-#### Bulk Create Jobs
-```http
-POST /api/v1/jobs/bulk
-```
-
-Create multiple jobs at once with batch deduplication.
-
-**Request Body**
-```json
-[
-  {
-    "positionTitle": "Software Engineer",
-    "company": "Company A",
-    "applyLink": "https://example.com/job1",
-    "source": "manual_test"
+  "step1": {
+    "status": "completed",
+    "lastRun": "2025-01-29T12:00:00.000Z",
+    "jobCount": 10
   },
-  {
-    "positionTitle": "Data Scientist",
-    "company": "Company B",
-    "applyLink": "https://example.com/job2",
-    "source": "manual_test"
-  }
-]
-```
-
-**Response (200 OK)**
-```json
-{
-  "created": 2,
-  "duplicates": 0,
-  "errors": []
-}
-```
-
----
-
-#### Update Job
-```http
-PATCH /api/v1/jobs/:id
-```
-
-Partially update a job. All fields are optional.
-
-**Request Body**
-```json
-{
-  "workModel": "Remote",
-  "salary": "$140,000 - $160,000"
-}
-```
-
-**Response (200 OK)**
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "positionTitle": "Software Engineer",
-  "workModel": "Remote",
-  "salary": "$140,000 - $160,000",
-  ...
-}
-```
-
----
-
-#### Delete Job
-```http
-DELETE /api/v1/jobs/:id
-```
-
-**Response (200 OK)**
-```json
-{
-  "success": true,
-  "deleted": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    ...
-  }
-}
-```
-
----
-
-#### Queue Job for AI Processing
-```http
-POST /api/v1/jobs/:id/process
-```
-
-Queue a specific job for AI field extraction using Claude.
-
-**Response (200 OK)**
-```json
-{
-  "success": true,
-  "message": "Job queued for AI processing"
-}
-```
-
----
-
-#### Queue Job for Airtable Sync
-```http
-POST /api/v1/jobs/:id/sync
-```
-
-Queue a specific job for Airtable synchronization.
-
-**Response (200 OK)**
-```json
-{
-  "success": true,
-  "message": "Job queued for Airtable sync"
-}
-```
-
----
-
-### Sync Endpoints
-
-#### Get Sync Status
-```http
-GET /api/v1/sync/status
-```
-
-Get overall sync status and statistics.
-
-**Response (200 OK)**
-```json
-{
-  "sources": [
-    {
-      "name": "GitHub SpeedyApply AI",
-      "type": "github_speedyapply_ai",
-      "enabled": true,
-      "lastRun": "2026-01-28T10:00:00.000Z",
-      "lastStatus": "success",
-      "lastJobsFound": 150
-    }
-  ],
-  "stats": {
-    "total": 1500,
-    "aiProcessed": 1450,
-    "syncedToAirtable": 1400,
-    "pendingAi": 50,
-    "pendingSync": 50
-  }
-}
-```
-
----
-
-#### Get Sync History
-```http
-GET /api/v1/sync/history
-```
-
-**Query Parameters**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `page` | number | 1 | Page number |
-| `limit` | number | 50 | Items per page |
-
-**Response (200 OK)**
-```json
-{
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "sourceId": "source-uuid",
-      "startedAt": "2026-01-28T10:00:00.000Z",
-      "completedAt": "2026-01-28T10:05:00.000Z",
-      "status": "completed",
-      "jobsFound": 150,
-      "jobsNew": 25,
-      "jobsUpdated": 10,
-      "jobsDuplicates": 115,
-      "errorMessage": null,
-      "metadata": {}
-    }
-  ],
-  "page": 1,
-  "limit": 50
-}
-```
-
----
-
-#### Trigger AI Processing
-```http
-POST /api/v1/sync/ai
-```
-
-Queue all unprocessed jobs for AI field extraction.
-
-**Query Parameters**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `limit` | number | 100 | Maximum jobs to process |
-
-**Example Request**
-```bash
-curl -X POST "http://localhost:3000/api/v1/sync/ai?limit=10"
-```
-
-**Response (200 OK)**
-```json
-{
-  "success": true,
-  "queued": 10,
-  "message": "Queued 10 jobs for AI processing"
-}
-```
-
----
-
-#### Trigger Airtable Sync
-```http
-POST /api/v1/sync/airtable
-```
-
-Queue AI-processed jobs for Airtable synchronization.
-
-**Query Parameters**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `limit` | number | 100 | Maximum jobs to sync |
-
-**Example Request**
-```bash
-curl -X POST "http://localhost:3000/api/v1/sync/airtable?limit=10"
-```
-
-**Response (200 OK)**
-```json
-{
-  "success": true,
-  "queued": 10,
-  "message": "Queued 10 jobs for Airtable sync"
-}
-```
-
----
-
-#### Reconciliation Report
-```http
-POST /api/v1/sync/reconcile
-```
-
-Check for unsynced and unprocessed jobs.
-
-**Response (200 OK)**
-```json
-{
-  "success": true,
-  "stats": {
-    "totalUnsyncedToAirtable": 50,
-    "totalUnprocessedByAI": 25
+  "step2": {
+    "status": "idle",
+    "lastRun": null,
+    "jobCount": 0
   },
-  "message": "Use /sync/ai and /sync/airtable to process pending jobs"
-}
-```
-
----
-
-### Data Sources Endpoints
-
-#### List Data Sources
-```http
-GET /api/v1/sources
-```
-
-**Response (200 OK)**
-```json
-[
-  {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "GitHub SpeedyApply AI",
-    "sourceType": "github_speedyapply_ai",
-    "config": {
-      "repo": "speedyapply/2026-AI-College-Jobs",
-      "files": ["README.md", "NEW_GRAD_USA.md"]
-    },
-    "scheduleCron": "*/15 * * * *",
-    "enabled": true,
-    "lastRunAt": "2026-01-28T10:00:00.000Z",
-    "lastRunStatus": "success",
-    "lastRunJobsFound": 150,
-    "createdAt": "2026-01-01T00:00:00.000Z",
-    "updatedAt": "2026-01-28T10:00:00.000Z"
-  }
-]
-```
-
----
-
-#### Update Data Source
-```http
-PATCH /api/v1/sources/:id
-```
-
-**Request Body**
-```json
-{
-  "enabled": false,
-  "scheduleCron": "0 */2 * * *"
-}
-```
-
-**Response (200 OK)**
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "GitHub SpeedyApply AI",
-  "enabled": false,
-  "scheduleCron": "0 */2 * * *",
-  ...
-}
-```
-
----
-
-## GitHub Jobs Service (Port 3001)
-
-Base URL: `http://localhost:3001`
-
-### Health & Info
-
-#### Health Check
-```http
-GET /health
-```
-
-**Response (200 OK)**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-01-28T12:00:00.000Z",
-  "service": "github-jobs-service"
-}
-```
-
----
-
-#### List Configured Repositories
-```http
-GET /repos
-```
-
-**Response (200 OK)**
-```json
-[
-  {
-    "key": "speedyapply_ai",
-    "repo": "speedyapply/2026-AI-College-Jobs",
-    "files": ["README.md", "NEW_GRAD_USA.md", "INTERN_USA.md"],
-    "enabled": true
+  "step3": {
+    "status": "error",
+    "lastRun": "2025-01-29T12:05:00.000Z",
+    "jobCount": 0,
+    "error": "ANTHROPIC_API_KEY not set"
   },
-  {
-    "key": "speedyapply_swe",
-    "repo": "speedyapply/2026-SWE-College-Jobs",
-    "files": ["README.md", "NEW_GRAD_USA.md", "INTERN_USA.md"],
-    "enabled": true
-  },
-  {
-    "key": "vanshb03",
-    "repo": "vanshb03/New-Grad-2026",
-    "files": ["README.md"],
-    "enabled": true
-  }
-]
-```
-
----
-
-### Sync Endpoints
-
-#### Sync All Repositories
-```http
-POST /sync
-```
-
-Fetch and parse jobs from all configured GitHub repositories.
-
-**Query Parameters**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `scrapeJD` | boolean | false | Scrape full job descriptions |
-
-**Example Request**
-```bash
-curl -X POST "http://localhost:3001/sync?scrapeJD=false"
-```
-
-**Response (200 OK)**
-```json
-{
-  "success": true,
-  "results": {
-    "speedyapply_ai": {
-      "jobsFound": 150,
-      "totalParsed": 150,
-      "errors": [],
-      "scrapeJD": false
-    },
-    "speedyapply_swe": {
-      "jobsFound": 200,
-      "totalParsed": 200,
-      "errors": [],
-      "scrapeJD": false
-    },
-    "vanshb03": {
-      "jobsFound": 100,
-      "totalParsed": 100,
-      "errors": [],
-      "scrapeJD": false
-    }
+  "step4": {
+    "status": "idle",
+    "lastRun": null,
+    "jobCount": 0
   }
 }
 ```
 
----
+**Step statuses:** `idle` | `running` | `completed` | `error`
 
-#### Sync Specific Repository
-```http
-POST /sync/:repoKey
+### Pipeline Reset
+
+```
+POST /api/pipeline/reset
 ```
 
-**Path Parameters**
+Clears all stored pipeline data and resets all step statuses to `idle`.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `repoKey` | string | Repository key: `speedyapply_ai`, `speedyapply_swe`, or `vanshb03` |
+**Response:**
 
-**Query Parameters**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `scrapeJD` | boolean | false | Scrape full job descriptions |
-
-**Example Request**
-```bash
-curl -X POST "http://localhost:3001/sync/speedyapply_ai"
-```
-
-**Response (200 OK)**
 ```json
-{
-  "success": true,
-  "result": {
-    "jobsFound": 150,
-    "totalParsed": 150,
-    "errors": [],
-    "scrapeJD": false
-  }
-}
-```
-
-**Response (404 Not Found)**
-```json
-{
-  "error": "Repository not found"
-}
+{ "status": "reset" }
 ```
 
 ---
 
-### Testing Endpoints
+## Data
 
-#### Test Sync (Limited Jobs)
-```http
-POST /test-sync
+```
+GET /api/data/:step
 ```
 
-Run a limited sync for testing purposes.
+Returns the job data produced by a given step.
 
-**Query Parameters**
+**Path Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `limit` | number | 5 | Maximum jobs to process |
-| `repoKey` | string | - | Specific repo to test (optional) |
-| `scrapeJD` | boolean | true | Scrape job descriptions (default: true for testing) |
+| Parameter | Values  | Description                |
+|-----------|---------|----------------------------|
+| `step`    | `1`–`4` | Pipeline step number       |
 
-**Example Request**
-```bash
-curl -X POST "http://localhost:3001/test-sync?limit=5&scrapeJD=true"
-```
+**Step → Data mapping:**
 
-**Response (200 OK)**
+| Step | Data key              | Contents                     |
+|------|-----------------------|------------------------------|
+| 1    | `step1-raw-jobs`      | Raw fetched job listings     |
+| 2    | `step2-scraped-jobs`  | Jobs with scraped JDs        |
+| 3    | `step3-processed-jobs`| AI-enriched jobs             |
+| 4    | `step4-synced-jobs`   | Airtable-synced records      |
+
+**Response:**
+
 ```json
 {
-  "success": true,
-  "testMode": true,
-  "limit": 5,
-  "result": {
-    "jobsFound": 5,
-    "totalParsed": 5,
-    "errors": [],
-    "scrapeJD": true
-  }
+  "jobs": [ ... ]
+}
+```
+
+If no data exists yet:
+
+```json
+{
+  "jobs": [],
+  "message": "No data yet. Run this step first."
 }
 ```
 
 ---
 
-#### Scrape Job Description
-```http
-POST /scrape-jd
+## Logs (SSE)
+
+```
+GET /api/logs/stream
 ```
 
-Test scraping a job description from a single URL.
+Server-Sent Events endpoint for real-time pipeline logs. On connect, all buffered log history is replayed.
 
-**Request Body**
-```json
-{
-  "url": "https://boards.greenhouse.io/company/jobs/123"
-}
+**Event format:**
+
+```
+data: {"timestamp":"...","level":"info","step":"fetch","message":"...","data":null}
 ```
 
-**Response (200 OK)**
-```json
-{
-  "success": true,
-  "result": {
-    "description": "We are looking for a talented engineer...",
-    "qualifications": "- 3+ years of experience\n- BS in Computer Science",
-    "responsibilities": "- Design and implement features\n- Code review",
-    "benefits": "- Health insurance\n- 401k matching",
-    "rawText": "Full page text content...",
-    "scrapedAt": "2026-01-28T12:00:00.000Z",
-    "error": null
-  }
-}
-```
+**Log levels:** `info` | `warn` | `error` | `debug`
 
-**Response (400 Bad Request)**
-```json
-{
-  "error": "URL is required"
-}
-```
+**Log steps:** `fetch` | `scrape` | `ai` | `sync` | `system`
 
 ---
 
-## Data Types & Enums
+## Job Sources & Rate Limits
 
-### Job Sources
-```
-github_speedyapply_ai    - SpeedyApply AI College Jobs repo
-github_speedyapply_swe   - SpeedyApply SWE College Jobs repo
-github_vanshb03         - Vanshb03 New Grad 2026 repo
-linkedin                - LinkedIn job board
-indeed                  - Indeed job board
-glassdoor               - Glassdoor job board
-google_jobs             - Google Jobs
-ziprecruiter            - ZipRecruiter
-topstartups             - TopStartups.io
-faang_watch             - FAANG.watch
-wellfound               - Wellfound (AngelList)
-google_sheets           - Manual Google Sheets import
-manual_test             - Manual test entries
-```
+### 1. Google Sheets CSV (`csv`)
 
-### Industries
-```
-Software Engineering     Data Analyst           Marketing
-ML/AI                   Business Analyst       Product Management
-Creatives/Design        Accounting/Finance     Consulting
-Engineering             HR                     Arts/Entertainment
-Management/Executive    Customer Service       Legal/Compliance
-Sales                   Public Sector          Education
-Cybersecurity           Project Manager        Healthcare
-Supply Chain
-```
+Fetches jobs from a public Google Sheets document exported as CSV.
 
-### Work Models
-```
-Onsite   - In-office work
-Remote   - Fully remote
-Hybrid   - Mix of remote and in-office
-```
+| Property        | Value                        |
+|-----------------|------------------------------|
+| Endpoint        | Google Sheets CSV export URL |
+| Authentication  | None (public sheet)          |
+| Rate Limits     | **None**                     |
 
-### Company Tags
-```
-FAANG+        - Meta, Google, Amazon, Apple, Netflix, Microsoft, Nvidia, etc.
-Quant         - Citadel, Two Sigma, Jane Street, DE Shaw, etc.
-Unicorn       - $1B+ valued startups
-Fortune 500   - Major corporations
-YC            - Y Combinator backed
-Crypto/Web3   - Coinbase, Binance, OpenSea, etc.
-```
+### 2. GitHub (`github`)
 
-### Sync Status
-```
-running    - Sync operation in progress
-completed  - Sync completed successfully
-failed     - Sync failed with errors
-```
+Fetches new-grad job postings from [SimplifyJobs/New-Grad-Positions](https://github.com/SimplifyJobs/New-Grad-Positions) by parsing the README HTML tables. Filters to jobs with age `0d` (posted today).
+
+| Property        | Value                                                 |
+|-----------------|-------------------------------------------------------|
+| Endpoint        | `raw.githubusercontent.com` (raw README fetch)        |
+| Authentication  | None                                                  |
+| Rate Limits     | **60 requests/hour** (unauthenticated GitHub API)     |
+
+### 3. Y Combinator (`yc`)
+
+Fetches Y Combinator startup jobs from a RapidAPI endpoint.
+
+| Property        | Value                                                              |
+|-----------------|--------------------------------------------------------------------|
+| Endpoint        | `free-y-combinator-jobs-api.p.rapidapi.com/active-jb-7d`          |
+| Authentication  | RapidAPI key (`x-rapidapi-key` header)                             |
+| Rate Limits     | Per your RapidAPI subscription plan (shared `RAPIDAPI_KEY`)        |
+
+### 4. JSearch (`jsearch`)
+
+Fetches job listings from the JSearch API on RapidAPI. Supports configurable search queries and pagination.
+
+| Property           | Value                                        |
+|--------------------|----------------------------------------------|
+| Endpoint           | `jsearch.p.rapidapi.com/search`              |
+| Authentication     | RapidAPI key (`x-rapidapi-key` header)       |
+| **Rate Limits**    |                                              |
+| — Requests/month   | **200**                                      |
+| — Requests/hour    | **1,000**                                    |
+| — Bandwidth/month  | **10,240 MB**                                |
+| Date filter        | `date_posted=today` (only current day)       |
+| Pages per request  | Configurable via `JSEARCH_NUM_PAGES` env var |
 
 ---
 
-## Error Handling
+## Environment Variables
 
-### Standard Error Response
-```json
-{
-  "error": "Error message description"
-}
-```
+| Variable               | Required | Description                                  | Default                              |
+|------------------------|----------|----------------------------------------------|--------------------------------------|
+| `GOOGLE_SHEETS_CSV_URL`| No       | CSV export URL for the Google Sheet          | Built-in default URL                 |
+| `ANTHROPIC_API_KEY`    | Yes*     | Claude API key (for Step 3)                  | —                                    |
+| `CLAUDE_MODEL`         | No       | Claude model ID                              | `claude-haiku-4-5-20251201`          |
+| `AIRTABLE_API_KEY`     | Yes*     | Airtable personal access token (for Step 4)  | —                                    |
+| `AIRTABLE_BASE_ID`     | Yes*     | Airtable base ID                             | —                                    |
+| `AIRTABLE_TABLE_NAME`  | No       | Airtable table name                          | `Jobs`                               |
+| `RAPIDAPI_KEY`         | Yes*     | RapidAPI key (for YC and JSearch sources)    | —                                    |
+| `JSEARCH_QUERY`        | No       | Search query for JSearch API                 | `software developer jobs in USA`     |
+| `JSEARCH_NUM_PAGES`    | No       | Number of pages to fetch from JSearch        | `1`                                  |
+| `JOB_COUNT`            | No       | Default number of jobs to fetch              | `10`                                 |
+| `PORT`                 | No       | Backend server port                          | `3001`                               |
 
-### Duplicate Error Response
-```json
-{
-  "error": "Duplicate job",
-  "existingJobId": "uuid",
-  "matchType": "fingerprint | fuzzy"
-}
-```
-
-### HTTP Status Codes
-
-| Code | Description |
-|------|-------------|
-| 200 | Success |
-| 201 | Created |
-| 400 | Bad Request - Invalid input |
-| 404 | Not Found - Resource doesn't exist |
-| 409 | Conflict - Duplicate detected |
-| 500 | Internal Server Error |
-
----
-
-## Rate Limits
-
-| Service | Limit | Description |
-|---------|-------|-------------|
-| AI Processing | 50 jobs/min | Claude API rate limit |
-| Airtable Sync | 5 req/sec | Airtable API rate limit |
-| GitHub API | 60 req/hr (unauthenticated) | Use `GITHUB_TOKEN` for higher limits |
-
----
-
-## Webhooks & Background Processing
-
-Jobs are automatically queued for processing:
-
-1. **On job creation** → Queued for AI processing
-2. **After AI processing** → Queued for Airtable sync
-
-Background workers handle:
-- `jobs` queue - Job ingestion from scrapers
-- `ai-process` queue - Claude AI field extraction
-- `airtable-sync` queue - Airtable synchronization
-
----
-
-## Quick Reference
-
-### Common Operations
-
-**Fetch recent new grad jobs:**
-```bash
-curl "http://localhost:3000/api/v1/jobs?isNewGrad=true&limit=20"
-```
-
-**Sync GitHub and process with AI:**
-```bash
-# 1. Sync GitHub repos
-curl -X POST http://localhost:3001/sync
-
-# 2. Process with AI
-curl -X POST http://localhost:3000/api/v1/sync/ai
-
-# 3. Sync to Airtable
-curl -X POST http://localhost:3000/api/v1/sync/airtable
-```
-
-**Test with 5 jobs:**
-```bash
-curl -X POST "http://localhost:3001/test-sync?limit=5"
-```
-
-**Check sync status:**
-```bash
-curl http://localhost:3000/api/v1/sync/status
-```
+*Required only when using the corresponding step/source.

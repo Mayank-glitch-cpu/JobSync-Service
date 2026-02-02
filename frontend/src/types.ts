@@ -6,7 +6,7 @@ export interface LogEntry {
   data?: unknown;
 }
 
-export type JobSource = 'csv' | 'github' | 'yc';
+export type JobSource = 'csv' | 'github' | 'yc' | 'jsearch' | 'theirstack';
 
 export type StepState = 'idle' | 'running' | 'completed' | 'error';
 
