@@ -13,7 +13,7 @@ export const config = {
     process.env.GOOGLE_SHEETS_CSV_URL ||
     'https://docs.google.com/spreadsheets/d/1W6jVjtZ1T3rtIbcw9HWJcdm2vAXjoKD08y8qeZNgk_Q/export?format=csv&gid=593160555',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-  claudeModel: process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251201',
+  claudeModel: process.env.CLAUDE_MODEL || 'claude-3-5-haiku-20241022',
   airtableApiKey: process.env.AIRTABLE_API_KEY || '',
   airtableBaseId: process.env.AIRTABLE_BASE_ID || '',
   airtableTableName: process.env.AIRTABLE_TABLE_NAME || 'Jobs',
