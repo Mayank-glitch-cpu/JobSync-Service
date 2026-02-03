@@ -49,7 +49,7 @@ function runStep(
 
 export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
   // Trigger Step 1: Fetch Jobs (CSV or GitHub)
-  app.post<{ Querystring: { source?: string; from?: string; to?: string } }>(
+  app.post<{ Querystring: { source?: string; from?: string; to?: string; limit?: string } }>(
     '/api/pipeline/step1',
     async (request, reply) => {
       if (pipelineStatus.step1.status === 'running') {
@@ -58,7 +58,11 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
       const source = request.query.source || 'csv';
       const fromVal = parseInt(request.query.from || '', 10);
       const toVal = parseInt(request.query.to || '', 10);
+      const limitVal = parseInt(request.query.limit || '', 10);
       const range = !isNaN(fromVal) && !isNaN(toVal) ? { from: fromVal, to: toVal } : undefined;
+      // Calculate limit from range if provided, otherwise use explicit limit or default to 10
+      const limit = range ? (range.to - range.from + 1) : (!isNaN(limitVal) ? limitVal : 10);
+      log('system', 'info', `Step 1 params: from=${fromVal}, to=${toVal}, range=${JSON.stringify(range)}, limit=${limit}`);
 
       if (source === 'github') {
         runStep('step1', 'Step 1 (Fetch GitHub)', () => fetchGitHub(range));
@@ -69,7 +73,7 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
       } else if (source === 'theirstack') {
         runStep('step1', 'Step 1 (Fetch TheirStack/Ashby)', () => fetchTheirStack(range));
       } else {
-        runStep('step1', 'Step 1 (Fetch CSV)', () => fetchCsv(range));
+        runStep('step1', 'Step 1 (Fetch CSV)', () => fetchCsv(limit));
       }
       return reply.send({ status: 'started', step: 1, source });
     }

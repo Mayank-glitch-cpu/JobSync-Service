@@ -53,7 +53,7 @@ function mapHeaders(headers: string[]): Map<number, keyof RawJob> {
   return mapping;
 }
 
-export async function fetchCsv(range?: { from: number; to: number }): Promise<number> {
+export async function fetchCsv(limit: number = 10): Promise<number> {
   log('fetch', 'info', 'Fetching CSV from Google Sheets...');
   log('fetch', 'debug', `URL: ${config.googleSheetsCsvUrl}`);
 
@@ -103,10 +103,9 @@ export async function fetchCsv(range?: { from: number; to: number }): Promise<nu
   const newestFirst = [...dataRows].reverse();
   const total = newestFirst.length;
 
-  const from = range ? range.from : 1;
-  const to = range ? range.to : config.jobCount;
-  const sliced = newestFirst.slice(from - 1, to);
-  log('fetch', 'info', `Taking jobs ${from}–${to} (newest first) out of ${total} total`);
+  // Take the most recent N jobs (from bottom of sheet)
+  const sliced = newestFirst.slice(0, limit);
+  log('fetch', 'info', `Taking ${sliced.length} most recent jobs out of ${total} total`);
 
   const jobs: RawJob[] = sliced.map((row: string[], idx: number) => {
     const rawFields: Record<string, string> = {};

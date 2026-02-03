@@ -4,6 +4,8 @@ import { useApi } from './hooks/useApi';
 import { StepPanel } from './components/StepPanel';
 import { LogPanel } from './components/LogPanel';
 import { DataViewer } from './components/DataViewer';
+import { ResizeHandle } from './components/ResizeHandle';
+import { VerticalResizeHandle } from './components/VerticalResizeHandle';
 import type { JobSource, PipelineStatus } from './types';
 
 const DEFAULT_STATUS: PipelineStatus = {
@@ -22,6 +24,8 @@ export default function App() {
   const [source, setSource] = useState<JobSource>('csv');
   const [rangeFrom, setRangeFrom] = useState(1);
   const [rangeTo, setRangeTo] = useState(10);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(440);
+  const [stepPanelHeight, setStepPanelHeight] = useState(420);
 
   // Poll pipeline status every second
   useEffect(() => {
@@ -54,7 +58,7 @@ export default function App() {
         console.error('Trigger failed:', err);
       }
     },
-    [triggerStep, source]
+    [triggerStep, source, rangeFrom, rangeTo]
   );
 
   const handleReset = useCallback(async () => {
@@ -71,22 +75,26 @@ export default function App() {
         <span className="app-subtitle">Developer Dashboard</span>
       </header>
       <div className="app-body">
-        <div className="left-panel">
-          <StepPanel
-            status={status}
-            activeStep={activeStep}
-            source={source}
-            onSourceChange={setSource}
-            rangeFrom={rangeFrom}
-            rangeTo={rangeTo}
-            onRangeFromChange={setRangeFrom}
-            onRangeToChange={setRangeTo}
-            onTrigger={handleTrigger}
-            onSelectStep={setActiveStep}
-            onReset={handleReset}
-          />
+        <div className="left-panel" style={{ width: leftPanelWidth }}>
+          <div className="step-panel-wrapper" style={{ height: stepPanelHeight }}>
+            <StepPanel
+              status={status}
+              activeStep={activeStep}
+              source={source}
+              onSourceChange={setSource}
+              rangeFrom={rangeFrom}
+              rangeTo={rangeTo}
+              onRangeFromChange={setRangeFrom}
+              onRangeToChange={setRangeTo}
+              onTrigger={handleTrigger}
+              onSelectStep={setActiveStep}
+              onReset={handleReset}
+            />
+          </div>
+          <VerticalResizeHandle onResize={setStepPanelHeight} minHeight={200} maxHeight={600} />
           <DataViewer step={activeStep} refreshKey={refreshKey} />
         </div>
+        <ResizeHandle onResize={setLeftPanelWidth} minWidth={300} maxWidth={800} />
         <div className="right-panel">
           <LogPanel logs={logs} onClear={clearLogs} />
         </div>

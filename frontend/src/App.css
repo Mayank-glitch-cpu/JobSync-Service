@@ -74,12 +74,38 @@ body {
 }
 
 .left-panel {
-  width: 440px;
-  min-width: 380px;
+  min-width: 300px;
+  max-width: 60vw;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
   overflow: hidden;
+  flex-shrink: 0;
+}
+
+.resize-handle {
+  width: 6px;
+  cursor: col-resize;
+  background: var(--border);
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.resize-handle:hover,
+.resize-handle.dragging {
+  background: var(--accent);
+}
+
+.vertical-resize-handle {
+  height: 6px;
+  cursor: row-resize;
+  background: var(--border);
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.vertical-resize-handle:hover,
+.vertical-resize-handle.dragging {
+  background: var(--accent);
 }
 
 .right-panel {
@@ -90,9 +116,13 @@ body {
 }
 
 /* === Step Panel === */
+.step-panel-wrapper {
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
 .step-panel {
   padding: 16px;
-  flex-shrink: 0;
 }
 
 .step-panel-header {
@@ -135,6 +165,7 @@ body {
 .source-selector {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -146,8 +177,13 @@ body {
   flex-shrink: 0;
 }
 
+.source-selector .source-label {
+  width: 100%;
+  margin-bottom: -4px;
+}
+
 .source-btn {
-  padding: 5px 14px;
+  padding: 5px 10px;
   font-size: 12px;
   font-weight: 500;
   background: var(--bg-tertiary);
@@ -157,6 +193,8 @@ body {
   cursor: pointer;
   font-family: var(--font-sans);
   transition: all 0.15s;
+  min-width: 72px;
+  text-align: center;
 }
 
 .source-btn:hover:not(:disabled) {
@@ -178,8 +216,14 @@ body {
 .range-selector {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.range-selector .source-label {
+  width: 100%;
+  margin-bottom: -4px;
 }
 
 .range-input {
