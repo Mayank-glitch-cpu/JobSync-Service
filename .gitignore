@@ -44,8 +44,8 @@ venv/
 coverage/
 .nyc_output/
 
-# Pipeline data
-backend/data/
+# Pipeline data (keep ashby-slugs.json and companies.json, ignore step outputs)
+backend/data/step*.json
 
 # Temp
 *.tmp

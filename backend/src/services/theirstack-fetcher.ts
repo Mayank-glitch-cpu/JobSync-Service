@@ -1,49 +1,33 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
 import { log } from '../logger.js';
 import { writeStep } from '../store.js';
 import type { RawJob } from '../types.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ASHBY_SLUGS_PATH = path.join(__dirname, '../../data/ashby-slugs.json');
 const ASHBY_PUBLIC_API_BASE = 'https://api.ashbyhq.com/posting-api/job-board';
 
-/**
- * Curated list of companies that use Ashby as their ATS.
- * slug = jobs.ashbyhq.com/<slug>
- */
-const ASHBY_COMPANY_SLUGS: string[] = [
-  'airtable', 'alan', 'altura', 'away', 'deliveroo', 'duolingo', 'flock-safety', 'hackerone',
-  'notion', 'opendoor', 'oyster', 'posthog', 'ramp', 'sequoia', 'sony', 'vanta', 'cursor',
-  'deel', 'harvey', 'modern-treasury', 'openai', 'reddit', 'shopify', 'snowflake', 'apify',
-  'ashby', 'buffer', 'factory', 'hcompany', 'jerry.ai', 'lightning', 'linear', 'lottie',
-  'lovable', 'notable', 'scribd', 'searchable', 'silver', 'tapcheck', 'blueberrypediatrics',
-  'cambly', 'checkly', 'cleric', 'continua', 'dryft', 'duck-duck-go', 'equals', 'firetiger',
-  'homevision', 'imprint', 'kombo', 'legionhealth', 'livekit', 'matterworks', 'meticulous',
-  'modal', 'norm-ai', 'office-hours', 'ontic', 'orb', 'parabola-io', 'pear', 'pear-vc',
-  'permitflow', 'sentilink', 'sfcompute', 'steel', 'tiplink', 'titan', 'turnstile',
-  'verge-genomics', 'virtahealth', 'vitalize', 'wirescreen', '15five', '6sense', 'aave',
-  'ada', 'adept', 'affinity', 'affirm', 'agora', 'ai21-labs', 'airbyte', 'alchemy', 'alloy',
-  'alma', 'amplitude', 'anaplan', 'anduril', 'angellist', 'anthropic', 'anyscale', 'apollo',
-  'applied-intuition', 'asana', 'assembly-ai', 'attio', 'aurora', 'baseten', 'benchling',
-  'braze', 'brex', 'canva', 'carta', 'chainalysis', 'character-ai', 'chime', 'circle',
-  'clerk', 'clickhouse', 'clockwise', 'coda', 'codeium', 'cohere', 'coinbase', 'contentful',
-  'courier', 'databricks', 'datadog', 'dbt-labs', 'deepgram', 'discord', 'docker', 'doordash',
-  'drata', 'figma', 'fireblocks', 'fivetran', 'fly', 'framer', 'front', 'gong', 'grafana-labs',
-  'grammarly', 'gusto', 'hashicorp', 'hightouch', 'hubspot', 'huggingface', 'instacart',
-  'intercom', 'ironclad', 'iterable', 'jasper', 'kraken', 'labelbox', 'launchdarkly',
-  'lemonade', 'loom', 'lyra-health', 'marqeta', 'materialize', 'mercury', 'metabase', 'miro',
-  'mistral', 'modal-labs', 'monday', 'navan', 'neon', 'newrelic', 'novu', 'nuro', 'opensea',
-  'oura', 'outreach', 'paddle', 'pandadoc', 'paxos', 'pendo', 'perplexity', 'personio',
-  'pinecone', 'plaid', 'planetscale', 'postman', 'prefect', 'productboard', 'pulley', 'pulumi',
-  'qdrant', 'railway', 'raycast', 'readme', 'remote', 'render', 'replicate', 'replit',
-  'resend', 'retool', 'rippling', 'root-insurance', 'runway', 'samsara', 'sanity', 'sardine',
-  'scale', 'secureframe', 'sentry', 'shield-ai', 'singlestore', 'skydio', 'slack', 'smartcar',
-  'snorkel', 'snyk', 'sourcegraph', 'spotify', 'spring-health', 'stability-ai', 'stainless',
-  'statsig', 'storyblok', 'stripe', 'stytch', 'substack', 'supabase', 'synthesia', 'tailscale',
-  'temporal', 'tenstorrent', 'thirdweb', 'timescale', 'toast', 'together', 'together-ai',
-  'trm-labs', 'twilio', 'uniswap', 'upstart', 'vapi', 'vercel', 'verkada', 'voiceflow',
-  'wandb', 'warp', 'watershed', 'weaviate', 'webflow', 'weights-biases', 'whimsical', 'whoop',
-  'writer', 'xata', 'yugabyte', 'zed', 'zip', 'zipline', 'zora', 'zuora'
-];
+interface AshbySlugEntry {
+  slug: string;
+  name: string;
+  verified?: boolean;
+  lastVerified?: string;
+}
+
+function loadAshbySlugs(): AshbySlugEntry[] {
+  try {
+    const raw = fs.readFileSync(ASHBY_SLUGS_PATH, 'utf-8');
+    const entries: AshbySlugEntry[] = JSON.parse(raw);
+    return entries.filter((e) => e.slug && e.name);
+  } catch (err) {
+    log('fetch', 'warn', `Failed to load ashby-slugs.json: ${err}`);
+    return [];
+  }
+}
 
 interface AshbyLocation {
   location?: string;
@@ -111,6 +95,12 @@ function hasKeywordMatch(posting: AshbyJobPosting, keywords: string[]): boolean 
   return keywords.some((keyword) => haystack.includes(keyword));
 }
 
+function hasExcludedKeyword(posting: AshbyJobPosting, excludeKeywords: string[]): boolean {
+  if (excludeKeywords.length === 0) return false;
+  const title = normalizeText(posting.title);
+  return excludeKeywords.some((keyword) => title.includes(keyword));
+}
+
 function isPublishedTodayUTC(publishedAt: string | null | undefined): boolean {
   if (!publishedAt) {
     return false;
@@ -171,7 +161,10 @@ function slugToCompanyName(slug: string): string {
 }
 
 function resolveCompanies(selectedSlugs?: string[]): { slug: string; name: string }[] {
-  const allCompanies = ASHBY_COMPANY_SLUGS.map((slug) => ({ slug, name: slugToCompanyName(slug) }));
+  const entries = loadAshbySlugs();
+  const allCompanies = entries.map((e) => ({ slug: e.slug, name: e.name }));
+
+  log('fetch', 'info', `Loaded ${allCompanies.length} company slugs from ashby-slugs.json`);
 
   if (!selectedSlugs || selectedSlugs.length === 0) {
     return allCompanies;
@@ -238,6 +231,7 @@ function toRawJob(entry: CompanyPosting): RawJob {
 export async function fetchTheirStack(options: FetchAshbyOptions = {}): Promise<number> {
   const companies = resolveCompanies(options.companySlugs);
   const keywords = normalizeKeywords(options.keywords);
+  const excludeKeywords = config.ashbyExcludeKeywords;
   const lookbackHours = options.publishedWithinHours ?? config.ashbyPublishedWithinHours;
   const postedTodayOnly = options.postedTodayOnly || false;
 
@@ -245,7 +239,7 @@ export async function fetchTheirStack(options: FetchAshbyOptions = {}): Promise<
   log(
     'fetch',
     'info',
-    `Filters: keywords=${keywords.join(', ') || 'none'}, postedTodayOnly=${postedTodayOnly}, publishedWithinHours=${lookbackHours}`
+    `Filters: keywords=${keywords.join(', ') || 'none'}, exclude=${excludeKeywords.join(', ') || 'none'}, postedTodayOnly=${postedTodayOnly}, publishedWithinHours=${lookbackHours}`
   );
 
   const collected: CompanyPosting[] = [];
@@ -257,13 +251,16 @@ export async function fetchTheirStack(options: FetchAshbyOptions = {}): Promise<
     log('fetch', 'info', `  ${name}: ${entries.length} jobs returned by Ashby`);
 
     const filteredByKeyword = entries.filter(({ posting }) => hasKeywordMatch(posting, keywords));
-    const filteredByDate = filteredByKeyword.filter(({ posting }) =>
+    const filteredByExclusion = filteredByKeyword.filter(
+      ({ posting }) => !hasExcludedKeyword(posting, excludeKeywords)
+    );
+    const filteredByDate = filteredByExclusion.filter(({ posting }) =>
       postedTodayOnly
         ? isPublishedTodayUTC(posting.publishedAt)
         : isWithinLookback(posting.publishedAt, lookbackHours)
     );
 
-    log('fetch', 'info', `  ${name}: ${filteredByDate.length} jobs after filters`);
+    log('fetch', 'info', `  ${name}: ${filteredByDate.length} jobs after filters (${filteredByKeyword.length - filteredByExclusion.length} excluded by title)`);
 
     collected.push(...filteredByDate);
 

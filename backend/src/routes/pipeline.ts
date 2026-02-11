@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { config } from '../config.js';
 import { log } from '../logger.js';
 import { clearAll } from '../store.js';
 import { fetchCsv } from '../services/csv-fetcher.js';
@@ -64,6 +65,64 @@ function parseBoolean(value?: string): boolean {
   }
 
   return ['1', 'true', 'yes', 'y'].includes(value.toLowerCase());
+}
+
+interface FullPipelineOptions {
+  limit?: number;
+  keywords?: string[];
+  companySlugs?: string[];
+  publishedWithinHours?: number;
+  postedTodayOnly?: boolean;
+}
+
+async function runFullPipeline(options: FullPipelineOptions): Promise<void> {
+  const steps: Array<{
+    key: keyof PipelineStatus;
+    label: string;
+    fn: () => Promise<number>;
+  }> = [
+    {
+      key: 'step1',
+      label: 'Step 1 (Fetch Ashby)',
+      fn: () =>
+        fetchTheirStack({
+          limit: options.limit,
+          keywords: options.keywords,
+          companySlugs: options.companySlugs,
+          publishedWithinHours: options.publishedWithinHours,
+          postedTodayOnly: options.postedTodayOnly,
+        }),
+    },
+    { key: 'step2', label: 'Step 2 (Scrape JDs)', fn: scrapeJDs },
+    { key: 'step3', label: 'Step 3 (AI Process)', fn: processWithAI },
+    { key: 'step4', label: 'Step 4 (Airtable Sync)', fn: syncToAirtable },
+  ];
+
+  log('system', 'info', 'Full pipeline: Starting all 4 steps sequentially...');
+
+  for (const { key, label, fn } of steps) {
+    const step = pipelineStatus[key];
+    step.status = 'running';
+    step.error = undefined;
+    step.lastRun = new Date().toISOString();
+
+    log('system', 'info', `Full pipeline: Starting ${label}...`);
+
+    try {
+      const count = await fn();
+      step.status = 'completed';
+      step.jobCount = count;
+      log('system', 'info', `Full pipeline: ${label} completed — ${count} jobs`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      step.status = 'error';
+      step.error = message;
+      log('system', 'error', `Full pipeline: ${label} failed — ${message}`);
+      throw new Error(`Pipeline failed at ${label}: ${message}`);
+    }
+  }
+
+  log('system', 'info', 'Full pipeline: All 4 steps completed successfully');
 }
 
 export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
@@ -167,6 +226,48 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
     }
     runStep('step4', 'Step 4 (Airtable Sync)', syncToAirtable);
     return reply.send({ status: 'started', step: 4 });
+  });
+
+  // Trigger full pipeline (all 4 steps sequentially)
+  app.post<{
+    Querystring: {
+      limit?: string;
+      keywords?: string;
+      companies?: string;
+      publishedWithinHours?: string;
+      postedToday?: string;
+    };
+  }>('/api/pipeline/run-all', async (request, reply) => {
+    // Optional API key authentication
+    const apiKey = request.headers['x-api-key'] as string | undefined;
+    if (config.pipelineApiKey && apiKey !== config.pipelineApiKey) {
+      return reply.status(401).send({ error: 'Invalid API key' });
+    }
+
+    // Check if any step is currently running
+    const anyRunning = Object.values(pipelineStatus).some((s) => s.status === 'running');
+    if (anyRunning) {
+      return reply.status(409).send({ error: 'Pipeline is already running' });
+    }
+
+    const limitVal = parseInt(request.query.limit || '', 10);
+    const publishedWithinHoursVal = parseInt(request.query.publishedWithinHours || '', 10);
+    const companies = parseCommaList(request.query.companies).map((slug) => slug.toLowerCase());
+    const keywords = parseCommaList(request.query.keywords).map((keyword) => keyword.toLowerCase());
+    const postedTodayOnly = parseBoolean(request.query.postedToday);
+
+    // Run the full pipeline in the background
+    runFullPipeline({
+      limit: !isNaN(limitVal) ? limitVal : undefined,
+      keywords: keywords.length > 0 ? keywords : undefined,
+      companySlugs: companies.length > 0 ? companies : undefined,
+      publishedWithinHours: !isNaN(publishedWithinHoursVal) ? publishedWithinHoursVal : undefined,
+      postedTodayOnly,
+    }).catch((err: Error) => {
+      log('system', 'error', `Full pipeline failed: ${err.message}`);
+    });
+
+    return reply.send({ status: 'started', message: 'Full pipeline running all 4 steps sequentially' });
   });
 
   // Get pipeline status

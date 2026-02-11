@@ -21,7 +21,7 @@ export const config = {
   rapidApiKey: process.env.RAPIDAPI_KEY || '',
   jsearchQuery: process.env.JSEARCH_QUERY || 'software developer jobs in USA',
   jsearchNumPages: parseInt(process.env.JSEARCH_NUM_PAGES || '1', 10),
-  ashbyKeywords: (process.env.ASHBY_KEYWORDS || 'early career,sde,robotics')
+  ashbyKeywords: (process.env.ASHBY_KEYWORDS || 'software,robotics,manufacturing,data analyst,sde,early career')
     .split(',')
     .map((keyword) => keyword.trim().toLowerCase())
     .filter(Boolean),
@@ -36,4 +36,9 @@ export const config = {
   ashbyIncludeCompensation:
     (process.env.ASHBY_INCLUDE_COMPENSATION || 'true').toLowerCase() === 'true',
   ashbyRequestDelayMs: parseInt(process.env.ASHBY_REQUEST_DELAY_MS || '1000', 10),
+  ashbyExcludeKeywords: (process.env.ASHBY_EXCLUDE_KEYWORDS || 'senior,staff,principal,lead,director,manager')
+    .split(',')
+    .map((keyword) => keyword.trim().toLowerCase())
+    .filter(Boolean),
+  pipelineApiKey: process.env.PIPELINE_API_KEY || '',
 };
