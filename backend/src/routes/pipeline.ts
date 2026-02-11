@@ -89,7 +89,7 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
     const limitVal = parseInt(request.query.limit || '', 10);
     const publishedWithinHoursVal = parseInt(request.query.publishedWithinHours || '', 10);
     const range = !isNaN(fromVal) && !isNaN(toVal) ? { from: fromVal, to: toVal } : undefined;
-    const limit = !isNaN(limitVal) ? limitVal : 10;
+    const limit = !isNaN(limitVal) ? limitVal : undefined;
 
     const companies = parseCommaList(request.query.companies).map((slug) => slug.toLowerCase());
     const keywords = parseCommaList(request.query.keywords).map((keyword) => keyword.toLowerCase());
