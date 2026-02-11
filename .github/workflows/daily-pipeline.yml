@@ -42,7 +42,6 @@ jobs:
           # Build curl args — use --data-urlencode for proper encoding of spaces
           CURL_ARGS=(-s -w "\n%{http_code}" -X POST -G)
           CURL_ARGS+=(-H "x-api-key: ${PIPELINE_API_KEY}")
-          CURL_ARGS+=(-H "Content-Type: application/json")
 
           if [ -n "${{ inputs.keywords }}" ]; then
             CURL_ARGS+=(--data-urlencode "keywords=${{ inputs.keywords }}")
