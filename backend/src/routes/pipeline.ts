@@ -98,6 +98,13 @@ async function runFullPipeline(options: FullPipelineOptions): Promise<void> {
     { key: 'step4', label: 'Step 4 (Airtable Sync)', fn: syncToAirtable },
   ];
 
+  // Reset all steps so polling doesn't see stale "completed" from a previous run
+  for (const { key } of steps) {
+    pipelineStatus[key].status = 'pending';
+    pipelineStatus[key].error = undefined;
+    pipelineStatus[key].jobCount = 0;
+  }
+
   log('system', 'info', 'Full pipeline: Starting all 4 steps sequentially...');
 
   for (const { key, label, fn } of steps) {
