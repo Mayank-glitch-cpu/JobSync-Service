@@ -35,7 +35,7 @@ Ashby Job Boards   ─┘      Step 4: Sync to Airtable
 | **GitHub** | None | Parses SimplifyJobs/New-Grad-Positions README |
 | **Y Combinator** | RapidAPI key | YC company job listings |
 | **JSearch** | RapidAPI key | Broad job search API (Indeed, LinkedIn, etc.) |
-| **Ashby** | None | Scrapes public Ashby job boards (OpenAI, Ramp, Notion, Cursor, etc.) |
+| **Ashby** | None | Uses Ashby public posting API, then backend filters by keywords + publishedAt freshness |
 
 ## Quick Start
 
@@ -65,6 +65,10 @@ cp .env.example .env
 | `RAPIDAPI_KEY` | For YC/JSearch | RapidAPI key for YC and JSearch sources |
 | `CLAUDE_MODEL` | No | Defaults to `claude-3-5-haiku-20241022` |
 | `JOB_COUNT` | No | Default number of jobs to fetch (default: 10) |
+| `ASHBY_KEYWORDS` | No | Comma-separated keywords applied in backend filtering (default: `early career,sde,robotics`) |
+| `ASHBY_PUBLISHED_WITHIN_HOURS` | No | Keep Ashby jobs with `publishedAt` in the last N hours (default: `24`) |
+| `ASHBY_INCLUDE_COMPENSATION` | No | Calls Ashby with `includeCompensation=true` when enabled (default: `true`) |
+| `ASHBY_REQUEST_DELAY_MS` | No | Delay between Ashby company requests to stay within fair use (default: `1000`) |
 
 ### Run Locally
 
@@ -82,8 +86,8 @@ pnpm dev
 JobsList/
 ├── backend/
 │   └── src/
-│       ├── services/          # Fetchers (CSV, GitHub, YC, JSearch, Ashby)
-│       │                      # Scraper, AI processor, Airtable sync
+│       ├── services/          # Fetchers (CSV, GitHub, YC, JSearch, Ashby public API)
+│       │                      # Ashby filter logic, scraper, AI processor, Airtable sync
 │       ├── routes/            # Pipeline + data API routes
 │       ├── constants/         # Industry categories
 │       ├── config.ts          # Environment config
@@ -103,7 +107,7 @@ JobsList/
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/health` | GET | Health check |
-| `/api/pipeline/step1?source=<src>` | POST | Fetch raw jobs |
+| `/api/pipeline/step1?source=<src>` | POST | Fetch raw jobs (Ashby supports `companies`, `keywords`, `postedToday`, `publishedWithinHours`, `limit`) |
 | `/api/pipeline/step2` | POST | Scrape job descriptions |
 | `/api/pipeline/step3` | POST | AI process with Claude |
 | `/api/pipeline/step4` | POST | Sync to Airtable |
@@ -111,6 +115,32 @@ JobsList/
 | `/api/pipeline/reset` | POST | Clear all data |
 | `/api/data/:step` | GET | Get output from step 1-4 |
 | `/api/logs/stream` | GET | SSE real-time log stream |
+
+
+### Ashby Smart Ingestion Request Example
+
+```bash
+# Fetch the newest 25 jobs posted today that match keywords from selected Ashby companies
+curl -X POST "http://localhost:3001/api/pipeline/step1?source=theirstack&companies=openai,notion,cursor&keywords=sde,robotics&postedToday=true&limit=25"
+```
+
+- `companies`: comma-separated Ashby slugs to search (omit to search all configured companies)
+- `keywords`: comma-separated keywords (omit to use `ASHBY_KEYWORDS`)
+- `postedToday=true`: keep only jobs whose `publishedAt` date is today (UTC)
+- `publishedWithinHours`: optional alternative to `postedToday` (e.g., `24`)
+- No API key is required for Ashby public job board ingestion.
+
+
+### Ashby Slug Verification Utility
+
+Use the helper script to maintain or verify slug candidates:
+
+```bash
+python scripts/ashby_slugs_verified.py
+python scripts/ashby_slugs_verified.py --verify
+```
+
+The backend now includes a larger built-in Ashby slug pool and also supports request-level company selection via `companies=<slug1,slug2,...>`.
 
 ## AI Processing
 

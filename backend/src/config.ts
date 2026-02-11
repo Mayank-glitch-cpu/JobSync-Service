@@ -21,4 +21,15 @@ export const config = {
   rapidApiKey: process.env.RAPIDAPI_KEY || '',
   jsearchQuery: process.env.JSEARCH_QUERY || 'software developer jobs in USA',
   jsearchNumPages: parseInt(process.env.JSEARCH_NUM_PAGES || '1', 10),
+  ashbyKeywords: (process.env.ASHBY_KEYWORDS || 'early career,sde,robotics')
+    .split(',')
+    .map((keyword) => keyword.trim().toLowerCase())
+    .filter(Boolean),
+  ashbyPublishedWithinHours: parseInt(
+    process.env.ASHBY_PUBLISHED_WITHIN_HOURS || '24',
+    10
+  ),
+  ashbyIncludeCompensation:
+    (process.env.ASHBY_INCLUDE_COMPENSATION || 'true').toLowerCase() === 'true',
+  ashbyRequestDelayMs: parseInt(process.env.ASHBY_REQUEST_DELAY_MS || '1000', 10),
 };
