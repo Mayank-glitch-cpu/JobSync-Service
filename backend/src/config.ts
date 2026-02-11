@@ -31,5 +31,8 @@ export const config = {
   ),
   ashbyIncludeCompensation:
     (process.env.ASHBY_INCLUDE_COMPENSATION || 'true').toLowerCase() === 'true',
-  ashbyRequestDelayMs: parseInt(process.env.ASHBY_REQUEST_DELAY_MS || '1000', 10),
+  ashbyRequestDelayMs: (() => {
+    const parsed = parseInt(process.env.ASHBY_REQUEST_DELAY_MS || '1000', 10);
+    return Number.isNaN(parsed) ? 1000 : parsed;
+  })(),
 };
