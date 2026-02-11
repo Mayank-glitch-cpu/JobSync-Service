@@ -25,10 +25,14 @@ export const config = {
     .split(',')
     .map((keyword) => keyword.trim().toLowerCase())
     .filter(Boolean),
-  ashbyPublishedWithinHours: parseInt(
-    process.env.ASHBY_PUBLISHED_WITHIN_HOURS || '24',
-    10
-  ),
+  ashbyPublishedWithinHours: (() => {
+    const parsed = parseInt(
+      process.env.ASHBY_PUBLISHED_WITHIN_HOURS || '24',
+      10
+    );
+    const safe = Number.isNaN(parsed) ? 24 : parsed;
+    return safe < 0 ? 0 : safe;
+  })(),
   ashbyIncludeCompensation:
     (process.env.ASHBY_INCLUDE_COMPENSATION || 'true').toLowerCase() === 'true',
   ashbyRequestDelayMs: parseInt(process.env.ASHBY_REQUEST_DELAY_MS || '1000', 10),
