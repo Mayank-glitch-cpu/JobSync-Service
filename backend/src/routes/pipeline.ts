@@ -47,37 +47,100 @@ function runStep(
     });
 }
 
-export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
-  // Trigger Step 1: Fetch Jobs (CSV or GitHub)
-  app.post<{ Querystring: { source?: string; from?: string; to?: string; limit?: string } }>(
-    '/api/pipeline/step1',
-    async (request, reply) => {
-      if (pipelineStatus.step1.status === 'running') {
-        return reply.status(409).send({ error: 'Step 1 is already running' });
-      }
-      const source = request.query.source || 'csv';
-      const fromVal = parseInt(request.query.from || '', 10);
-      const toVal = parseInt(request.query.to || '', 10);
-      const limitVal = parseInt(request.query.limit || '', 10);
-      const range = !isNaN(fromVal) && !isNaN(toVal) ? { from: fromVal, to: toVal } : undefined;
-      // Calculate limit from range if provided, otherwise use explicit limit or default to 10
-      const limit = range ? (range.to - range.from + 1) : (!isNaN(limitVal) ? limitVal : 10);
-      log('system', 'info', `Step 1 params: from=${fromVal}, to=${toVal}, range=${JSON.stringify(range)}, limit=${limit}`);
+function parseCommaList(value?: string): string[] {
+  if (!value) {
+    return [];
+  }
 
-      if (source === 'github') {
-        runStep('step1', 'Step 1 (Fetch GitHub)', () => fetchGitHub(range));
-      } else if (source === 'yc') {
-        runStep('step1', 'Step 1 (Fetch YC)', () => fetchYC(range));
-      } else if (source === 'jsearch') {
-        runStep('step1', 'Step 1 (Fetch JSearch)', () => fetchJSearch(range));
-      } else if (source === 'theirstack') {
-        runStep('step1', 'Step 1 (Fetch TheirStack/Ashby)', () => fetchTheirStack(range));
-      } else {
-        runStep('step1', 'Step 1 (Fetch CSV)', () => fetchCsv(limit));
-      }
-      return reply.send({ status: 'started', step: 1, source });
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function parseBoolean(value?: string): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return ['1', 'true', 'yes', 'y'].includes(value.toLowerCase());
+}
+
+export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
+  app.post<{
+    Querystring: {
+      source?: string;
+      from?: string;
+      to?: string;
+      limit?: string;
+      companies?: string;
+      keywords?: string;
+      postedToday?: string;
+      publishedWithinHours?: string;
+    };
+  }>('/api/pipeline/step1', async (request, reply) => {
+    if (pipelineStatus.step1.status === 'running') {
+      return reply.status(409).send({ error: 'Step 1 is already running' });
     }
-  );
+
+    const source = request.query.source || 'csv';
+    const fromVal = parseInt(request.query.from || '', 10);
+    const toVal = parseInt(request.query.to || '', 10);
+    const limitVal = parseInt(request.query.limit || '', 10);
+    const publishedWithinHoursVal = parseInt(request.query.publishedWithinHours || '', 10);
+    const range = !isNaN(fromVal) && !isNaN(toVal) ? { from: fromVal, to: toVal } : undefined;
+    const limit = !isNaN(limitVal) ? limitVal : 10;
+
+    const companies = parseCommaList(request.query.companies).map((slug) => slug.toLowerCase());
+    const keywords = parseCommaList(request.query.keywords).map((keyword) => keyword.toLowerCase());
+    const postedTodayOnly = parseBoolean(request.query.postedToday);
+    const publishedWithinHours = !isNaN(publishedWithinHoursVal)
+      ? publishedWithinHoursVal
+      : undefined;
+
+    log(
+      'system',
+      'info',
+      `Step 1 params: source=${source}, range=${JSON.stringify(range)}, limit=${limit}, companies=${companies.join('|') || 'all'}, keywords=${keywords.join('|') || 'default'}, postedToday=${postedTodayOnly}, publishedWithinHours=${publishedWithinHours ?? 'default'}`
+    );
+
+    if (source === 'github') {
+      runStep('step1', 'Step 1 (Fetch GitHub)', () => fetchGitHub(range));
+    } else if (source === 'yc') {
+      runStep('step1', 'Step 1 (Fetch YC)', () => fetchYC(range));
+    } else if (source === 'jsearch') {
+      runStep('step1', 'Step 1 (Fetch JSearch)', () => fetchJSearch(range));
+    } else if (source === 'theirstack') {
+      runStep('step1', 'Step 1 (Fetch TheirStack/Ashby)', () =>
+        fetchTheirStack({
+          range,
+          limit,
+          companySlugs: companies,
+          keywords,
+          postedTodayOnly,
+          publishedWithinHours,
+        })
+      );
+    } else {
+      runStep('step1', 'Step 1 (Fetch CSV)', () => fetchCsv(limit));
+    }
+
+    return reply.send({
+      status: 'started',
+      step: 1,
+      source,
+      filters:
+        source === 'theirstack'
+          ? {
+              companies,
+              keywords,
+              postedToday: postedTodayOnly,
+              publishedWithinHours,
+              limit,
+            }
+          : undefined,
+    });
+  });
 
   // Trigger Step 2: Scrape JDs
   app.post('/api/pipeline/step2', async (_request, reply) => {
