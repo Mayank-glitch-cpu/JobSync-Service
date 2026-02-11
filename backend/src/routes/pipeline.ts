@@ -5,7 +5,7 @@ import { fetchCsv } from '../services/csv-fetcher.js';
 import { fetchGitHub } from '../services/github-fetcher.js';
 import { fetchYC } from '../services/yc-fetcher.js';
 import { fetchJSearch } from '../services/jsearch-fetcher.js';
-import { fetchTheirStack } from '../services/theirstack-fetcher.js';
+import { fetchTheirStack, ASHBY_COMPANY_SLUGS } from '../services/theirstack-fetcher.js';
 import { scrapeJDs } from '../services/jd-scraper.js';
 import { processWithAI } from '../services/ai-processor.js';
 import { syncToAirtable } from '../services/airtable-sync.js';
@@ -97,6 +97,29 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
     const publishedWithinHours = !isNaN(publishedWithinHoursVal)
       ? publishedWithinHoursVal
       : undefined;
+
+    // Validate company slugs for theirstack source
+    if (source === 'theirstack' && companies.length > 0) {
+      const validSlugs = new Set(ASHBY_COMPANY_SLUGS.map((s) => s.toLowerCase()));
+      const validCompanies = companies.filter((slug) => validSlugs.has(slug));
+      const invalidCompanies = companies.filter((slug) => !validSlugs.has(slug));
+
+      if (invalidCompanies.length > 0) {
+        log(
+          'system',
+          'warn',
+          `Invalid company slugs provided: ${invalidCompanies.join(', ')}`
+        );
+      }
+
+      if (validCompanies.length === 0) {
+        return reply.status(400).send({
+          error: 'No valid company slugs provided',
+          invalidSlugs: invalidCompanies,
+          hint: 'Use valid Ashby company slugs. See ASHBY_COMPANY_SLUGS for supported companies.',
+        });
+      }
+    }
 
     log(
       'system',

@@ -10,7 +10,7 @@ const ASHBY_PUBLIC_API_BASE = 'https://api.ashbyhq.com/posting-api/job-board';
  * Curated list of companies that use Ashby as their ATS.
  * slug = jobs.ashbyhq.com/<slug>
  */
-const ASHBY_COMPANY_SLUGS: string[] = [
+export const ASHBY_COMPANY_SLUGS: string[] = [
   'airtable', 'alan', 'altura', 'away', 'deliveroo', 'duolingo', 'flock-safety', 'hackerone',
   'notion', 'opendoor', 'oyster', 'posthog', 'ramp', 'sequoia', 'sony', 'vanta', 'cursor',
   'deel', 'harvey', 'modern-treasury', 'openai', 'reddit', 'shopify', 'snowflake', 'apify',
