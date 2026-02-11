@@ -19,7 +19,7 @@ const ASHBY_PUBLIC_API_BASE = 'https://api.ashbyhq.com/posting-api/job-board';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ashbySlugsPath = join(__dirname, '../constants/ashby-slugs.json');
-const ASHBY_COMPANY_SLUGS: string[] = JSON.parse(readFileSync(ashbySlugsPath, 'utf-8'));
+const ASHBY_COMPANY_SLUGS: readonly string[] = JSON.parse(readFileSync(ashbySlugsPath, 'utf-8'));
 
 interface AshbyLocation {
   location?: string;
