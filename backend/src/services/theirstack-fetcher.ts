@@ -191,22 +191,27 @@ async function fetchCompanyJobs(
     url.searchParams.set('includeCompensation', 'true');
   }
 
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'JobSync-Service/1.0',
-    },
-  });
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'JobSync-Service/1.0',
+      },
+    });
 
-  if (!response.ok) {
-    log('fetch', 'warn', `  Ashby API returned ${response.status} for ${slug}`);
+    if (!response.ok) {
+      log('fetch', 'warn', `  Ashby API returned ${response.status} for ${slug}`);
+      return [];
+    }
+
+    const result: AshbyPublicResponse = await response.json();
+    const postings = result.jobs ?? [];
+    return postings.map((posting) => ({ company: companyName, slug, posting }));
+  } catch (error) {
+    log('fetch', 'error', `  Network error fetching ${slug}: ${error instanceof Error ? error.message : String(error)}`);
     return [];
   }
-
-  const result: AshbyPublicResponse = await response.json();
-  const postings = result.jobs ?? [];
-  return postings.map((posting) => ({ company: companyName, slug, posting }));
 }
 
 function toRawJob(entry: CompanyPosting): RawJob {
