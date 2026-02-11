@@ -204,9 +204,14 @@ async function fetchCompanyJobs(
     return [];
   }
 
-  const result: AshbyPublicResponse = await response.json();
-  const postings = result.jobs ?? [];
-  return postings.map((posting) => ({ company: companyName, slug, posting }));
+  try {
+    const result: AshbyPublicResponse = await response.json();
+    const postings = result.jobs ?? [];
+    return postings.map((posting) => ({ company: companyName, slug, posting }));
+  } catch (error) {
+    log('fetch', 'error', `  Failed to parse JSON for ${slug} (status ${response.status}): ${error}`);
+    return [];
+  }
 }
 
 function toRawJob(entry: CompanyPosting): RawJob {
