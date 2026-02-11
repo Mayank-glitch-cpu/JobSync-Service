@@ -47,6 +47,11 @@ coverage/
 # Pipeline data
 backend/data/
 
+# Script-generated files
+scripts/ashby_slugs_curated.txt
+scripts/ashby_slugs_curated.csv
+scripts/ashby_slugs_curated_verified.csv
+
 # Temp
 *.tmp
 *.temp

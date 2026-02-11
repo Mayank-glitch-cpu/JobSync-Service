@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { config } from '../config.js';
 import { log } from '../logger.js';
 import { writeStep } from '../store.js';
@@ -9,41 +12,14 @@ const ASHBY_PUBLIC_API_BASE = 'https://api.ashbyhq.com/posting-api/job-board';
 /**
  * Curated list of companies that use Ashby as their ATS.
  * slug = jobs.ashbyhq.com/<slug>
+ * 
+ * This list is sourced from backend/src/constants/ashby-slugs.json
+ * to maintain a single canonical source shared with the Python verification script.
  */
-const ASHBY_COMPANY_SLUGS: string[] = [
-  'airtable', 'alan', 'altura', 'away', 'deliveroo', 'duolingo', 'flock-safety', 'hackerone',
-  'notion', 'opendoor', 'oyster', 'posthog', 'ramp', 'sequoia', 'sony', 'vanta', 'cursor',
-  'deel', 'harvey', 'modern-treasury', 'openai', 'reddit', 'shopify', 'snowflake', 'apify',
-  'ashby', 'buffer', 'factory', 'hcompany', 'jerry.ai', 'lightning', 'linear', 'lottie',
-  'lovable', 'notable', 'scribd', 'searchable', 'silver', 'tapcheck', 'blueberrypediatrics',
-  'cambly', 'checkly', 'cleric', 'continua', 'dryft', 'duck-duck-go', 'equals', 'firetiger',
-  'homevision', 'imprint', 'kombo', 'legionhealth', 'livekit', 'matterworks', 'meticulous',
-  'modal', 'norm-ai', 'office-hours', 'ontic', 'orb', 'parabola-io', 'pear', 'pear-vc',
-  'permitflow', 'sentilink', 'sfcompute', 'steel', 'tiplink', 'titan', 'turnstile',
-  'verge-genomics', 'virtahealth', 'vitalize', 'wirescreen', '15five', '6sense', 'aave',
-  'ada', 'adept', 'affinity', 'affirm', 'agora', 'ai21-labs', 'airbyte', 'alchemy', 'alloy',
-  'alma', 'amplitude', 'anaplan', 'anduril', 'angellist', 'anthropic', 'anyscale', 'apollo',
-  'applied-intuition', 'asana', 'assembly-ai', 'attio', 'aurora', 'baseten', 'benchling',
-  'braze', 'brex', 'canva', 'carta', 'chainalysis', 'character-ai', 'chime', 'circle',
-  'clerk', 'clickhouse', 'clockwise', 'coda', 'codeium', 'cohere', 'coinbase', 'contentful',
-  'courier', 'databricks', 'datadog', 'dbt-labs', 'deepgram', 'discord', 'docker', 'doordash',
-  'drata', 'figma', 'fireblocks', 'fivetran', 'fly', 'framer', 'front', 'gong', 'grafana-labs',
-  'grammarly', 'gusto', 'hashicorp', 'hightouch', 'hubspot', 'huggingface', 'instacart',
-  'intercom', 'ironclad', 'iterable', 'jasper', 'kraken', 'labelbox', 'launchdarkly',
-  'lemonade', 'loom', 'lyra-health', 'marqeta', 'materialize', 'mercury', 'metabase', 'miro',
-  'mistral', 'modal-labs', 'monday', 'navan', 'neon', 'newrelic', 'novu', 'nuro', 'opensea',
-  'oura', 'outreach', 'paddle', 'pandadoc', 'paxos', 'pendo', 'perplexity', 'personio',
-  'pinecone', 'plaid', 'planetscale', 'postman', 'prefect', 'productboard', 'pulley', 'pulumi',
-  'qdrant', 'railway', 'raycast', 'readme', 'remote', 'render', 'replicate', 'replit',
-  'resend', 'retool', 'rippling', 'root-insurance', 'runway', 'samsara', 'sanity', 'sardine',
-  'scale', 'secureframe', 'sentry', 'shield-ai', 'singlestore', 'skydio', 'slack', 'smartcar',
-  'snorkel', 'snyk', 'sourcegraph', 'spotify', 'spring-health', 'stability-ai', 'stainless',
-  'statsig', 'storyblok', 'stripe', 'stytch', 'substack', 'supabase', 'synthesia', 'tailscale',
-  'temporal', 'tenstorrent', 'thirdweb', 'timescale', 'toast', 'together', 'together-ai',
-  'trm-labs', 'twilio', 'uniswap', 'upstart', 'vapi', 'vercel', 'verkada', 'voiceflow',
-  'wandb', 'warp', 'watershed', 'weaviate', 'webflow', 'weights-biases', 'whimsical', 'whoop',
-  'writer', 'xata', 'yugabyte', 'zed', 'zip', 'zipline', 'zora', 'zuora'
-];
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const ashbySlugsPath = join(__dirname, '../constants/ashby-slugs.json');
+const ASHBY_COMPANY_SLUGS: string[] = JSON.parse(readFileSync(ashbySlugsPath, 'utf-8'));
 
 interface AshbyLocation {
   location?: string;

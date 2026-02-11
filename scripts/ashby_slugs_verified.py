@@ -14,17 +14,15 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
-# Compact curated seed list; can be extended over time.
-SLUGS = [
-    'airtable','alan','altura','away','deliveroo','duolingo','flock-safety','hackerone','notion','opendoor',
-    'oyster','posthog','ramp','sequoia','sony','vanta','cursor','deel','harvey','modern-treasury','openai',
-    'reddit','shopify','snowflake','apify','ashby','buffer','factory','hcompany','jerry.ai','lightning','linear',
-    'lottie','lovable','notable','scribd','searchable','silver','tapcheck','blueberrypediatrics','cambly','checkly',
-    'cleric','continua','dryft','duck-duck-go','equals','firetiger','homevision','imprint','kombo','legionhealth',
-    'livekit','matterworks','meticulous','modal','norm-ai','office-hours','ontic','orb','parabola-io','pear','pear-vc',
-    'permitflow','sentilink','sfcompute','steel','tiplink','titan','turnstile','verge-genomics','virtahealth','vitalize',
-    'wirescreen','anthropic','benchling','clerk','cohere','dbt-labs','perplexity','replit','runway','watershed'
-]
+
+def load_canonical_slugs() -> list[str]:
+    """Load the canonical slug list from the shared JSON file.
+    
+    This ensures the Python script and TypeScript backend stay in sync.
+    """
+    canonical_path = Path(__file__).resolve().parent.parent / 'backend' / 'src' / 'constants' / 'ashby-slugs.json'
+    with canonical_path.open('r') as f:
+        return json.load(f)
 
 
 def dedupe(slugs: list[str]) -> list[str]:
@@ -56,7 +54,7 @@ def main() -> int:
     parser.add_argument('--verify', action='store_true')
     args = parser.parse_args()
 
-    slugs = dedupe(SLUGS)
+    slugs = dedupe(load_canonical_slugs())
     out_dir = Path(__file__).resolve().parent
     txt_path = out_dir / 'ashby_slugs_curated.txt'
     csv_path = out_dir / 'ashby_slugs_curated.csv'
