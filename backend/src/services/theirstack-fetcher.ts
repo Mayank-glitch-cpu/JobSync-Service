@@ -156,7 +156,7 @@ function extractLocation(location: AshbyJobPosting['location']): string | null {
   }
 
   if (typeof location === 'string') {
-    return location || null;
+    return location === '' ? null : location;
   }
 
   return location.locationName || location.location || null;
