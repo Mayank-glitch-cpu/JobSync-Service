@@ -37,32 +37,29 @@ jobs:
       - name: Trigger full pipeline
         id: trigger
         run: |
-          PARAMS=""
+          URL="${BACKEND_URL}/api/pipeline/run-all"
+
+          # Build curl args — use --data-urlencode for proper encoding of spaces
+          CURL_ARGS=(-s -w "\n%{http_code}" -X POST -G)
+          CURL_ARGS+=(-H "x-api-key: ${PIPELINE_API_KEY}")
+          CURL_ARGS+=(-H "Content-Type: application/json")
+
           if [ -n "${{ inputs.keywords }}" ]; then
-            PARAMS="${PARAMS}&keywords=${{ inputs.keywords }}"
+            CURL_ARGS+=(--data-urlencode "keywords=${{ inputs.keywords }}")
           fi
           if [ "${{ inputs.posted_today }}" = "true" ]; then
-            PARAMS="${PARAMS}&postedToday=true"
+            CURL_ARGS+=(--data-urlencode "postedToday=true")
           fi
           if [ -n "${{ inputs.limit }}" ]; then
-            PARAMS="${PARAMS}&limit=${{ inputs.limit }}"
+            CURL_ARGS+=(--data-urlencode "limit=${{ inputs.limit }}")
           fi
           if [ -n "${{ inputs.published_within_hours }}" ]; then
-            PARAMS="${PARAMS}&publishedWithinHours=${{ inputs.published_within_hours }}"
-          fi
-          # Remove leading &
-          PARAMS="${PARAMS#&}"
-
-          URL="${BACKEND_URL}/api/pipeline/run-all"
-          if [ -n "$PARAMS" ]; then
-            URL="${URL}?${PARAMS}"
+            CURL_ARGS+=(--data-urlencode "publishedWithinHours=${{ inputs.published_within_hours }}")
           fi
 
           echo "Triggering: $URL"
 
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$URL" \
-            -H "x-api-key: ${PIPELINE_API_KEY}" \
-            -H "Content-Type: application/json")
+          RESPONSE=$(curl "${CURL_ARGS[@]}" "$URL")
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | sed '$d')
