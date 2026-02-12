@@ -68,6 +68,7 @@ function parseBoolean(value?: string): boolean {
 }
 
 interface FullPipelineOptions {
+  source?: string;
   limit?: number;
   keywords?: string[];
   companySlugs?: string[];
@@ -76,23 +77,48 @@ interface FullPipelineOptions {
 }
 
 async function runFullPipeline(options: FullPipelineOptions): Promise<void> {
-  const steps: Array<{
-    key: keyof PipelineStatus;
-    label: string;
-    fn: () => Promise<number>;
-  }> = [
-    {
-      key: 'step1',
-      label: 'Step 1 (Fetch Ashby)',
-      fn: () =>
+  const source = options.source || 'theirstack';
+  const range = options.limit ? { from: 1, to: options.limit } : undefined;
+
+  let step1Label: string;
+  let step1Fn: () => Promise<number>;
+
+  switch (source) {
+    case 'csv':
+      step1Label = 'Step 1 (Fetch Google Sheets)';
+      step1Fn = () => fetchCsv(options.limit);
+      break;
+    case 'github':
+      step1Label = 'Step 1 (Fetch GitHub)';
+      step1Fn = () => fetchGitHub(range);
+      break;
+    case 'yc':
+      step1Label = 'Step 1 (Fetch YC)';
+      step1Fn = () => fetchYC(range);
+      break;
+    case 'jsearch':
+      step1Label = 'Step 1 (Fetch JSearch)';
+      step1Fn = () => fetchJSearch(range);
+      break;
+    default:
+      step1Label = 'Step 1 (Fetch Ashby)';
+      step1Fn = () =>
         fetchTheirStack({
           limit: options.limit,
           keywords: options.keywords,
           companySlugs: options.companySlugs,
           publishedWithinHours: options.publishedWithinHours,
           postedTodayOnly: options.postedTodayOnly,
-        }),
-    },
+        });
+      break;
+  }
+
+  const steps: Array<{
+    key: keyof PipelineStatus;
+    label: string;
+    fn: () => Promise<number>;
+  }> = [
+    { key: 'step1', label: step1Label, fn: step1Fn },
     { key: 'step2', label: 'Step 2 (Scrape JDs)', fn: scrapeJDs },
     { key: 'step3', label: 'Step 3 (AI Process)', fn: processWithAI },
     { key: 'step4', label: 'Step 4 (Airtable Sync)', fn: syncToAirtable },
@@ -238,6 +264,7 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
   // Trigger full pipeline (all 4 steps sequentially)
   app.post<{
     Querystring: {
+      source?: string;
       limit?: string;
       keywords?: string;
       companies?: string;
@@ -257,14 +284,18 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(409).send({ error: 'Pipeline is already running' });
     }
 
+    const source = request.query.source || 'theirstack';
     const limitVal = parseInt(request.query.limit || '', 10);
     const publishedWithinHoursVal = parseInt(request.query.publishedWithinHours || '', 10);
     const companies = parseCommaList(request.query.companies).map((slug) => slug.toLowerCase());
     const keywords = parseCommaList(request.query.keywords).map((keyword) => keyword.toLowerCase());
     const postedTodayOnly = parseBoolean(request.query.postedToday);
 
+    log('system', 'info', `Full pipeline triggered: source=${source}, limit=${!isNaN(limitVal) ? limitVal : 'default'}`);
+
     // Run the full pipeline in the background
     runFullPipeline({
+      source,
       limit: !isNaN(limitVal) ? limitVal : undefined,
       keywords: keywords.length > 0 ? keywords : undefined,
       companySlugs: companies.length > 0 ? companies : undefined,
@@ -274,7 +305,7 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
       log('system', 'error', `Full pipeline failed: ${err.message}`);
     });
 
-    return reply.send({ status: 'started', message: 'Full pipeline running all 4 steps sequentially' });
+    return reply.send({ status: 'started', source, message: `Full pipeline running for source: ${source}` });
   });
 
   // Get pipeline status
