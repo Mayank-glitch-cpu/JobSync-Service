@@ -36,7 +36,7 @@ export interface SyncedJob extends ProcessedJob {
   syncError?: string;
 }
 
-export type StepState = 'idle' | 'running' | 'completed' | 'error';
+export type StepState = 'idle' | 'pending' | 'running' | 'completed' | 'error';
 
 export interface StepStatus {
   status: StepState;
