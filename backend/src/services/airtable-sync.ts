@@ -9,7 +9,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function mapToAirtableRecord(job: ProcessedJob): Record<string, unknown> {
   return {
     'Position Title': job.positionTitle,
-    Date: job.datePosted || null,
+    Date: job.datePosted ? job.datePosted.split('T')[0] : null,
     'Apply Link': job.applyLink || '',
     'Work Model': job.workModel || 'Onsite',
     Location: job.location || 'Not specified',
