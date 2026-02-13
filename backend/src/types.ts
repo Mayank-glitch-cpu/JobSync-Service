@@ -20,7 +20,7 @@ export type JobBoard = 'Lever' | 'Ashby' | 'Linkedin' | 'Greenhouse' | 'Workday'
 export interface ProcessedJob extends ScrapedJob {
   workModel: 'Onsite' | 'Remote' | 'Hybrid' | null;
   industry: string | null;
-  h1bSponsored: boolean | null;
+  h1bSponsored: boolean;
   qualifications: string | null;
   jobBoard: JobBoard;
   tags: string[];

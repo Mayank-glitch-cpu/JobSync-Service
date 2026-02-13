@@ -9,7 +9,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function mapToAirtableRecord(job: ProcessedJob): Record<string, unknown> {
   return {
     'Position Title': job.positionTitle,
-    Date: job.datePosted ? job.datePosted.split('T')[0] : null,
+    Date: (job.datePosted || '').split('T')[0],
     'Apply Link': job.applyLink || '',
     'Work Model': job.workModel || 'Onsite',
     Location: job.location || 'Not specified',
@@ -31,12 +31,45 @@ export async function syncToAirtable(): Promise<number> {
     throw new Error('AIRTABLE_API_KEY and AIRTABLE_BASE_ID must be set in .env');
   }
 
-  const jobs = readStep<ProcessedJob[]>('step3-processed-jobs');
-  if (!jobs || jobs.length === 0) {
+  const allJobs = readStep<ProcessedJob[]>('step3-processed-jobs');
+  if (!allJobs || allJobs.length === 0) {
     throw new Error('No jobs found from Step 3. Run Step 3 first.');
   }
 
-  log('sync', 'info', `Starting Airtable sync for ${jobs.length} jobs...`);
+  // Validate: reject jobs missing critical fields or with invalid/placeholder values
+  const INVALID_VALUES = ['unknown company', 'unknown position', 'unknown', 'n/a', 'none', ''];
+  const jobs: ProcessedJob[] = [];
+  const rejected: ProcessedJob[] = [];
+
+  for (const job of allJobs) {
+    const reasons: string[] = [];
+    if (!job.datePosted) reasons.push('missing datePosted');
+    if (!job.positionTitle) reasons.push('missing positionTitle');
+    if (!job.company) reasons.push('missing company');
+    if (!job.applyLink) reasons.push('missing applyLink');
+
+    const companyLower = (job.company || '').trim().toLowerCase();
+    const titleLower = (job.positionTitle || '').trim().toLowerCase();
+    if (INVALID_VALUES.includes(companyLower)) reasons.push(`invalid company: "${job.company}"`);
+    if (INVALID_VALUES.includes(titleLower)) reasons.push(`invalid title: "${job.positionTitle}"`);
+
+    if (reasons.length > 0) {
+      rejected.push(job);
+      log('sync', 'warn', `  Rejected: ${job.company || 'Unknown'} — ${job.positionTitle || 'Unknown'} (${reasons.join(', ')})`);
+    } else {
+      jobs.push(job);
+    }
+  }
+
+  if (rejected.length > 0) {
+    log('sync', 'warn', `Pre-sync validation: ${rejected.length} job(s) rejected for missing critical fields`);
+  }
+
+  if (jobs.length === 0) {
+    throw new Error('No valid jobs remaining after pre-sync validation.');
+  }
+
+  log('sync', 'info', `Starting Airtable sync for ${jobs.length} jobs (${rejected.length} rejected)...`);
 
   const base = new Airtable({ apiKey: config.airtableApiKey }).base(config.airtableBaseId);
   const table = base(config.airtableTableName);

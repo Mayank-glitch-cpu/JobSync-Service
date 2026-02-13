@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { StepName } from './types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, '..', 'data');
+export const DATA_DIR = path.join(__dirname, '..', 'data');
 
 function ensureDataDir(): void {
   if (!fs.existsSync(DATA_DIR)) {

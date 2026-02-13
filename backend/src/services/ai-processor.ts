@@ -5,10 +5,135 @@ import { readStep, writeStep } from '../store.js';
 import { INDUSTRY_LIST, detectIndustry } from '../constants/industries.js';
 import type { ScrapedJob, ProcessedJob, JobBoard } from '../types.js';
 
+// Known H1B sponsor companies (sourced from H1B LCA filings data)
+const H1B_SPONSOR_COMPANIES: string[] = [
+  'amazon', 'google', 'alphabet', 'apple', 'meta platforms', 'meta', 'facebook',
+  'microsoft', 'netflix', 'nvidia', 'tesla', 'amazon web services', 'aws',
+  'amazon development center', 'amazon data services', 'salesforce', 'oracle',
+  'ibm', 'intel', 'cisco systems', 'cisco', 'adobe', 'qualcomm', 'linkedin',
+  'paypal', 'intuit', 'servicenow', 'uber technologies', 'uber', 'bytedance',
+  'tiktok', 'palo alto networks', 'snowflake', 'databricks', 'stripe', 'airbnb',
+  'doordash', 'coinbase', 'spotify', 'pinterest', 'snap', 'x corp', 'twitter',
+  'palantir', 'atlassian', 'shopify', 'block', 'square', 'cloudflare',
+  'crowdstrike', 'zscaler', 'datadog', 'mongodb', 'elastic', 'hashicorp',
+  'confluent', 'twilio', 'okta', 'splunk', 'vmware', 'broadcom', 'amd',
+  'micron technology', 'micron', 'texas instruments', 'marvell technology',
+  'marvell', 'applied materials', 'lam research', 'kla corporation', 'kla',
+  'synopsys', 'cadence design systems', 'cadence', 'arm holdings', 'arm',
+  'analog devices', 'on semiconductor', 'onsemi', 'microchip technology',
+  'globalfoundries', 'tsmc', 'samsung semiconductor', 'samsung',
+  'deloitte consulting', 'deloitte', 'ernst & young', 'ey', 'accenture',
+  'pricewaterhousecoopers', 'pwc', 'mckinsey', 'boston consulting group', 'bcg',
+  'bain & company', 'bain', 'kpmg', 'capgemini', 'deloitte & touche',
+  'deloitte tax', 'booz allen hamilton', 'booz allen', 'oliver wyman',
+  'a.t. kearney', 'kearney', 'roland berger', 'cognizant', 'tata consultancy',
+  'tcs', 'infosys', 'hcl america', 'hcl', 'wipro', 'ltimindtree',
+  'tech mahindra', 'mphasis', 'hexaware', 'persistent systems', 'virtusa',
+  'cgi technologies', 'cgi', 'synechron', 'ust global', 'ust',
+  'l&t technology', 'compunnel', 'randstad', 'kforce', 'birlasoft',
+  'zensar', 'mindtree', 'coforge', 'niit technologies', 'mastech', 'igate',
+  'jpmorgan', 'jp morgan', 'goldman sachs', 'morgan stanley', 'citibank',
+  'citi', 'bank of america', 'wells fargo', 'capital one', 'american express',
+  'amex', 'charles schwab', 'schwab', 'fidelity investments', 'fidelity',
+  'blackrock', 'barclays', 'deutsche bank', 'ubs', 'hsbc', 'bny mellon',
+  'state street', 'us bank', 'pnc financial', 'pnc', 'visa', 'mastercard',
+  'bloomberg', 's&p global', "moody's", 'msci', 'factset', 'cme group',
+  'ice', 'citadel', 'citadel securities', 'two sigma', 'd.e. shaw', 'de shaw',
+  'jane street', 'renaissance technologies', 'susquehanna', 'sig',
+  'jump trading', 'hudson river trading', 'virtu financial', 'virtu',
+  'tower research', 'optiver', 'imc trading', 'drw trading', 'drw',
+  'akuna capital', 'akuna', 'belvedere trading', 'five rings', 'arrowstreet',
+  'aqr capital', 'aqr', 'point72', 'bridgewater', 'millennium management',
+  'millennium', 'balyasny', 'voleon', 'worldquant', 'squarepoint',
+  'pdt partners', 'old mission', 'wolverine trading', 'wolverine',
+  'peak6', 'gts', 'headlands technologies', 'headlands', 'radix trading',
+  'xtx markets', 'vatic investments', 'man group', 'ahl',
+  'quantitative brokers', 'flow traders', 'cubist systematic',
+  'winton group', 'marshall wace', 'schonfeld', 'exoduspoint',
+  'graham capital', 'verition', 'capula', 'walmart', 'fedex', 'ups',
+  'ford motor', 'ford', 'general motors', 'gm', 'rivian', 'lucid motors',
+  'cummins', 't-mobile', 'at&t', 'verizon', 'comcast',
+  'charter communications', 'adp', 'fis', 'hpe', 'hp inc', 'hp',
+  'dell technologies', 'dell', 'p&g', 'procter & gamble',
+  'johnson & johnson', 'j&j', 'eli lilly', 'pfizer', 'merck', 'abbvie',
+  'amgen', 'gilead sciences', 'gilead', 'regeneron', 'bristol-myers squibb',
+  'bms', 'thermo fisher', 'unitedhealth', 'optum', 'elevance health',
+  'cvs health', 'cvs', 'cigna', 'humana', 'medtronic', 'abbott labs',
+  'abbott', 'boston scientific', 'intuitive surgical', 'exxon mobil', 'exxon',
+  'chevron', 'caterpillar', '3m', 'ge aerospace', 'ge', 'honeywell',
+  'rtx', 'raytheon', 'lockheed martin', 'northrop grumman', 'boeing',
+  'l3harris', 'general dynamics', 'spacex', 'anduril', 'target', 'home depot',
+  'nike', 'pepsico', 'pepsi', 'coca-cola', 'disney', 'ebay',
+  'expedia group', 'expedia', 'sap america', 'sap', 'workday', 'hubspot',
+  'autodesk', 'fortinet', 'arista networks', 'arista', 'netapp',
+  'thomson reuters', 'openai', 'anthropic', 'xai', 'cohere', 'hugging face',
+  'perplexity', 'scale ai', 'cerebras', 'together ai', 'weights & biases',
+  'wandb', 'glean', 'harvey ai', 'runway', 'elevenlabs', 'cursor',
+  'anysphere', 'wiz', 'coreweave', 'applied intuition', 'waymo', 'nuro',
+  'zoox', 'character.ai', 'grammarly', 'labelbox', 'sambanova', 'lambda',
+  'replit', 'anyscale', 'pinecone', 'cleanlab', 'instacart', 'gusto',
+  'brex', 'retool', 'deel', 'flexport', 'faire', 'zapier', 'gitlab',
+  'dropbox', 'reddit', 'plaid', 'ramp', 'rippling', 'samsara', 'fivetran',
+  'checkr', 'airtable', 'notion', 'figma', 'vercel', 'vanta', 'mercury',
+  'whatnot', 'ironclad', 'carta', 'amplitude', 'docker', 'webflow',
+  'modern treasury', 'linear', 'supabase', 'posthog', 'mixpanel', 'algolia',
+  'ginkgo bioworks', 'ginkgo', 'cockroach labs', 'spring health',
+  'color health', 'ro', 'abridge', 'stytch', 'neon', 'chainguard',
+  'cal.com', 'planetscale', 'materialize', 'lyft', 'robinhood', 'sofi',
+  'chime', 'toast', 'affirm', 'docusign', 'zoom', 'electronic arts', 'ea',
+  'epic games', 'roblox', 'unity technologies', 'unity', 'asana', 'zendesk',
+  'freshworks', 'uipath', 'informatica', 'veeva systems', 'veeva',
+  'sentinelone', 'rubrik', 'nutanix', 'pure storage', 'duolingo', 'coursera',
+  'grafana labs', 'grafana', 'dbt labs', 'snyk', 'kong', 'lattice', 'miro',
+  'klaviyo', 'celonis', 'neo4j', 'clickhouse', 'cribl', 'strava',
+  'genentech', 'roche', 'moderna', 'vertex pharma', 'vertex',
+  'illumina', '10x genomics', 'danaher', 'agilent', 'biogen',
+  'astrazeneca', 'novartis', 'sanofi', 'takeda', 'novo nordisk',
+  'becton dickinson', 'bd', 'dexcom', 'edwards lifesciences', 'stryker',
+  'zimmer biomet', 'hologic', 'iqvia', 'veracyte', 'exact sciences',
+  'progressive', 'allstate', 'liberty mutual', 'metlife', 'prudential',
+  'tiaa', 't. rowe price', 'vanguard', 'northern trust', 'franklin templeton',
+  'broadridge', 'morningstar', 'nextera energy', 'enphase', 'first solar',
+  'quantumscape', 'form energy', 'commonwealth fusion', 'crusoe energy',
+  'leidos', 'saic', 'caci', 'blue origin', 'shield ai', 'rocket lab',
+  'relativity space', 'joby aviation', 'boom supersonic', 'emerson electric',
+  'emerson', 'rockwell automation', 'parker hannifin', 'corning', 'dow',
+  'dupont', 'motorola solutions', 'motorola', 'john deere', 'deere',
+  'illinois tool works', 'itw', 'zillow', 'booking.com', 'booking',
+  'mathworks', 'ansys', 'sas institute', 'sas', 'epic systems', 'cerner',
+  'oracle health', 'applovin', 'tradedesk', 'the trade desk', 'digitalocean',
+  'braze', 'tempus', 'oscar health', 'flatiron health', 'relativity',
+  'opendoor', 'wayfair', 'etsy', 'starbucks', 'general mills', 'mondelez',
+  'colgate-palmolive', 'colgate', 'estee lauder', 'ralph lauren', 'marriott',
+  'hilton', 'warner bros', 'nbcuniversal', 'nbc', 'sony',
+  'hims & hers', 'noom', 'planet labs', 'aurora innovation', 'aurora',
+  'drata', 'launchdarkly', 'canva', 'monday.com', 'monday', 'smartsheet',
+  'twitch', 'marqeta', 'bill.com', 'coupa', 'genesys', 'teradata',
+  'alteryx', 'jfrog', 'appian', 'pegasystems', 'pega', 'five9', 'nextdoor',
+  'angellist',
+];
+
+function isKnownH1bSponsor(companyName: string): boolean {
+  const name = companyName.toLowerCase();
+  return H1B_SPONSOR_COMPANIES.some(
+    (known) => name.includes(known) || known.includes(name)
+  );
+}
+
+const INVALID_VALUES = ['unknown company', 'unknown position', 'unknown', 'n/a', 'none', ''];
+
+function isValidJob(job: ScrapedJob): boolean {
+  const company = (job.company || '').trim().toLowerCase();
+  const title = (job.positionTitle || '').trim().toLowerCase();
+  return !INVALID_VALUES.includes(company) && !INVALID_VALUES.includes(title);
+}
+
 interface ExtractedFields {
   workModel: 'Onsite' | 'Remote' | 'Hybrid' | null;
   industry: string | null;
   h1bSponsored: boolean | null;
+  isNewGrad: boolean;
+  datePosted: string | null;
   qualifications: string | null;
   salary: string | null;
   confidence: number;
@@ -18,11 +143,13 @@ const SYSTEM_PROMPT = `You are a job posting analyzer. Extract structured inform
 
 Rules for extraction:
 1. workModel: Determine from location field or job description. "Remote" if fully remote, "Hybrid" if mix, "Onsite" if in-office only. Null if unclear.
-2. h1bSponsored: Set to true ONLY if explicitly mentions visa sponsorship. Set to false if mentions "no sponsorship", "must be authorized to work", or citizenship requirements. Set to null if not mentioned.
+2. h1bSponsored: Set to true ONLY if explicitly mentions visa sponsorship. Set to false if mentions "no sponsorship", "must be authorized to work", or citizenship requirements. Set to null if not mentioned at all.
 3. industry: Choose the BEST matching category from: ${INDUSTRY_LIST.join(', ')}
 4. qualifications: Extract key requirements (degree, years of experience, skills) as a brief summary.
 5. salary: Extract and normalize salary if mentioned (e.g., "$50/hr" or "$120,000-$150,000/year"). Null if not found.
-6. confidence: Your confidence in the extraction (0.0 to 1.0).
+6. isNewGrad: Analyze the qualifications and requirements section. Set to true if the role is suitable for new graduates — indicators include: 0-2 years experience required, "entry level", "new grad", "junior", "no prior professional experience required", "recent graduate", bachelor's degree with no extensive experience requirement. Set to false if the role requires 3+ years of experience or senior-level qualifications.
+7. datePosted: Extract the date the job was posted if mentioned in the description (e.g., "Posted on Jan 15, 2025", "Date: 2025-01-15"). Return in YYYY-MM-DD format. Null if not found.
+8. confidence: Your confidence in the extraction (0.0 to 1.0).
 
 Emoji indicators to interpret:
 - 🛂 = Does NOT offer visa sponsorship (h1bSponsored = false)
@@ -75,6 +202,8 @@ Respond with JSON in this exact format:
   "workModel": "Remote" | "Hybrid" | "Onsite" | null,
   "industry": "<industry from list>" | null,
   "h1bSponsored": true | false | null,
+  "isNewGrad": true | false,
+  "datePosted": "YYYY-MM-DD" | null,
   "qualifications": "<brief summary>" | null,
   "salary": "<normalized salary>" | null,
   "confidence": <0.0-1.0>
@@ -102,7 +231,9 @@ Respond with JSON in this exact format:
   return {
     workModel: parsed.workModel,
     industry: INDUSTRY_LIST.includes(parsed.industry) ? parsed.industry : null,
-    h1bSponsored: parsed.h1bSponsored,
+    h1bSponsored: parsed.h1bSponsored ?? null,
+    isNewGrad: parsed.isNewGrad ?? false,
+    datePosted: parsed.datePosted || null,
     qualifications: parsed.qualifications,
     salary: parsed.salary,
     confidence: parsed.confidence || 0.5,
@@ -185,27 +316,45 @@ export async function processWithAI(): Promise<number> {
     throw new Error('ANTHROPIC_API_KEY not set. Add it to your .env file.');
   }
 
-  const jobs = readStep<ScrapedJob[]>('step2-scraped-jobs');
-  if (!jobs || jobs.length === 0) {
+  const allJobs = readStep<ScrapedJob[]>('step2-scraped-jobs');
+  if (!allJobs || allJobs.length === 0) {
     throw new Error('No jobs found from Step 2. Run Step 2 first.');
   }
 
-  log('ai', 'info', `Starting AI processing for ${jobs.length} jobs...`);
+  // Filter out invalid jobs (Unknown Company, Unknown Position, etc.)
+  const invalidJobs = allJobs.filter((j) => !isValidJob(j));
+  const jobs = allJobs.filter((j) => isValidJob(j));
+
+  if (invalidJobs.length > 0) {
+    log('ai', 'warn', `Filtered out ${invalidJobs.length} invalid job(s):`);
+    for (const j of invalidJobs) {
+      log('ai', 'warn', `  Removed: "${j.company}" — "${j.positionTitle}" (invalid company or title)`);
+    }
+  }
+
+  if (jobs.length === 0) {
+    throw new Error('No valid jobs remaining after filtering invalid entries.');
+  }
+
+  const todayDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD fallback
+
+  log('ai', 'info', `Starting AI processing for ${jobs.length} jobs (${invalidJobs.length} filtered out)...`);
   const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
   const results: ProcessedJob[] = [];
 
   for (let i = 0; i < jobs.length; i++) {
     const job = jobs[i];
+    const titleIsNewGrad = /new.?grad|entry.?level|junior/i.test(job.positionTitle);
     const processed: ProcessedJob = {
       ...job,
       workModel: null,
       industry: detectIndustry(job.positionTitle) || null,
-      h1bSponsored: null,
+      h1bSponsored: isKnownH1bSponsor(job.company),
       qualifications: null,
       jobBoard: detectJobBoard(job.applyLink, job.jobDescription),
       tags: detectTags(job),
-      isNewGrad: /new.?grad|entry.?level|junior/i.test(job.positionTitle),
+      isNewGrad: titleIsNewGrad,
       isInternship: /intern/i.test(job.positionTitle),
       aiConfidence: null,
       aiProcessed: false,
@@ -218,11 +367,33 @@ export async function processWithAI(): Promise<number> {
 
       processed.workModel = extracted.workModel;
       processed.industry = extracted.industry || processed.industry;
-      processed.h1bSponsored = extracted.h1bSponsored;
+
+      // H1B: AI true → true; AI false/null → check companies.json → fallback false
+      if (extracted.h1bSponsored === true) {
+        processed.h1bSponsored = true;
+      } else if (isKnownH1bSponsor(job.company)) {
+        processed.h1bSponsored = true;
+        log('ai', 'info', `  [${i + 1}] ${job.company} — H1B: company is a known sponsor (companies.json)`);
+      } else {
+        processed.h1bSponsored = false;
+      }
+
+      processed.isNewGrad = titleIsNewGrad || extracted.isNewGrad;
       processed.qualifications = extracted.qualifications;
       processed.salary = extracted.salary || job.salary;
       processed.aiConfidence = extracted.confidence;
       processed.aiProcessed = true;
+
+      // Fill missing datePosted: prefer source date > AI-extracted date > today's date
+      if (!processed.datePosted) {
+        if (extracted.datePosted) {
+          processed.datePosted = extracted.datePosted;
+          log('ai', 'info', `  [${i + 1}] ${job.company} — Date extracted by AI: ${extracted.datePosted}`);
+        } else {
+          processed.datePosted = todayDate;
+          log('ai', 'warn', `  [${i + 1}] ${job.company} — No date found, using today's date: ${todayDate}`);
+        }
+      }
 
       log(
         'ai',
@@ -233,6 +404,12 @@ export async function processWithAI(): Promise<number> {
       const msg = err instanceof Error ? err.message : String(err);
       log('ai', 'error', `  [${i + 1}] ${job.company} — AI failed: ${msg}`);
       // Keep the job with whatever we could fill from keyword detection
+    }
+
+    // Ensure datePosted is never null — fallback to today's date
+    if (!processed.datePosted) {
+      processed.datePosted = todayDate;
+      log('ai', 'warn', `  [${i + 1}] ${job.company} — No date found (AI failed or no source date), using today: ${todayDate}`);
     }
 
     results.push(processed);
