@@ -7,6 +7,20 @@ import { fetchGitHub } from '../services/github-fetcher.js';
 import { fetchYC } from '../services/yc-fetcher.js';
 import { fetchJSearch } from '../services/jsearch-fetcher.js';
 import { fetchTheirStack } from '../services/theirstack-fetcher.js';
+import { fetchRemotive } from '../services/remotive-fetcher.js';
+import { fetchRemoteOK } from '../services/remoteok-fetcher.js';
+import { fetchAdzuna } from '../services/adzuna-fetcher.js';
+import { fetchHN } from '../services/hn-fetcher.js';
+import { fetchArbeitnow } from '../services/arbeitnow-fetcher.js';
+import { fetchUSAJobs } from '../services/usajobs-fetcher.js';
+import { fetchGreenhouse } from '../services/greenhouse-fetcher.js';
+import { fetchLever } from '../services/lever-fetcher.js';
+import { fetchLinkedIn } from '../services/linkedin-fetcher.js';
+import { fetchWellfound } from '../services/wellfound-fetcher.js';
+import { fetchHimalayas } from '../services/himalayas-fetcher.js';
+import { fetchJobicy } from '../services/jobicy-fetcher.js';
+import { fetchAshbyGoogle } from '../services/ashby-google-fetcher.js';
+import { fetchMultiSource } from '../services/multi-source-fetcher.js';
 import { scrapeJDs } from '../services/jd-scraper.js';
 import { processWithAI } from '../services/ai-processor.js';
 import { syncToAirtable } from '../services/airtable-sync.js';
@@ -67,6 +81,89 @@ function parseBoolean(value?: string): boolean {
   return ['1', 'true', 'yes', 'y'].includes(value.toLowerCase());
 }
 
+/**
+ * Resolve a source string to a step1 label + fetcher function.
+ */
+function resolveSource(
+  source: string,
+  options: {
+    range?: { from: number; to: number };
+    limit?: number;
+    keywords?: string[];
+    companySlugs?: string[];
+    publishedWithinHours?: number;
+    postedTodayOnly?: boolean;
+  }
+): { label: string; fn: () => Promise<number> } {
+  const limit = options.limit ?? 20;
+
+  switch (source) {
+    case 'csv':
+      return { label: 'Step 1 (Fetch Google Sheets)', fn: () => fetchCsv(options.limit) };
+    case 'github':
+      return { label: 'Step 1 (Fetch GitHub)', fn: () => fetchGitHub(options.range) };
+    case 'yc':
+      return { label: 'Step 1 (Fetch YC)', fn: () => fetchYC(options.range) };
+    case 'jsearch':
+      return { label: 'Step 1 (Fetch JSearch)', fn: () => fetchJSearch(options.range) };
+    case 'remotive':
+      return { label: 'Step 1 (Fetch Remotive)', fn: () => fetchRemotive({ limit }) };
+    case 'remoteok':
+      return { label: 'Step 1 (Fetch RemoteOK)', fn: () => fetchRemoteOK({ limit, tags: ['engineer', 'developer', 'data', 'ml'] }) };
+    case 'adzuna':
+      return { label: 'Step 1 (Fetch Adzuna)', fn: () => fetchAdzuna({ limit }) };
+    case 'hackernews':
+      return { label: 'Step 1 (Fetch HackerNews)', fn: () => fetchHN({ limit, keywords: ['engineer', 'ml', 'ai', 'data', 'backend', 'fullstack'] }) };
+    case 'arbeitnow':
+      return { label: 'Step 1 (Fetch Arbeitnow)', fn: () => fetchArbeitnow({ limit, keywords: ['engineer', 'developer', 'data', 'machine learning'] }) };
+    case 'usajobs':
+      return { label: 'Step 1 (Fetch USAJobs)', fn: () => fetchUSAJobs({ limit }) };
+    case 'greenhouse':
+      return { label: 'Step 1 (Fetch Greenhouse)', fn: () => fetchGreenhouse({ limit, maxAgeDays: 3 }) };
+    case 'lever':
+      return { label: 'Step 1 (Fetch Lever)', fn: () => fetchLever({ limit, maxAgeDays: 7 }) };
+    case 'linkedin':
+      return { label: 'Step 1 (Fetch LinkedIn)', fn: () => fetchLinkedIn({ limit, datePosted: 'pastWeek' }) };
+    case 'wellfound':
+      return { label: 'Step 1 (Fetch Wellfound)', fn: () => fetchWellfound({ limit }) };
+    case 'himalayas':
+      return { label: 'Step 1 (Fetch Himalayas)', fn: () => fetchHimalayas({ limit }) };
+    case 'jobicy':
+      return { label: 'Step 1 (Fetch Jobicy)', fn: () => fetchJobicy({ limit }) };
+    case 'ashby-google':
+      return { label: 'Step 1 (Fetch Ashby Google)', fn: () => fetchAshbyGoogle({ limit, maxAgeDays: 7 }) };
+    case 'multi':
+    case 'all':
+      return { label: 'Step 1 (Fetch All Sources)', fn: () => fetchMultiSource() };
+    case 'free':
+      return {
+        label: 'Step 1 (Fetch Free Sources)',
+        fn: () => fetchMultiSource({
+          sources: ['csv', 'github', 'ashby', 'remotive', 'remoteok', 'hackernews', 'arbeitnow', 'greenhouse', 'lever', 'wellfound', 'himalayas', 'jobicy'],
+        }),
+      };
+    case 'premium':
+      return {
+        label: 'Step 1 (Fetch Premium Sources)',
+        fn: () => fetchMultiSource({
+          sources: ['jsearch', 'yc', 'linkedin', 'adzuna', 'usajobs'],
+        }),
+      };
+    default:
+      // Default to Ashby/TheirStack
+      return {
+        label: 'Step 1 (Fetch Ashby)',
+        fn: () => fetchTheirStack({
+          limit: options.limit,
+          keywords: options.keywords,
+          companySlugs: options.companySlugs,
+          publishedWithinHours: options.publishedWithinHours,
+          postedTodayOnly: options.postedTodayOnly,
+        }),
+      };
+  }
+}
+
 interface FullPipelineOptions {
   source?: string;
   limit?: number;
@@ -80,45 +177,14 @@ async function runFullPipeline(options: FullPipelineOptions): Promise<void> {
   const source = options.source || 'theirstack';
   const range = options.limit ? { from: 1, to: options.limit } : undefined;
 
-  let step1Label: string;
-  let step1Fn: () => Promise<number>;
-
-  switch (source) {
-    case 'csv':
-      step1Label = 'Step 1 (Fetch Google Sheets)';
-      step1Fn = () => fetchCsv(options.limit);
-      break;
-    case 'github':
-      step1Label = 'Step 1 (Fetch GitHub)';
-      step1Fn = () => fetchGitHub(range);
-      break;
-    case 'yc':
-      step1Label = 'Step 1 (Fetch YC)';
-      step1Fn = () => fetchYC(range);
-      break;
-    case 'jsearch':
-      step1Label = 'Step 1 (Fetch JSearch)';
-      step1Fn = () => fetchJSearch(range);
-      break;
-    default:
-      step1Label = 'Step 1 (Fetch Ashby)';
-      step1Fn = () =>
-        fetchTheirStack({
-          limit: options.limit,
-          keywords: options.keywords,
-          companySlugs: options.companySlugs,
-          publishedWithinHours: options.publishedWithinHours,
-          postedTodayOnly: options.postedTodayOnly,
-        });
-      break;
-  }
+  const resolved = resolveSource(source, { range, ...options });
 
   const steps: Array<{
     key: keyof PipelineStatus;
     label: string;
     fn: () => Promise<number>;
   }> = [
-    { key: 'step1', label: step1Label, fn: step1Fn },
+    { key: 'step1', label: resolved.label, fn: resolved.fn },
     { key: 'step2', label: 'Step 2 (Scrape JDs)', fn: scrapeJDs },
     { key: 'step3', label: 'Step 3 (AI Process)', fn: processWithAI },
     { key: 'step4', label: 'Step 4 (Airtable Sync)', fn: syncToAirtable },
@@ -196,26 +262,8 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
       `Step 1 params: source=${source}, range=${JSON.stringify(range)}, limit=${limit}, companies=${companies.join('|') || 'all'}, keywords=${keywords.join('|') || 'default'}, postedToday=${postedTodayOnly}, publishedWithinHours=${publishedWithinHours ?? 'default'}`
     );
 
-    if (source === 'github') {
-      runStep('step1', 'Step 1 (Fetch GitHub)', () => fetchGitHub(range));
-    } else if (source === 'yc') {
-      runStep('step1', 'Step 1 (Fetch YC)', () => fetchYC(range));
-    } else if (source === 'jsearch') {
-      runStep('step1', 'Step 1 (Fetch JSearch)', () => fetchJSearch(range));
-    } else if (source === 'theirstack') {
-      runStep('step1', 'Step 1 (Fetch TheirStack/Ashby)', () =>
-        fetchTheirStack({
-          range,
-          limit,
-          companySlugs: companies,
-          keywords,
-          postedTodayOnly,
-          publishedWithinHours,
-        })
-      );
-    } else {
-      runStep('step1', 'Step 1 (Fetch CSV)', () => fetchCsv(limit));
-    }
+    const resolved = resolveSource(source, { range, limit, keywords, companySlugs: companies, postedTodayOnly, publishedWithinHours });
+    runStep('step1', resolved.label, resolved.fn);
 
     return reply.send({
       status: 'started',

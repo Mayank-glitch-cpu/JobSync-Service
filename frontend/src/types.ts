@@ -6,7 +6,28 @@ export interface LogEntry {
   data?: unknown;
 }
 
-export type JobSource = 'csv' | 'github' | 'yc' | 'jsearch' | 'theirstack';
+export type JobSource =
+  | 'csv'
+  | 'github'
+  | 'yc'
+  | 'jsearch'
+  | 'theirstack'
+  | 'remotive'
+  | 'remoteok'
+  | 'adzuna'
+  | 'hackernews'
+  | 'arbeitnow'
+  | 'usajobs'
+  | 'greenhouse'
+  | 'lever'
+  | 'linkedin'
+  | 'wellfound'
+  | 'himalayas'
+  | 'jobicy'
+  | 'ashby-google'
+  | 'free'
+  | 'multi'
+  | 'premium';
 
 export type StepState = 'idle' | 'running' | 'completed' | 'error';
 

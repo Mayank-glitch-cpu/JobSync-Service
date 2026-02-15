@@ -41,4 +41,16 @@ export const config = {
     .map((keyword) => keyword.trim().toLowerCase())
     .filter(Boolean),
   pipelineApiKey: process.env.PIPELINE_API_KEY || '',
+
+  // Adzuna (optional — free tier: 250 req/month)
+  adzunaAppId: process.env.ADZUNA_APP_ID || '',
+  adzunaAppKey: process.env.ADZUNA_APP_KEY || '',
+
+  // USAJobs (optional — free, unlimited)
+  usajobsApiKey: process.env.USAJOBS_API_KEY || '',
+  usajobsEmail: process.env.USAJOBS_EMAIL || '',
+
+  // Google Custom Search (Ashby discovery)
+  googleApiKey: process.env.GOOGLE_API_KEY || '',
+  googleCseId: process.env.GOOGLE_CSE_ID || '',
 };

@@ -164,10 +164,29 @@ body {
 
 .source-selector {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   margin-bottom: 12px;
+}
+
+.source-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.source-group-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.source-group-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .source-label {
@@ -183,8 +202,8 @@ body {
 }
 
 .source-btn {
-  padding: 5px 10px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: 11px;
   font-weight: 500;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
@@ -193,7 +212,6 @@ body {
   cursor: pointer;
   font-family: var(--font-sans);
   transition: all 0.15s;
-  min-width: 72px;
   text-align: center;
 }
 

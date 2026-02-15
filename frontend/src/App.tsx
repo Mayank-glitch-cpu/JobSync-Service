@@ -25,7 +25,7 @@ export default function App() {
   const [rangeFrom, setRangeFrom] = useState(1);
   const [rangeTo, setRangeTo] = useState(10);
   const [leftPanelWidth, setLeftPanelWidth] = useState(440);
-  const [stepPanelHeight, setStepPanelHeight] = useState(420);
+  const [stepPanelHeight, setStepPanelHeight] = useState(560);
 
   // Poll pipeline status every second
   useEffect(() => {
