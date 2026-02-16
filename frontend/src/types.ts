@@ -25,6 +25,10 @@ export type JobSource =
   | 'himalayas'
   | 'jobicy'
   | 'ashby-google'
+  | 'smartrecruiters'
+  | 'workday'
+  | 'recruitee'
+  | 'workable'
   | 'free'
   | 'multi'
   | 'premium';

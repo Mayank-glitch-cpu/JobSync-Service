@@ -20,6 +20,10 @@ import { fetchLinkedIn } from './linkedin-fetcher.js';
 import { fetchWellfound } from './wellfound-fetcher.js';
 import { fetchHimalayas } from './himalayas-fetcher.js';
 import { fetchJobicy } from './jobicy-fetcher.js';
+import { fetchSmartRecruiters } from './smartrecruiters-fetcher.js';
+import { fetchWorkday } from './workday-fetcher.js';
+import { fetchRecruitee } from './recruitee-fetcher.js';
+import { fetchWorkable } from './workable-fetcher.js';
 
 export type SourceName =
   | 'csv'
@@ -38,7 +42,11 @@ export type SourceName =
   | 'linkedin'
   | 'wellfound'
   | 'himalayas'
-  | 'jobicy';
+  | 'jobicy'
+  | 'smartrecruiters'
+  | 'workday'
+  | 'recruitee'
+  | 'workable';
 
 interface FetcherEntry {
   name: SourceName;
@@ -99,7 +107,7 @@ const FETCHER_REGISTRY: FetcherEntry[] = [
   {
     name: 'remoteok',
     label: 'RemoteOK',
-    fn: () => fetchRemoteOK({ limit: 20, tags: ['engineer', 'developer', 'data', 'ml'] }),
+    fn: () => fetchRemoteOK({ limit: 20, tags: ['engineer', 'developer', 'data', 'ml', 'robotics', 'ui', 'ux', 'ai'] }),
     requiresAuth: false,
     authEnvVars: [],
   },
@@ -113,14 +121,14 @@ const FETCHER_REGISTRY: FetcherEntry[] = [
   {
     name: 'hackernews',
     label: 'HackerNews Who is Hiring',
-    fn: () => fetchHN({ limit: 30, keywords: ['engineer', 'ml', 'ai', 'data', 'backend', 'fullstack'] }),
+    fn: () => fetchHN({ limit: 30, keywords: ['engineer', 'ml', 'ai', 'data', 'backend', 'fullstack', 'robotics', 'ui', 'ux'] }),
     requiresAuth: false,
     authEnvVars: [],
   },
   {
     name: 'arbeitnow',
     label: 'Arbeitnow',
-    fn: () => fetchArbeitnow({ limit: 20, keywords: ['engineer', 'developer', 'data', 'machine learning'] }),
+    fn: () => fetchArbeitnow({ limit: 20, keywords: ['engineer', 'developer', 'data', 'machine learning', 'robotics', 'ui', 'ux', 'ai'] }),
     requiresAuth: false,
     authEnvVars: [],
   },
@@ -170,6 +178,34 @@ const FETCHER_REGISTRY: FetcherEntry[] = [
     name: 'jobicy',
     label: 'Jobicy',
     fn: () => fetchJobicy({ limit: 20, tag: 'software-engineer' }),
+    requiresAuth: false,
+    authEnvVars: [],
+  },
+  {
+    name: 'smartrecruiters',
+    label: 'SmartRecruiters',
+    fn: () => fetchSmartRecruiters({ limit: 30, maxAgeDays: 7 }),
+    requiresAuth: false,
+    authEnvVars: [],
+  },
+  {
+    name: 'workday',
+    label: 'Workday Boards',
+    fn: () => fetchWorkday({ limit: 30, maxAgeDays: 7 }),
+    requiresAuth: false,
+    authEnvVars: [],
+  },
+  {
+    name: 'recruitee',
+    label: 'Recruitee',
+    fn: () => fetchRecruitee({ limit: 30, maxAgeDays: 14 }),
+    requiresAuth: false,
+    authEnvVars: [],
+  },
+  {
+    name: 'workable',
+    label: 'Workable',
+    fn: () => fetchWorkable({ limit: 30, maxAgeDays: 7 }),
     requiresAuth: false,
     authEnvVars: [],
   },

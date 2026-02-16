@@ -38,7 +38,7 @@ export async function fetchLinkedIn(options: FetchLinkedInOptions = {}): Promise
     throw new Error('RAPIDAPI_KEY not set. Add it to your .env file.');
   }
 
-  const keywords = options.keywords ?? 'software engineer OR machine learning engineer';
+  const keywords = options.keywords ?? 'software engineer OR machine learning engineer OR robotics OR UI UX developer OR AI ML engineer';
   const datePosted = options.datePosted ?? 'pastWeek';
 
   log('fetch', 'info', `Fetching jobs from LinkedIn API (keywords: "${keywords}")...`);

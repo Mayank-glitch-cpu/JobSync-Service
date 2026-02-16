@@ -78,7 +78,7 @@ export async function fetchUSAJobs(options: FetchUSAJobsOptions = {}): Promise<n
     throw new Error('USAJOBS_API_KEY and USAJOBS_EMAIL must be set in .env');
   }
 
-  const keyword = options.keyword ?? 'software engineer OR data scientist OR machine learning';
+  const keyword = options.keyword ?? 'software engineer OR data scientist OR machine learning OR robotics OR UI UX developer OR AI ML engineer';
   const daysPosted = options.daysPosted ?? 7;
 
   log('fetch', 'info', `Fetching jobs from USAJobs API (keyword: "${keyword}")...`);

@@ -20,6 +20,10 @@ import { fetchWellfound } from '../services/wellfound-fetcher.js';
 import { fetchHimalayas } from '../services/himalayas-fetcher.js';
 import { fetchJobicy } from '../services/jobicy-fetcher.js';
 import { fetchAshbyGoogle } from '../services/ashby-google-fetcher.js';
+import { fetchSmartRecruiters } from '../services/smartrecruiters-fetcher.js';
+import { fetchWorkday } from '../services/workday-fetcher.js';
+import { fetchRecruitee } from '../services/recruitee-fetcher.js';
+import { fetchWorkable } from '../services/workable-fetcher.js';
 import { fetchMultiSource } from '../services/multi-source-fetcher.js';
 import { scrapeJDs } from '../services/jd-scraper.js';
 import { processWithAI } from '../services/ai-processor.js';
@@ -109,13 +113,13 @@ function resolveSource(
     case 'remotive':
       return { label: 'Step 1 (Fetch Remotive)', fn: () => fetchRemotive({ limit }) };
     case 'remoteok':
-      return { label: 'Step 1 (Fetch RemoteOK)', fn: () => fetchRemoteOK({ limit, tags: ['engineer', 'developer', 'data', 'ml'] }) };
+      return { label: 'Step 1 (Fetch RemoteOK)', fn: () => fetchRemoteOK({ limit, tags: ['engineer', 'developer', 'data', 'ml', 'robotics', 'ui', 'ux', 'ai'] }) };
     case 'adzuna':
       return { label: 'Step 1 (Fetch Adzuna)', fn: () => fetchAdzuna({ limit }) };
     case 'hackernews':
-      return { label: 'Step 1 (Fetch HackerNews)', fn: () => fetchHN({ limit, keywords: ['engineer', 'ml', 'ai', 'data', 'backend', 'fullstack'] }) };
+      return { label: 'Step 1 (Fetch HackerNews)', fn: () => fetchHN({ limit, keywords: ['engineer', 'ml', 'ai', 'data', 'backend', 'fullstack', 'robotics', 'ui', 'ux'] }) };
     case 'arbeitnow':
-      return { label: 'Step 1 (Fetch Arbeitnow)', fn: () => fetchArbeitnow({ limit, keywords: ['engineer', 'developer', 'data', 'machine learning'] }) };
+      return { label: 'Step 1 (Fetch Arbeitnow)', fn: () => fetchArbeitnow({ limit, keywords: ['engineer', 'developer', 'data', 'machine learning', 'robotics', 'ui', 'ux', 'ai'] }) };
     case 'usajobs':
       return { label: 'Step 1 (Fetch USAJobs)', fn: () => fetchUSAJobs({ limit }) };
     case 'greenhouse':
@@ -132,6 +136,14 @@ function resolveSource(
       return { label: 'Step 1 (Fetch Jobicy)', fn: () => fetchJobicy({ limit }) };
     case 'ashby-google':
       return { label: 'Step 1 (Fetch Ashby Google)', fn: () => fetchAshbyGoogle({ limit, maxAgeDays: 7 }) };
+    case 'smartrecruiters':
+      return { label: 'Step 1 (Fetch SmartRecruiters)', fn: () => fetchSmartRecruiters({ limit, maxAgeDays: 7 }) };
+    case 'workday':
+      return { label: 'Step 1 (Fetch Workday)', fn: () => fetchWorkday({ limit, maxAgeDays: 7 }) };
+    case 'recruitee':
+      return { label: 'Step 1 (Fetch Recruitee)', fn: () => fetchRecruitee({ limit, maxAgeDays: 14 }) };
+    case 'workable':
+      return { label: 'Step 1 (Fetch Workable)', fn: () => fetchWorkable({ limit, maxAgeDays: 7 }) };
     case 'multi':
     case 'all':
       return { label: 'Step 1 (Fetch All Sources)', fn: () => fetchMultiSource() };
@@ -139,7 +151,7 @@ function resolveSource(
       return {
         label: 'Step 1 (Fetch Free Sources)',
         fn: () => fetchMultiSource({
-          sources: ['csv', 'github', 'ashby', 'remotive', 'remoteok', 'hackernews', 'arbeitnow', 'greenhouse', 'lever', 'wellfound', 'himalayas', 'jobicy'],
+          sources: ['csv', 'github', 'ashby', 'remotive', 'remoteok', 'hackernews', 'arbeitnow', 'greenhouse', 'lever', 'wellfound', 'himalayas', 'jobicy', 'smartrecruiters', 'workday', 'recruitee', 'workable'],
         }),
       };
     case 'premium':
@@ -247,7 +259,7 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
     const limitVal = parseInt(request.query.limit || '', 10);
     const publishedWithinHoursVal = parseInt(request.query.publishedWithinHours || '', 10);
     const range = !isNaN(fromVal) && !isNaN(toVal) ? { from: fromVal, to: toVal } : undefined;
-    const limit = !isNaN(limitVal) ? limitVal : 10;
+    const limit = !isNaN(limitVal) ? limitVal : range ? range.to : 10;
 
     const companies = parseCommaList(request.query.companies).map((slug) => slug.toLowerCase());
     const keywords = parseCommaList(request.query.keywords).map((keyword) => keyword.toLowerCase());

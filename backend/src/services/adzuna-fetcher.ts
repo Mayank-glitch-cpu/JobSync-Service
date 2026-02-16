@@ -67,7 +67,7 @@ export async function fetchAdzuna(options: FetchAdzunaOptions = {}): Promise<num
   }
 
   const country = options.country ?? 'us';
-  const query = options.query ?? 'software engineer OR machine learning engineer';
+  const query = options.query ?? 'software engineer OR machine learning engineer OR robotics OR UI UX developer OR AI ML engineer';
   const maxDaysOld = options.maxDaysOld ?? 3;
   const numPages = Math.ceil((options.limit ?? 20) / 50); // Adzuna returns up to 50/page
 
