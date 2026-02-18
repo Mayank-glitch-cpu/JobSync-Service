@@ -11,7 +11,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
   googleSheetsCsvUrl:
     process.env.GOOGLE_SHEETS_CSV_URL ||
-    'https://docs.google.com/spreadsheets/d/1W6jVjtZ1T3rtIbcw9HWJcdm2vAXjoKD08y8qeZNgk_Q/export?format=csv&gid=593160555',
+    'https://docs.google.com/spreadsheets/d/1W6jVjtZ1T3rtIbcw9HWJcdm2vAXjoKD08y8qeZNgk_Q/export?format=csv&gid=550557022',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
   claudeModel: process.env.CLAUDE_MODEL || 'claude-3-5-haiku-20241022',
   airtableApiKey: process.env.AIRTABLE_API_KEY || '',
