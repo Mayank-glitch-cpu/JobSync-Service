@@ -39,8 +39,11 @@ def dedupe(slugs: list[str]) -> list[str]:
 
 
 def verify_slug(slug: str) -> tuple[bool, int]:
-    url = f'https://jobs.ashbyhq.com/{slug}/jobs.json'
-    req = urllib.request.Request(url, headers={'User-Agent': 'JobSync-Service/1.0'})
+    url = f'https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=false'
+    req = urllib.request.Request(url, headers={
+        'Accept': 'application/json',
+        'User-Agent': 'JobSync-Service/1.0',
+    })
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             if resp.status != 200:

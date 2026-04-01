@@ -92,7 +92,7 @@ export async function syncToAirtable(): Promise<number> {
       log('sync', 'debug', `  Batch fields sample: ${JSON.stringify(records[0]?.fields)}`);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const created = await (table as any).create(records);
+      const created = await (table as any).create(records, { typecast: true });
       const createdArr = created as unknown as Array<{ id: string }>;
 
       for (let j = 0; j < createdArr.length; j++) {
