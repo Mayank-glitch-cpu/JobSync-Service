@@ -39,7 +39,7 @@ const SOURCE_GROUPS: SourceGroup[] = [
     sources: [
       { key: 'csv', label: 'Google Sheets' },
       { key: 'github', label: 'GitHub' },
-      { key: 'theirstack', label: 'Ashby' },
+      { key: 'ashby', label: 'Ashby' },
       { key: 'jsearch', label: 'JSearch' },
       { key: 'yc', label: 'Y Combinator' },
     ],
@@ -78,7 +78,7 @@ const STEP1_LABELS: Record<string, string> = {
   github: 'Fetch GitHub',
   yc: 'Fetch YC',
   jsearch: 'Fetch JSearch',
-  theirstack: 'Fetch Ashby',
+  ashby: 'Fetch Ashby',
   remotive: 'Fetch Remotive',
   remoteok: 'Fetch RemoteOK',
   adzuna: 'Fetch Adzuna',

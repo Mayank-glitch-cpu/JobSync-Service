@@ -131,16 +131,27 @@ curl -X POST "http://localhost:3001/api/pipeline/step1?source=theirstack&compani
 - No API key is required for Ashby public job board ingestion.
 
 
-### Ashby Slug Verification Utility
+### Ashby Slug Discovery (Local-Only)
 
-Use the helper script to maintain or verify slug candidates:
+The Ashby fetcher reads slugs from [backend/data/ashby-slugs.json](backend/data/ashby-slugs.json). To grow that list, run the Playwright-based slug finder **locally** — it searches Google for `site:jobs.ashbyhq.com`, extracts candidate slugs, validates them against Ashby's posting API, and merges new entries into the JSON.
 
 ```bash
-python scripts/ashby_slugs_verified.py
-python scripts/ashby_slugs_verified.py --verify
+cd backend
+
+# Default: plain fetch; auto-falls back to Playwright (headful) if Google throttles.
+npx tsx src/services/ashby-slug-finder.ts
+
+# Force Playwright. A Chromium window opens. If Google shows a CAPTCHA, solve it
+# in the window — the script waits up to 2 min and cookies persist for future runs.
+npx tsx src/services/ashby-slug-finder.ts --playwright
+
+# Fully headless (higher block rate, useful after cookies are warmed up).
+npx tsx src/services/ashby-slug-finder.ts --playwright --headless
 ```
 
-The backend now includes a larger built-in Ashby slug pool and also supports request-level company selection via `companies=<slug1,slug2,...>`.
+After a run, commit the updated `backend/data/ashby-slugs.json` and push. In production, [backend/src/services/ashby-direct-fetcher.ts](backend/src/services/ashby-direct-fetcher.ts) consumes the committed file on each pipeline run — no browser or Playwright install required in prod.
+
+**Why local-only:** Playwright ships with ~170MB of browser binaries and Google aggressively blocks datacenter IPs. It lives in `devDependencies` and the persistent browser profile (`backend/data/.playwright-profile/`) is gitignored.
 
 ## AI Processing
 

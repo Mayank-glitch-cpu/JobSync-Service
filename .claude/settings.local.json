@@ -3,7 +3,8 @@
     "allow": [
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(npx tsc:*)",
-      "Bash(del \"c:\\\\Users\\\\vyasm\\\\OneDrive\\\\Desktop\\\\JobsList\\\\backend\\\\src\\\\services\\\\activejobs-fetcher.ts\")"
+      "Bash(del \"c:\\\\Users\\\\vyasm\\\\OneDrive\\\\Desktop\\\\JobsList\\\\backend\\\\src\\\\services\\\\activejobs-fetcher.ts\")",
+      "Bash(npx tsx:*)"
     ]
   }
 }

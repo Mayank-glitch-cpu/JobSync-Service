@@ -1,5 +1,12 @@
 [
   {
+    "slug": "aios",
+    "name": "Aios Medical  (YC W20/S21)",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 8
+  },
+  {
     "slug": "airtable",
     "name": "Airtable",
     "verified": true,
@@ -31,8 +38,22 @@
     "slug": "ashby",
     "name": "Ashby",
     "verified": true,
-    "lastVerified": "2026-03-30",
-    "jobCount": 57
+    "lastVerified": "2026-04-12",
+    "jobCount": 60
+  },
+  {
+    "slug": "assorthealth",
+    "name": "Assort Health",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 22
+  },
+  {
+    "slug": "atticus",
+    "name": "Atticus",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 14
   },
   {
     "slug": "away",
@@ -45,8 +66,8 @@
     "slug": "benchling",
     "name": "Benchling",
     "verified": true,
-    "lastVerified": "2026-03-30",
-    "jobCount": 51
+    "lastVerified": "2026-04-12",
+    "jobCount": 50
   },
   {
     "slug": "blueberrypediatrics",
@@ -54,6 +75,13 @@
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 3
+  },
+  {
+    "slug": "brainco",
+    "name": "Brain Co.",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 26
   },
   {
     "slug": "buffer",
@@ -68,6 +96,20 @@
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 9
+  },
+  {
+    "slug": "canals",
+    "name": "Canals",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 24
+  },
+  {
+    "slug": "casium",
+    "name": "Casium",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 2
   },
   {
     "slug": "checkly",
@@ -91,18 +133,25 @@
     "jobCount": 3
   },
   {
+    "slug": "cluely",
+    "name": "Cluely",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 4
+  },
+  {
     "slug": "cognition",
     "name": "Cognition",
     "verified": true,
-    "lastVerified": "2026-03-30",
-    "jobCount": 52
+    "lastVerified": "2026-04-12",
+    "jobCount": 59
   },
   {
     "slug": "cohere",
     "name": "Cohere",
     "verified": true,
-    "lastVerified": "2026-03-30",
-    "jobCount": 125
+    "lastVerified": "2026-04-12",
+    "jobCount": 120
   },
   {
     "slug": "confluent",
@@ -154,6 +203,27 @@
     "jobCount": 9
   },
   {
+    "slug": "eliseai",
+    "name": "EliseAI",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 113
+  },
+  {
+    "slug": "ema",
+    "name": "Ema",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 54
+  },
+  {
+    "slug": "exa",
+    "name": "Exa",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 36
+  },
+  {
     "slug": "factory",
     "name": "Factory",
     "verified": true,
@@ -168,6 +238,27 @@
     "jobCount": 4
   },
   {
+    "slug": "fizz",
+    "name": "Fizz",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 4
+  },
+  {
+    "slug": "flux",
+    "name": "Flux",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 14
+  },
+  {
+    "slug": "glide",
+    "name": "Glide",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 9
+  },
+  {
     "slug": "hackerone",
     "name": "HackerOne",
     "verified": true,
@@ -178,8 +269,8 @@
     "slug": "harvey",
     "name": "Harvey",
     "verified": true,
-    "lastVerified": "2026-03-30",
-    "jobCount": 200
+    "lastVerified": "2026-04-12",
+    "jobCount": 229
   },
   {
     "slug": "hcompany",
@@ -187,6 +278,13 @@
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 16
+  },
+  {
+    "slug": "herondata",
+    "name": "Heron Data",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 8
   },
   {
     "slug": "homevision",
@@ -210,11 +308,39 @@
     "jobCount": 28
   },
   {
+    "slug": "ironcladhq",
+    "name": "Ironclad",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 47
+  },
+  {
     "slug": "jerry.ai",
     "name": "Jerry.ai",
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 45
+  },
+  {
+    "slug": "join9am",
+    "name": "9amHealth",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 12
+  },
+  {
+    "slug": "kalshi",
+    "name": "Kalshi",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 29
+  },
+  {
+    "slug": "kindred",
+    "name": "Kindred",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 8
   },
   {
     "slug": "kombo",
@@ -236,6 +362,13 @@
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 11
+  },
+  {
+    "slug": "lindy",
+    "name": "Lindy",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 6
   },
   {
     "slug": "linear",
@@ -266,11 +399,46 @@
     "jobCount": 81
   },
   {
+    "slug": "magical",
+    "name": "Magical",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 16
+  },
+  {
+    "slug": "mai",
+    "name": "MAI",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 11
+  },
+  {
     "slug": "matterworks",
     "name": "Matterworks",
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 3
+  },
+  {
+    "slug": "mazedesign",
+    "name": "Maze",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 7
+  },
+  {
+    "slug": "mechanize",
+    "name": "Mechanize, Inc.",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 4
+  },
+  {
+    "slug": "meshy",
+    "name": "Meshy LLC",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 56
   },
   {
     "slug": "meticulous",
@@ -285,6 +453,13 @@
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 27
+  },
+  {
+    "slug": "monarchmoney",
+    "name": "Monarch Money",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 11
   },
   {
     "slug": "mux",
@@ -311,8 +486,8 @@
     "slug": "notion",
     "name": "Notion",
     "verified": true,
-    "lastVerified": "2026-03-30",
-    "jobCount": 156
+    "lastVerified": "2026-04-12",
+    "jobCount": 157
   },
   {
     "slug": "office-hours",
@@ -320,6 +495,13 @@
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 16
+  },
+  {
+    "slug": "onebrief",
+    "name": "Onebrief",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 25
   },
   {
     "slug": "ontic",
@@ -357,6 +539,20 @@
     "jobCount": 8
   },
   {
+    "slug": "partiful",
+    "name": "Partiful",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 12
+  },
+  {
+    "slug": "patreon",
+    "name": "Patreon",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 25
+  },
+  {
     "slug": "pear-vc",
     "name": "Pear VC",
     "verified": true,
@@ -367,15 +563,22 @@
     "slug": "permitflow",
     "name": "PermitFlow",
     "verified": true,
-    "lastVerified": "2026-03-30",
-    "jobCount": 35
+    "lastVerified": "2026-04-12",
+    "jobCount": 36
   },
   {
     "slug": "perplexity",
     "name": "Perplexity",
     "verified": true,
-    "lastVerified": "2026-03-30",
+    "lastVerified": "2026-04-12",
     "jobCount": 78
+  },
+  {
+    "slug": "polymarket",
+    "name": "Polymarket",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 33
   },
   {
     "slug": "posthog",
@@ -388,8 +591,8 @@
     "slug": "ramp",
     "name": "Ramp",
     "verified": true,
-    "lastVerified": "2026-03-30",
-    "jobCount": 132
+    "lastVerified": "2026-04-12",
+    "jobCount": 130
   },
   {
     "slug": "reddit",
@@ -402,7 +605,14 @@
     "slug": "replit",
     "name": "Replit",
     "verified": true,
-    "lastVerified": "2026-03-30",
+    "lastVerified": "2026-04-12",
+    "jobCount": 87
+  },
+  {
+    "slug": "ridealso",
+    "name": "ALSO",
+    "verified": true,
+    "lastVerified": "2026-04-12",
     "jobCount": 77
   },
   {
@@ -411,6 +621,20 @@
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 5
+  },
+  {
+    "slug": "sana-roles",
+    "name": "Sana",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 34
+  },
+  {
+    "slug": "scribe",
+    "name": "Scribe",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 26
   },
   {
     "slug": "searchable",
@@ -434,11 +658,25 @@
     "jobCount": 17
   },
   {
+    "slug": "sesame",
+    "name": "Sesame",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 29
+  },
+  {
     "slug": "sfcompute",
     "name": "SF Compute",
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 15
+  },
+  {
+    "slug": "sierra",
+    "name": "Sierra",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 140
   },
   {
     "slug": "sift",
@@ -455,6 +693,20 @@
     "jobCount": 39
   },
   {
+    "slug": "skelar",
+    "name": "SKELAR",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 248
+  },
+  {
+    "slug": "sleeper",
+    "name": "Sleeper",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 15
+  },
+  {
     "slug": "snowflake",
     "name": "Snowflake",
     "verified": true,
@@ -469,11 +721,46 @@
     "jobCount": 4
   },
   {
+    "slug": "substack",
+    "name": "Substack",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 15
+  },
+  {
+    "slug": "tabs",
+    "name": "Tabs",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 28
+  },
+  {
     "slug": "tapcheck",
     "name": "Tapcheck",
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 17
+  },
+  {
+    "slug": "techtorch",
+    "name": "Techtorch",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 17
+  },
+  {
+    "slug": "tennr",
+    "name": "Tennr",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 36
+  },
+  {
+    "slug": "tigerdata",
+    "name": "Tiger Data",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 15
   },
   {
     "slug": "titan",
@@ -493,8 +780,8 @@
     "slug": "vanta",
     "name": "Vanta",
     "verified": true,
-    "lastVerified": "2026-03-30",
-    "jobCount": 171
+    "lastVerified": "2026-04-12",
+    "jobCount": 163
   },
   {
     "slug": "verge-genomics",
@@ -525,11 +812,25 @@
     "jobCount": 45
   },
   {
+    "slug": "whatnot",
+    "name": "Whatnot",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 127
+  },
+  {
     "slug": "wirescreen",
     "name": "Wirescreen",
     "verified": true,
     "lastVerified": "2026-03-30",
     "jobCount": 7
+  },
+  {
+    "slug": "workos",
+    "name": "WorkOS",
+    "verified": true,
+    "lastVerified": "2026-04-12",
+    "jobCount": 27
   },
   {
     "slug": "zapier",

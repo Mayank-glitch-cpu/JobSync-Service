@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { log } from '../logger.js';
 import { writeStep } from '../store.js';
 import type { RawJob } from '../types.js';
+import { passesTitleFilter } from './job-filter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SLUGS_PATH = path.join(__dirname, '../../data/recruitee-slugs.json');
@@ -161,21 +162,12 @@ export async function fetchRecruitee(options: FetchRecruiteeOptions = {}): Promi
         return !Number.isNaN(pubDate.getTime()) && pubDate >= cutoffDate;
       });
 
-      // Keyword filter
-      const matched = keywords.length > 0
-        ? recent.filter((o) => {
-            const hay = (o.title || '').toLowerCase();
-            return keywords.some((kw) => hay.includes(kw));
-          })
-        : recent;
-
-      // Exclude filter
-      const filtered = excludeKeywords.length > 0
-        ? matched.filter((o) => {
-            const title = (o.title || '').toLowerCase();
-            return !excludeKeywords.some((kw) => title.includes(kw));
-          })
-        : matched;
+      const filtered = recent.filter((o) =>
+        passesTitleFilter(
+          { title: o.title },
+          { include: keywords.length ? keywords : undefined, exclude: excludeKeywords.length ? excludeKeywords : undefined }
+        )
+      );
 
       log('fetch', 'info', `    ${name}: ${offers.length} total → ${recent.length} recent → ${filtered.length} matched`);
 

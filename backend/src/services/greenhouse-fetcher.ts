@@ -6,6 +6,7 @@ import { config } from '../config.js';
 import { log } from '../logger.js';
 import { writeStep } from '../store.js';
 import type { RawJob } from '../types.js';
+import { passesTitleFilter } from './job-filter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GREENHOUSE_SLUGS_PATH = path.join(__dirname, '../../data/greenhouse-slugs.json');
@@ -103,10 +104,6 @@ export interface FetchGreenhouseOptions {
   maxAgeDays?: number;
 }
 
-function normalizeText(value: string | null | undefined): string {
-  return (value || '').trim().toLowerCase();
-}
-
 export async function fetchGreenhouse(options: FetchGreenhouseOptions = {}): Promise<number> {
   const allSlugs = loadGreenhouseSlugs();
   const selectedSlugs = options.companySlugs?.length
@@ -146,21 +143,12 @@ export async function fetchGreenhouse(options: FetchGreenhouseOptions = {}): Pro
         return updated >= cutoffDate;
       });
 
-      // Filter by keywords
-      const matched = keywords.length > 0
-        ? recent.filter((j) => {
-            const hay = `${j.title} ${j.departments.map((d) => d.name).join(' ')}`.toLowerCase();
-            return keywords.some((kw) => hay.includes(kw));
-          })
-        : recent;
-
-      // Exclude by title keywords
-      const filtered = excludeKeywords.length > 0
-        ? matched.filter((j) => {
-            const title = normalizeText(j.title);
-            return !excludeKeywords.some((kw) => title.includes(kw));
-          })
-        : matched;
+      const filtered = recent.filter((j) =>
+        passesTitleFilter(
+          { title: j.title, department: j.departments.map((d) => d.name).join(' ') },
+          { include: keywords.length ? keywords : undefined, exclude: excludeKeywords.length ? excludeKeywords : undefined }
+        )
+      );
 
       log('fetch', 'info', `  ${name}: ${jobs.length} total → ${recent.length} recent → ${filtered.length} matched`);
 

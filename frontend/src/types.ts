@@ -11,7 +11,7 @@ export type JobSource =
   | 'github'
   | 'yc'
   | 'jsearch'
-  | 'theirstack'
+  | 'ashby'
   | 'remotive'
   | 'remoteok'
   | 'adzuna'

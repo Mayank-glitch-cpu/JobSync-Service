@@ -36,7 +36,17 @@ export const config = {
   ashbyIncludeCompensation:
     (process.env.ASHBY_INCLUDE_COMPENSATION || 'true').toLowerCase() === 'true',
   ashbyRequestDelayMs: parseInt(process.env.ASHBY_REQUEST_DELAY_MS || '1000', 10),
-  ashbyExcludeKeywords: (process.env.ASHBY_EXCLUDE_KEYWORDS || 'senior,staff,principal,lead,director,manager')
+  ashbyExcludeKeywords: (process.env.ASHBY_EXCLUDE_KEYWORDS || 'senior,staff,principal,lead,director,manager,head of,vp,chief,architect,account,sales,marketing,recruiter,recruiting,warehouse,operations,designer,ghostwriter,revenue,business development,customer success,onboarding,payroll,people,planning,field engineer,solutions engineer,implementation,back of house,retail,support engineer,technical support,community,partnerships,strategy,finance,legal,hr ,copywriter,content')
+    .split(',')
+    .map((keyword) => keyword.trim().toLowerCase())
+    .filter(Boolean),
+  ashbyIncludeKeywords: (process.env.ASHBY_INCLUDE_KEYWORDS || 'software engineer,swe,ml engineer,machine learning,nlp,ai engineer,ai/ml,data engineer,data scientist,backend engineer,fullstack engineer,full stack engineer,frontend engineer,research engineer,robotics,mlops,applied scientist,platform engineer,infrastructure engineer')
+    .split(',')
+    .map((keyword) => keyword.trim().toLowerCase())
+    .filter(Boolean),
+  ashbyNewGradOnly:
+    (process.env.ASHBY_NEW_GRAD_ONLY || 'true').toLowerCase() === 'true',
+  ashbyNewGradKeywords: (process.env.ASHBY_NEW_GRAD_KEYWORDS || 'new grad,new-grad,entry level,entry-level,junior,intern,internship,university grad,recent graduate,early career,i/ii,level 1,l1,graduate,apprentice,rotational')
     .split(',')
     .map((keyword) => keyword.trim().toLowerCase())
     .filter(Boolean),

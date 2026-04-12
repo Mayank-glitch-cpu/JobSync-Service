@@ -6,6 +6,7 @@ import { config } from '../config.js';
 import { log } from '../logger.js';
 import { writeStep } from '../store.js';
 import type { RawJob } from '../types.js';
+import { passesTitleFilter } from './job-filter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LEVER_SLUGS_PATH = path.join(__dirname, '../../data/lever-slugs.json');
@@ -139,21 +140,12 @@ export async function fetchLever(options: FetchLeverOptions = {}): Promise<numbe
       // Filter by recency (createdAt is in ms)
       const recent = jobs.filter((j) => j.createdAt >= cutoffMs);
 
-      // Filter by keywords
-      const matched = keywords.length > 0
-        ? recent.filter((j) => {
-            const hay = `${j.text} ${j.categories.department || ''} ${j.categories.team || ''}`.toLowerCase();
-            return keywords.some((kw) => hay.includes(kw));
-          })
-        : recent;
-
-      // Exclude
-      const filtered = excludeKeywords.length > 0
-        ? matched.filter((j) => {
-            const title = j.text.toLowerCase();
-            return !excludeKeywords.some((kw) => title.includes(kw));
-          })
-        : matched;
+      const filtered = recent.filter((j) =>
+        passesTitleFilter(
+          { title: j.text, department: j.categories.department, team: j.categories.team },
+          { include: keywords.length ? keywords : undefined, exclude: excludeKeywords.length ? excludeKeywords : undefined }
+        )
+      );
 
       log('fetch', 'info', `  ${name}: ${jobs.length} total → ${recent.length} recent → ${filtered.length} matched`);
 

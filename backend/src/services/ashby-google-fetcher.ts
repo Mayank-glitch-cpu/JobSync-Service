@@ -137,7 +137,8 @@ async function searchGoogle(
   profile: SearchProfile,
   apiKey: string,
   cseId: string,
-  maxResults: number
+  maxResults: number,
+  dateRestrictDays = 7
 ): Promise<DiscoveredPosting[]> {
   const discovered: DiscoveredPosting[] = [];
   const baseQuery = `site:jobs.ashbyhq.com -inurl:/application ${profile.query}`;
@@ -153,7 +154,7 @@ async function searchGoogle(
       q: baseQuery,
       start: String(startIndex),
       num: '10',
-      dateRestrict: 'd7',
+      dateRestrict: `d${dateRestrictDays}`,
     });
 
     log('fetch', 'info', `    Google CSE page ${page + 1}/${pages} for "${profile.name}"...`);
@@ -525,6 +526,8 @@ export async function fetchAshbyGoogle(options: FetchAshbyGoogleOptions = {}): P
   const skipEnrichment = options.skipEnrichment ?? false;
   const maxAgeDays = options.maxAgeDays ?? 0;
   const jobLimit = options.limit ?? 50;
+  // Use maxAgeDays to drive Google's date restriction; always at least 7 days
+  const dateRestrictDays = maxAgeDays > 0 ? Math.max(maxAgeDays, 7) : 7;
 
   // ── Resolve search backend ─────────────────────────────────────────
   const backend = options.searchBackend ?? 'google-cse';
@@ -566,7 +569,7 @@ export async function fetchAshbyGoogle(options: FetchAshbyGoogleOptions = {}): P
     let results: DiscoveredPosting[];
 
     if (useGoogleCse) {
-      results = await searchGoogle(profile, googleApiKey, cseId, resultsPerProfile);
+      results = await searchGoogle(profile, googleApiKey, cseId, resultsPerProfile, dateRestrictDays);
     } else {
       results = await searchSerpApi(profile, rapidApiKey, resultsPerProfile);
     }

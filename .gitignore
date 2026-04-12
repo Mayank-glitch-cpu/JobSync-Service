@@ -47,6 +47,13 @@ coverage/
 # Pipeline data (keep ashby-slugs.json and companies.json, ignore step outputs)
 backend/data/step*.json
 
+# Playwright (local-only slug discovery — browser profile, cookies, cache)
+backend/data/.playwright-profile/
+
+# Stray archives / Windows artifacts
+files.zip
+nul
+
 # Temp
 *.tmp
 *.temp

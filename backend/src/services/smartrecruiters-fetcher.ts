@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { log } from '../logger.js';
 import { writeStep } from '../store.js';
 import type { RawJob } from '../types.js';
+import { passesTitleFilter } from './job-filter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SLUGS_PATH = path.join(__dirname, '../../data/smartrecruiters-slugs.json');
@@ -246,17 +247,20 @@ export async function fetchSmartRecruiters(
       return !Number.isNaN(released.getTime()) && released >= cutoffDate;
     });
 
-    log('fetch', 'info', `    ${name}: ${postings.length} found → ${recent.length} within ${maxAgeDays} days`);
+    // Filter by title (shared new-grad / technical filter)
+    const filtered = recent.filter((p) => passesTitleFilter({ title: p.name }));
+
+    log('fetch', 'info', `    ${name}: ${postings.length} found → ${recent.length} recent → ${filtered.length} matched`);
 
     // Optionally fetch full details
     if (fetchDetails) {
-      for (const posting of recent) {
+      for (const posting of filtered) {
         const detail = await fetchPostingDetail(identifier, posting.id);
         collected.push({ companyName: name, identifier, posting, detail });
         await sleep(150);
       }
     } else {
-      for (const posting of recent) {
+      for (const posting of filtered) {
         collected.push({ companyName: name, identifier, posting });
       }
     }

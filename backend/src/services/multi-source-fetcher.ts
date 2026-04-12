@@ -7,7 +7,7 @@ import { fetchCsv } from './csv-fetcher.js';
 import { fetchGitHub } from './github-fetcher.js';
 import { fetchJSearch } from './jsearch-fetcher.js';
 import { fetchYC } from './yc-fetcher.js';
-import { fetchTheirStack } from './theirstack-fetcher.js';
+import { fetchAshbyDirect } from './ashby-direct-fetcher.js';
 import { fetchRemotive } from './remotive-fetcher.js';
 import { fetchRemoteOK } from './remoteok-fetcher.js';
 import { fetchAdzuna } from './adzuna-fetcher.js';
@@ -24,6 +24,7 @@ import { fetchSmartRecruiters } from './smartrecruiters-fetcher.js';
 import { fetchWorkday } from './workday-fetcher.js';
 import { fetchRecruitee } from './recruitee-fetcher.js';
 import { fetchWorkable } from './workable-fetcher.js';
+import { fetchAshbyGoogle } from './ashby-google-fetcher.js';
 
 export type SourceName =
   | 'csv'
@@ -46,7 +47,8 @@ export type SourceName =
   | 'smartrecruiters'
   | 'workday'
   | 'recruitee'
-  | 'workable';
+  | 'workable'
+  | 'ashby-google';
 
 interface FetcherEntry {
   name: SourceName;
@@ -93,9 +95,29 @@ const FETCHER_REGISTRY: FetcherEntry[] = [
   {
     name: 'ashby',
     label: 'Ashby Job Boards',
-    fn: () => fetchTheirStack({ limit: 30 }),
+    fn: () => fetchAshbyDirect({ limit: 50, maxAgeDays: 7 }),
     requiresAuth: false,
     authEnvVars: [],
+  },
+  {
+    name: 'ashby-google',
+    label: 'Ashby (Google Discovery)',
+    // Discovers Ashby jobs via Google: site:jobs.ashbyhq.com ("software" OR "robotics") "early career" -inurl:/application
+    // Uses Google CSE (GOOGLE_API_KEY + GOOGLE_CSE_ID) or falls back to SerpAPI (RAPIDAPI_KEY).
+    fn: () => fetchAshbyGoogle({
+      profiles: [
+        {
+          name: 'Software / Robotics — Early Career',
+          query: '("software" OR "robotics") "early career"',
+        },
+      ],
+      searchBackend: 'serpapi',
+      resultsPerProfile: 30,
+      maxAgeDays: 10,
+      limit: 30,
+    }),
+    requiresAuth: true,
+    authEnvVars: ['RAPIDAPI_KEY'],
   },
   {
     name: 'remotive',

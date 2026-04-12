@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { log } from '../logger.js';
 import { writeStep } from '../store.js';
 import type { RawJob } from '../types.js';
+import { passesTitleFilter } from './job-filter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SLUGS_PATH = path.join(__dirname, '../../data/workable-slugs.json');
@@ -133,21 +134,12 @@ export async function fetchWorkable(options: FetchWorkableOptions = {}): Promise
         return !Number.isNaN(created.getTime()) && created >= cutoffDate;
       });
 
-      // Keyword filter
-      const matched = keywords.length > 0
-        ? recent.filter((j) => {
-            const hay = (j.title || '').toLowerCase();
-            return keywords.some((kw) => hay.includes(kw));
-          })
-        : recent;
-
-      // Exclude filter
-      const filtered = excludeKeywords.length > 0
-        ? matched.filter((j) => {
-            const title = (j.title || '').toLowerCase();
-            return !excludeKeywords.some((kw) => title.includes(kw));
-          })
-        : matched;
+      const filtered = recent.filter((j) =>
+        passesTitleFilter(
+          { title: j.title },
+          { include: keywords.length ? keywords : undefined, exclude: excludeKeywords.length ? excludeKeywords : undefined }
+        )
+      );
 
       log('fetch', 'info', `    ${name}: ${jobs.length} total → ${recent.length} recent → ${filtered.length} matched`);
 

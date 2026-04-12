@@ -20,6 +20,8 @@ import { fetchWellfound } from '../services/wellfound-fetcher.js';
 import { fetchHimalayas } from '../services/himalayas-fetcher.js';
 import { fetchJobicy } from '../services/jobicy-fetcher.js';
 import { fetchAshbyGoogle } from '../services/ashby-google-fetcher.js';
+import { fetchAshbyDirect } from '../services/ashby-direct-fetcher.js';
+import { findAshbySlugs } from '../services/ashby-slug-finder.js';
 import { fetchSmartRecruiters } from '../services/smartrecruiters-fetcher.js';
 import { fetchWorkday } from '../services/workday-fetcher.js';
 import { fetchRecruitee } from '../services/recruitee-fetcher.js';
@@ -136,6 +138,11 @@ function resolveSource(
       return { label: 'Step 1 (Fetch Jobicy)', fn: () => fetchJobicy({ limit }) };
     case 'ashby-google':
       return { label: 'Step 1 (Fetch Ashby Google)', fn: () => fetchAshbyGoogle({ limit, maxAgeDays: 7 }) };
+    case 'ashby-direct':
+    case 'ashby':
+      return { label: 'Step 1 (Fetch Ashby Direct)', fn: () => fetchAshbyDirect({ limit, maxAgeDays: 7, slugs: options.companySlugs, keywords: options.keywords }) };
+    case 'ashby-slug-finder':
+      return { label: 'Ashby Slug Finder (Google)', fn: () => findAshbySlugs() };
     case 'smartrecruiters':
       return { label: 'Step 1 (Fetch SmartRecruiters)', fn: () => fetchSmartRecruiters({ limit, maxAgeDays: 7 }) };
     case 'workday':
