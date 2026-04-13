@@ -13,7 +13,7 @@ export const config = {
     process.env.GOOGLE_SHEETS_CSV_URL ||
     'https://docs.google.com/spreadsheets/d/1W6jVjtZ1T3rtIbcw9HWJcdm2vAXjoKD08y8qeZNgk_Q/export?format=csv&gid=550557022',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-  claudeModel: process.env.CLAUDE_MODEL || 'claude-3-5-haiku-20241022',
+  claudeModel: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
   airtableApiKey: process.env.AIRTABLE_API_KEY || '',
   airtableBaseId: process.env.AIRTABLE_BASE_ID || '',
   airtableTableName: process.env.AIRTABLE_TABLE_NAME || 'Jobs',
@@ -40,16 +40,12 @@ export const config = {
     .split(',')
     .map((keyword) => keyword.trim().toLowerCase())
     .filter(Boolean),
-  ashbyIncludeKeywords: (process.env.ASHBY_INCLUDE_KEYWORDS || 'software engineer,swe,ml engineer,machine learning,nlp,ai engineer,ai/ml,data engineer,data scientist,backend engineer,fullstack engineer,full stack engineer,frontend engineer,research engineer,robotics,mlops,applied scientist,platform engineer,infrastructure engineer')
+  ashbyIncludeKeywords: (process.env.ASHBY_INCLUDE_KEYWORDS || 'engineer,developer,software,programmer,data,machine learning,ml,ai,nlp,scientist,researcher,robotics,mlops,devops,sre,infrastructure,platform,backend,frontend,fullstack,full stack,firmware,embedded')
     .split(',')
     .map((keyword) => keyword.trim().toLowerCase())
     .filter(Boolean),
-  ashbyNewGradOnly:
-    (process.env.ASHBY_NEW_GRAD_ONLY || 'true').toLowerCase() === 'true',
-  ashbyNewGradKeywords: (process.env.ASHBY_NEW_GRAD_KEYWORDS || 'new grad,new-grad,entry level,entry-level,junior,intern,internship,university grad,recent graduate,early career,i/ii,level 1,l1,graduate,apprentice,rotational')
-    .split(',')
-    .map((keyword) => keyword.trim().toLowerCase())
-    .filter(Boolean),
+  ashbyUsOnly:
+    (process.env.ASHBY_US_ONLY || 'true').toLowerCase() === 'true',
   pipelineApiKey: process.env.PIPELINE_API_KEY || '',
 
   // Adzuna (optional — free tier: 250 req/month)

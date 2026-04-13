@@ -41,6 +41,49 @@ function extractJD(html: string): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const ASHBY_URL_RE = /^https?:\/\/jobs\.ashbyhq\.com\/([^/]+)\/([0-9a-f-]{36})(?:\/.*)?$/i;
+
+function htmlToText(html: string): string {
+  const $ = cheerio.load(html);
+  $('script, style').remove();
+  return $.root().text().replace(/\s+/g, ' ').trim();
+}
+
+async function fetchAshbyJD(applyLink: string): Promise<string | null> {
+  const m = applyLink.match(ASHBY_URL_RE);
+  if (!m) return null;
+  const [, slug, jobId] = m;
+  const url = `https://api.ashbyhq.com/posting-api/job-board/${slug}/${jobId}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json', 'User-Agent': 'JobSync-Service/1.0' },
+    });
+    let data: { descriptionHtml?: string; descriptionPlain?: string } | null = null;
+    if (res.ok) {
+      data = await res.json();
+    } else {
+      // Fallback: fetch full board and locate job by id
+      const boardRes = await fetch(
+        `https://api.ashbyhq.com/posting-api/job-board/${slug}?includeCompensation=true`,
+        { headers: { Accept: 'application/json', 'User-Agent': 'JobSync-Service/1.0' } }
+      );
+      if (!boardRes.ok) return null;
+      const board: { jobs?: Array<{ id: string; descriptionHtml?: string; descriptionPlain?: string }> } = await boardRes.json();
+      data = board.jobs?.find((j) => j.id === jobId) || null;
+    }
+    if (!data) return null;
+    const text = data.descriptionPlain?.trim() || (data.descriptionHtml ? htmlToText(data.descriptionHtml) : '');
+    return text && text.length >= 50 ? text.slice(0, 8000) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function scrapeJDs(): Promise<number> {
   const jobs = readStep<RawJob[]>('step1-raw-jobs');
   if (!jobs || jobs.length === 0) {
@@ -67,6 +110,16 @@ export async function scrapeJDs(): Promise<number> {
 
     try {
       log('scrape', 'info', `  [${i + 1}/${jobs.length}] Scraping ${job.company} — ${job.applyLink}`);
+
+      const ashbyJD = await fetchAshbyJD(job.applyLink);
+      if (ashbyJD) {
+        scraped.jobDescription = ashbyJD;
+        scraped.scrapeStatus = 'success';
+        log('scrape', 'info', `  [${i + 1}] ${job.company} — OK via Ashby API (${ashbyJD.length} chars)`);
+        results.push(scraped);
+        if (i < jobs.length - 1) await sleep(500);
+        continue;
+      }
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);

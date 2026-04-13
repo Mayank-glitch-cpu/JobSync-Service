@@ -142,7 +142,12 @@ export async function fetchLever(options: FetchLeverOptions = {}): Promise<numbe
 
       const filtered = recent.filter((j) =>
         passesTitleFilter(
-          { title: j.text, department: j.categories.department, team: j.categories.team },
+          {
+            title: j.text,
+            department: j.categories.department,
+            team: j.categories.team,
+            location: j.categories.allLocations?.length ? j.categories.allLocations.join('; ') : j.categories.location || null,
+          },
           { include: keywords.length ? keywords : undefined, exclude: excludeKeywords.length ? excludeKeywords : undefined }
         )
       );

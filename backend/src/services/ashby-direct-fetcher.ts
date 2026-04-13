@@ -44,8 +44,8 @@ export interface FetchAshbyDirectOptions {
   keywords?: string[];
   /** Override exclude keywords (defaults to config.ashbyExcludeKeywords). */
   excludeKeywords?: string[];
-  /** Require a new-grad/entry-level marker in the title (defaults to config.ashbyNewGradOnly). */
-  newGradOnly?: boolean;
+  /** Only keep US-based roles (defaults to config.ashbyUsOnly). */
+  usOnly?: boolean;
   concurrency?: number;
 }
 
@@ -100,8 +100,7 @@ export async function fetchAshbyDirect(options: FetchAshbyDirectOptions = {}): P
   const maxAgeDays = options.maxAgeDays ?? 0;
   const include = options.keywords ?? config.ashbyIncludeKeywords;
   const exclude = options.excludeKeywords ?? config.ashbyExcludeKeywords;
-  const newGradOnly = options.newGradOnly ?? config.ashbyNewGradOnly;
-  const newGradKeywords = config.ashbyNewGradKeywords;
+  const usOnly = options.usOnly ?? config.ashbyUsOnly;
   const concurrency = options.concurrency ?? 6;
 
   const raw = await readFile(SLUGS_PATH, 'utf-8');
@@ -119,7 +118,7 @@ export async function fetchAshbyDirect(options: FetchAshbyDirectOptions = {}): P
   log('fetch', 'info', `  Concurrency: ${concurrency}`);
   log('fetch', 'info', `  maxAgeDays: ${maxAgeDays || 'none'}`);
   log('fetch', 'info', `  Limit: ${limit}`);
-  log('fetch', 'info', `  Filter: newGradOnly=${newGradOnly}, include=${include.length}, exclude=${exclude.length}`);
+  log('fetch', 'info', `  Filter: usOnly=${usOnly}, include=${include.length}, exclude=${exclude.length}`);
   log('fetch', 'info', '═══════════════════════════════════════════════════');
 
   const boards = await mapLimit(entries, concurrency, async (entry) => {
@@ -140,7 +139,10 @@ export async function fetchAshbyDirect(options: FetchAshbyDirectOptions = {}): P
   const flat: Flat[] = [];
   for (const { entry, jobs } of boards) {
     for (const job of jobs) {
-      if (!passesTitleFilter(job, { include, exclude, newGradKeywords, newGradOnly })) continue;
+      if (!passesTitleFilter(
+        { title: job.title, department: job.department, team: job.team, location: locationToString(job.location) },
+        { include, exclude, usOnly }
+      )) continue;
       const publishedMs = job.publishedAt ? Date.parse(job.publishedAt) : 0;
       if (cutoff && publishedMs && publishedMs < cutoff) continue;
       flat.push({ entry, job, publishedMs: Number.isNaN(publishedMs) ? 0 : publishedMs });

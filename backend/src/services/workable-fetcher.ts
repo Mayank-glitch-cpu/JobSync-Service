@@ -136,7 +136,7 @@ export async function fetchWorkable(options: FetchWorkableOptions = {}): Promise
 
       const filtered = recent.filter((j) =>
         passesTitleFilter(
-          { title: j.title },
+          { title: j.title, location: j.location?.location_str || j.location?.country || null },
           { include: keywords.length ? keywords : undefined, exclude: excludeKeywords.length ? excludeKeywords : undefined }
         )
       );

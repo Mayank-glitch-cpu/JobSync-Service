@@ -145,7 +145,7 @@ export async function fetchGreenhouse(options: FetchGreenhouseOptions = {}): Pro
 
       const filtered = recent.filter((j) =>
         passesTitleFilter(
-          { title: j.title, department: j.departments.map((d) => d.name).join(' ') },
+          { title: j.title, department: j.departments.map((d) => d.name).join(' '), location: j.location?.name || null },
           { include: keywords.length ? keywords : undefined, exclude: excludeKeywords.length ? excludeKeywords : undefined }
         )
       );

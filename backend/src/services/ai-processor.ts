@@ -147,7 +147,14 @@ Rules for extraction:
 3. industry: Choose the BEST matching category from: ${INDUSTRY_LIST.join(', ')}
 4. qualifications: Extract key requirements (degree, years of experience, skills) as a brief summary.
 5. salary: Extract and normalize salary if mentioned (e.g., "$50/hr" or "$120,000-$150,000/year"). Null if not found.
-6. isNewGrad: Analyze the qualifications and requirements section. Set to true if the role is suitable for new graduates — indicators include: 0-2 years experience required, "entry level", "new grad", "junior", "no prior professional experience required", "recent graduate", bachelor's degree with no extensive experience requirement. Set to false if the role requires 3+ years of experience or senior-level qualifications.
+6. isNewGrad: Determine if the role is a NEW GRAD / ENTRY-LEVEL position. Weight the TITLE heavily — it is the strongest signal.
+   Set to true if:
+   - Title contains explicit markers: "new grad", "new graduate", "entry level", "entry-level", "junior", "jr.", "associate engineer", "graduate engineer", "campus", "university grad", "early career", "early-in-career", "intern" (if user wants new-grad only, intern is acceptable), "I" or "1" level (e.g., "Software Engineer I", "SWE 1"), "college grad", "recent graduate"
+   - OR qualifications clearly indicate 0-2 years of experience, "no prior professional experience required", or bachelor's degree with no extensive experience requirement
+   Set to false if:
+   - Title contains: "senior", "sr.", "staff", "principal", "lead", "manager", "director", "architect", "II", "III", "IV", "L2+", "L3+", or any level >= 2
+   - OR qualifications require 3+ years of experience, or senior-level responsibilities
+   When title and qualifications conflict, the TITLE wins. When uncertain with no strong signals either way, set to false.
 7. datePosted: Extract the date the job was posted if mentioned in the description (e.g., "Posted on Jan 15, 2025", "Date: 2025-01-15"). Return in YYYY-MM-DD format. Null if not found.
 8. confidence: Your confidence in the extraction (0.0 to 1.0).
 

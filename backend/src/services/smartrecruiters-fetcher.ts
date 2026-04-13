@@ -248,7 +248,7 @@ export async function fetchSmartRecruiters(
     });
 
     // Filter by title (shared new-grad / technical filter)
-    const filtered = recent.filter((p) => passesTitleFilter({ title: p.name }));
+    const filtered = recent.filter((p) => passesTitleFilter({ title: p.name, location: formatLocation(p.location) }));
 
     log('fetch', 'info', `    ${name}: ${postings.length} found → ${recent.length} recent → ${filtered.length} matched`);
 

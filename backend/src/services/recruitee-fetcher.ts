@@ -164,7 +164,7 @@ export async function fetchRecruitee(options: FetchRecruiteeOptions = {}): Promi
 
       const filtered = recent.filter((o) =>
         passesTitleFilter(
-          { title: o.title },
+          { title: o.title, location: formatLocation(o) },
           { include: keywords.length ? keywords : undefined, exclude: excludeKeywords.length ? excludeKeywords : undefined }
         )
       );
