@@ -2,7 +2,7 @@
 
 An agentic job-search copilot that uses your own MCP client (Claude Desktop, Claude Code, Cursor) to discover, classify, and sync fresh job postings into your own Airtable base — or a local markdown file. Model-agnostic: you bring the LLM, JobSync handles the plumbing.
 
-![JobSync Dashboard](jobSyncdash.jpeg)
+[![Watch the demo](https://img.youtube.com/vi/3Zf3c3PXHvc/maxresdefault.jpg)](https://www.youtube.com/watch?v=3Zf3c3PXHvc)
 
 ---
 
