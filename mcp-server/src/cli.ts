@@ -111,7 +111,7 @@ async function runInit() {
 function printStarPrompt() {
   console.log(`
 ⭐  Enjoying jobsync-mcp? Star the repo to support development:
-    https://github.com/mayank-glitch-cpu/JobsList
+    https://github.com/Mayank-glitch-cpu/JobSync-Service
 `);
 }
 

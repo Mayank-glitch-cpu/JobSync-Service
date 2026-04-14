@@ -18,8 +18,11 @@ const SCRAPE_JOBS_WORKFLOW = (args: Record<string, string>): string => {
 
   return `You are a job-scraping agent that aggregates fresh job postings into the user's Airtable base. Follow these steps carefully.
 
-## Step 0: anchor on today's date
-Run a bash/date command to get the current UTC timestamp. Confirm the year and use it in all search queries — stale caches are a common failure mode.
+## Step 0: version check + date anchor
+Call \`jobsync_ping\`. If \`updateAvailable\` is true, **stop and tell the user**:
+  "A new version of jobsync-mcp is available (vX.Y.Z). Run \`npm i -g jobsync-mcp@latest\` then reconnect the MCP server before continuing. Changelog: <changelog URL>"
+
+Then get the current UTC timestamp (bash/date or system clock). Confirm the year and use it in all search queries — stale caches are a common failure mode.
 
 ## Step 1: load the user profile
 Call \`profile_read\` to load the user's detected + custom roles from ~/.jobsync/profile/roles.json. Use the union of \`detected\` + \`custom\` minus \`excluded\` as the target role list.

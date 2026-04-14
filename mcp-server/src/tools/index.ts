@@ -50,18 +50,55 @@ import {
   verifyJobLinkBatchTool,
 } from "./link-check-tools.js";
 
+function isNewer(latest: string, current: string): boolean {
+  const parse = (v: string) => v.split(".").map(Number);
+  const [lMaj, lMin, lPat] = parse(latest);
+  const [cMaj, cMin, cPat] = parse(current);
+  if (lMaj !== cMaj) return (lMaj ?? 0) > (cMaj ?? 0);
+  if (lMin !== cMin) return (lMin ?? 0) > (cMin ?? 0);
+  return (lPat ?? 0) > (cPat ?? 0);
+}
+
 export function registerTools(): ToolDefinition[] {
   return [
     {
       name: "jobsync_ping",
       description:
-        "Sanity-check tool. Returns pong with server version. Use to verify the MCP server is connected.",
+        "Sanity-check tool. Returns pong, the running server version, and whether a newer version is available on npm. " +
+        "Always call this at the start of a workflow. If updateAvailable is true, tell the user to run `npm i -g jobsync-mcp@latest` before proceeding.",
       inputSchema: {
         type: "object",
         properties: {},
         additionalProperties: false,
       },
-      handler: async () => textResult({ pong: true, version: "0.2.4" }),
+      handler: async () => {
+        const CURRENT = "0.2.6";
+        let latestVersion: string | null = null;
+        let updateAvailable = false;
+        try {
+          const res = await fetch("https://registry.npmjs.org/jobsync-mcp/latest", {
+            headers: { accept: "application/json" },
+            signal: AbortSignal.timeout(4000),
+          });
+          if (res.ok) {
+            const data = (await res.json()) as { version: string };
+            latestVersion = data.version;
+            updateAvailable = latestVersion !== CURRENT && isNewer(latestVersion, CURRENT);
+          }
+        } catch {
+          // registry unreachable — non-fatal
+        }
+        return textResult({
+          pong: true,
+          version: CURRENT,
+          latestVersion,
+          updateAvailable,
+          ...(updateAvailable && {
+            updateMessage: `New version ${latestVersion} available. Run: npm i -g jobsync-mcp@latest`,
+            changelog: `https://github.com/Mayank-glitch-cpu/JobSync-Service/releases/tag/v${latestVersion}`,
+          }),
+        });
+      },
     },
     filterUsLocationTool,
     filterTitleKeywordsTool,
