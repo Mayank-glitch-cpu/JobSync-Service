@@ -1,0 +1,211 @@
+// Ported from backend/src/services/ai-processor.ts.
+// Keep in sync with legacy until retired.
+
+import type { JobBoard, ScrapedJob } from "./types.js";
+
+const H1B_SPONSOR_COMPANIES: string[] = [
+  'amazon', 'google', 'alphabet', 'apple', 'meta platforms', 'meta', 'facebook',
+  'microsoft', 'netflix', 'nvidia', 'tesla', 'amazon web services', 'aws',
+  'amazon development center', 'amazon data services', 'salesforce', 'oracle',
+  'ibm', 'intel', 'cisco systems', 'cisco', 'adobe', 'qualcomm', 'linkedin',
+  'paypal', 'intuit', 'servicenow', 'uber technologies', 'uber', 'bytedance',
+  'tiktok', 'palo alto networks', 'snowflake', 'databricks', 'stripe', 'airbnb',
+  'doordash', 'coinbase', 'spotify', 'pinterest', 'snap', 'x corp', 'twitter',
+  'palantir', 'atlassian', 'shopify', 'block', 'square', 'cloudflare',
+  'crowdstrike', 'zscaler', 'datadog', 'mongodb', 'elastic', 'hashicorp',
+  'confluent', 'twilio', 'okta', 'splunk', 'vmware', 'broadcom', 'amd',
+  'micron technology', 'micron', 'texas instruments', 'marvell technology',
+  'marvell', 'applied materials', 'lam research', 'kla corporation', 'kla',
+  'synopsys', 'cadence design systems', 'cadence', 'arm holdings', 'arm',
+  'analog devices', 'on semiconductor', 'onsemi', 'microchip technology',
+  'globalfoundries', 'tsmc', 'samsung semiconductor', 'samsung',
+  'deloitte consulting', 'deloitte', 'ernst & young', 'ey', 'accenture',
+  'pricewaterhousecoopers', 'pwc', 'mckinsey', 'boston consulting group', 'bcg',
+  'bain & company', 'bain', 'kpmg', 'capgemini', 'deloitte & touche',
+  'deloitte tax', 'booz allen hamilton', 'booz allen', 'oliver wyman',
+  'a.t. kearney', 'kearney', 'roland berger', 'cognizant', 'tata consultancy',
+  'tcs', 'infosys', 'hcl america', 'hcl', 'wipro', 'ltimindtree',
+  'tech mahindra', 'mphasis', 'hexaware', 'persistent systems', 'virtusa',
+  'cgi technologies', 'cgi', 'synechron', 'ust global', 'ust',
+  'l&t technology', 'compunnel', 'randstad', 'kforce', 'birlasoft',
+  'zensar', 'mindtree', 'coforge', 'niit technologies', 'mastech', 'igate',
+  'jpmorgan', 'jp morgan', 'goldman sachs', 'morgan stanley', 'citibank',
+  'citi', 'bank of america', 'wells fargo', 'capital one', 'american express',
+  'amex', 'charles schwab', 'schwab', 'fidelity investments', 'fidelity',
+  'blackrock', 'barclays', 'deutsche bank', 'ubs', 'hsbc', 'bny mellon',
+  'state street', 'us bank', 'pnc financial', 'pnc', 'visa', 'mastercard',
+  'bloomberg', 's&p global', "moody's", 'msci', 'factset', 'cme group',
+  'ice', 'citadel', 'citadel securities', 'two sigma', 'd.e. shaw', 'de shaw',
+  'jane street', 'renaissance technologies', 'susquehanna', 'sig',
+  'jump trading', 'hudson river trading', 'virtu financial', 'virtu',
+  'tower research', 'optiver', 'imc trading', 'drw trading', 'drw',
+  'akuna capital', 'akuna', 'belvedere trading', 'five rings', 'arrowstreet',
+  'aqr capital', 'aqr', 'point72', 'bridgewater', 'millennium management',
+  'millennium', 'balyasny', 'voleon', 'worldquant', 'squarepoint',
+  'pdt partners', 'old mission', 'wolverine trading', 'wolverine',
+  'peak6', 'gts', 'headlands technologies', 'headlands', 'radix trading',
+  'xtx markets', 'vatic investments', 'man group', 'ahl',
+  'quantitative brokers', 'flow traders', 'cubist systematic',
+  'winton group', 'marshall wace', 'schonfeld', 'exoduspoint',
+  'graham capital', 'verition', 'capula', 'walmart', 'fedex', 'ups',
+  'ford motor', 'ford', 'general motors', 'gm', 'rivian', 'lucid motors',
+  'cummins', 't-mobile', 'at&t', 'verizon', 'comcast',
+  'charter communications', 'adp', 'fis', 'hpe', 'hp inc', 'hp',
+  'dell technologies', 'dell', 'p&g', 'procter & gamble',
+  'johnson & johnson', 'j&j', 'eli lilly', 'pfizer', 'merck', 'abbvie',
+  'amgen', 'gilead sciences', 'gilead', 'regeneron', 'bristol-myers squibb',
+  'bms', 'thermo fisher', 'unitedhealth', 'optum', 'elevance health',
+  'cvs health', 'cvs', 'cigna', 'humana', 'medtronic', 'abbott labs',
+  'abbott', 'boston scientific', 'intuitive surgical', 'exxon mobil', 'exxon',
+  'chevron', 'caterpillar', '3m', 'ge aerospace', 'ge', 'honeywell',
+  'rtx', 'raytheon', 'lockheed martin', 'northrop grumman', 'boeing',
+  'l3harris', 'general dynamics', 'spacex', 'anduril', 'target', 'home depot',
+  'nike', 'pepsico', 'pepsi', 'coca-cola', 'disney', 'ebay',
+  'expedia group', 'expedia', 'sap america', 'sap', 'workday', 'hubspot',
+  'autodesk', 'fortinet', 'arista networks', 'arista', 'netapp',
+  'thomson reuters', 'openai', 'anthropic', 'xai', 'cohere', 'hugging face',
+  'perplexity', 'scale ai', 'cerebras', 'together ai', 'weights & biases',
+  'wandb', 'glean', 'harvey ai', 'runway', 'elevenlabs', 'cursor',
+  'anysphere', 'wiz', 'coreweave', 'applied intuition', 'waymo', 'nuro',
+  'zoox', 'character.ai', 'grammarly', 'labelbox', 'sambanova', 'lambda',
+  'replit', 'anyscale', 'pinecone', 'cleanlab', 'instacart', 'gusto',
+  'brex', 'retool', 'deel', 'flexport', 'faire', 'zapier', 'gitlab',
+  'dropbox', 'reddit', 'plaid', 'ramp', 'rippling', 'samsara', 'fivetran',
+  'checkr', 'airtable', 'notion', 'figma', 'vercel', 'vanta', 'mercury',
+  'whatnot', 'ironclad', 'carta', 'amplitude', 'docker', 'webflow',
+  'modern treasury', 'linear', 'supabase', 'posthog', 'mixpanel', 'algolia',
+  'ginkgo bioworks', 'ginkgo', 'cockroach labs', 'spring health',
+  'color health', 'ro', 'abridge', 'stytch', 'neon', 'chainguard',
+  'cal.com', 'planetscale', 'materialize', 'lyft', 'robinhood', 'sofi',
+  'chime', 'toast', 'affirm', 'docusign', 'zoom', 'electronic arts', 'ea',
+  'epic games', 'roblox', 'unity technologies', 'unity', 'asana', 'zendesk',
+  'freshworks', 'uipath', 'informatica', 'veeva systems', 'veeva',
+  'sentinelone', 'rubrik', 'nutanix', 'pure storage', 'duolingo', 'coursera',
+  'grafana labs', 'grafana', 'dbt labs', 'snyk', 'kong', 'lattice', 'miro',
+  'klaviyo', 'celonis', 'neo4j', 'clickhouse', 'cribl', 'strava',
+  'genentech', 'roche', 'moderna', 'vertex pharma', 'vertex',
+  'illumina', '10x genomics', 'danaher', 'agilent', 'biogen',
+  'astrazeneca', 'novartis', 'sanofi', 'takeda', 'novo nordisk',
+  'becton dickinson', 'bd', 'dexcom', 'edwards lifesciences', 'stryker',
+  'zimmer biomet', 'hologic', 'iqvia', 'veracyte', 'exact sciences',
+  'progressive', 'allstate', 'liberty mutual', 'metlife', 'prudential',
+  'tiaa', 't. rowe price', 'vanguard', 'northern trust', 'franklin templeton',
+  'broadridge', 'morningstar', 'nextera energy', 'enphase', 'first solar',
+  'quantumscape', 'form energy', 'commonwealth fusion', 'crusoe energy',
+  'leidos', 'saic', 'caci', 'blue origin', 'shield ai', 'rocket lab',
+  'relativity space', 'joby aviation', 'boom supersonic', 'emerson electric',
+  'emerson', 'rockwell automation', 'parker hannifin', 'corning', 'dow',
+  'dupont', 'motorola solutions', 'motorola', 'john deere', 'deere',
+  'illinois tool works', 'itw', 'zillow', 'booking.com', 'booking',
+  'mathworks', 'ansys', 'sas institute', 'sas', 'epic systems', 'cerner',
+  'oracle health', 'applovin', 'tradedesk', 'the trade desk', 'digitalocean',
+  'braze', 'tempus', 'oscar health', 'flatiron health', 'relativity',
+  'opendoor', 'wayfair', 'etsy', 'starbucks', 'general mills', 'mondelez',
+  'colgate-palmolive', 'colgate', 'estee lauder', 'ralph lauren', 'marriott',
+  'hilton', 'warner bros', 'nbcuniversal', 'nbc', 'sony',
+  'hims & hers', 'noom', 'planet labs', 'aurora innovation', 'aurora',
+  'drata', 'launchdarkly', 'canva', 'monday.com', 'monday', 'smartsheet',
+  'twitch', 'marqeta', 'bill.com', 'coupa', 'genesys', 'teradata',
+  'alteryx', 'jfrog', 'appian', 'pegasystems', 'pega', 'five9', 'nextdoor',
+  'angellist',
+];
+
+export function isKnownH1bSponsor(companyName: string): boolean {
+  const name = companyName.toLowerCase();
+  return H1B_SPONSOR_COMPANIES.some(
+    (known) => name.includes(known) || known.includes(name),
+  );
+}
+
+const FAANG_PLUS = [
+  'google', 'alphabet', 'meta', 'facebook', 'apple', 'amazon', 'aws',
+  'microsoft', 'netflix', 'nvidia', 'tesla', 'uber', 'lyft', 'airbnb',
+  'stripe', 'palantir', 'snowflake', 'databricks', 'coinbase', 'doordash',
+  'salesforce', 'adobe', 'oracle', 'intel', 'amd', 'qualcomm', 'ibm',
+  'linkedin', 'twitter', 'x corp', 'snap', 'pinterest', 'spotify',
+  'samsung', 'sony', 'tiktok', 'bytedance', 'bloomberg', 'cisco',
+  'vmware', 'paypal', 'block', 'square', 'robinhood', 'plaid',
+];
+
+const QUANT_FIRMS = [
+  'citadel', 'two sigma', 'jane street', 'de shaw', 'd.e. shaw',
+  'renaissance', 'point72', 'bridgewater', 'millennium', 'aqr',
+  'hudson river', 'jump trading', 'tower research', 'sig ', 'susquehanna',
+  'virtu', 'imc trading', 'imc financial', 'optiver', 'flow traders',
+  'drw', 'five rings', 'headlands', 'akuna', 'wolverine',
+  'old mission', 'maven', 'squarepoint', 'balyasny', 'worldquant',
+];
+
+const FORTUNE_500 = [
+  'walmart', 'exxonmobil', 'chevron', 'berkshire hathaway', 'unitedhealth',
+  'jpmorgan', 'jp morgan', 'johnson & johnson', 'procter & gamble', 'bank of america',
+  'wells fargo', 'citigroup', 'comcast', 'at&t', 'verizon', 'disney',
+  'pfizer', 'merck', 'coca-cola', 'pepsico', 'lockheed martin', 'boeing',
+  'general motors', 'ford', 'ge ', 'general electric', 'raytheon', 'rtx',
+  'honeywell', 'caterpillar', '3m', 'deloitte', 'pwc', 'kpmg', 'ey ',
+  'ernst & young', 'accenture', 'mckinsey', 'goldman sachs', 'morgan stanley',
+  'capital one', 'american express', 'amex', 'visa', 'mastercard',
+  'nike', 'target', 'costco', 'home depot', "lowe's", 'ups', 'fedex',
+  'delta', 'united airlines', 'southwest', 'fiserv', 'intuit', 'servicenow',
+];
+
+const UNICORN = [
+  'databricks', 'stripe', 'spacex', 'canva', 'checkout.com',
+  'ripple', 'plaid', 'instacart', 'figma', 'notion', 'airtable',
+  'scale ai', 'anduril', 'brex', 'ramp', 'klarna', 'chime',
+  'discord', 'vercel', 'retool', 'linear', 'grammarly',
+  'openai', 'anthropic', 'mistral', 'cohere', 'hugging face',
+];
+
+const YC_COMPANIES = [
+  'airbnb', 'stripe', 'dropbox', 'doordash', 'coinbase', 'instacart',
+  'twitch', 'reddit', 'gitlab', 'gusto', 'zapier', 'segment',
+  'brex', 'deel', 'ironclad', 'retool', 'rippling', 'scale ai',
+  'flexport', 'ginkgo', 'openai', 'pagerduty', 'render',
+  'vercel', 'posthog', 'cal.com', 'supabase', 'resend',
+];
+
+const CRYPTO_WEB3 = [
+  'coinbase', 'binance', 'kraken', 'gemini', 'opensea',
+  'ripple', 'circle', 'chainalysis', 'fireblocks', 'alchemy',
+  'consensys', 'polygon', 'solana', 'avalanche', 'near',
+  'uniswap', 'aave', 'compound', 'dydx', 'anchorage',
+  'ledger', 'blockchain.com', 'bitgo', 'paxos', 'immutable',
+  'animoca', 'dapper labs', 'sky mavis', 'yuga labs', 'mythical',
+];
+
+export function detectTags(job: Pick<ScrapedJob, "company">): string[] {
+  const tags: string[] = [];
+  const company = job.company.toLowerCase();
+  if (FAANG_PLUS.some((c) => company.includes(c))) tags.push("FAANG+");
+  if (QUANT_FIRMS.some((c) => company.includes(c))) tags.push("Quant");
+  if (FORTUNE_500.some((c) => company.includes(c))) tags.push("Fortune 500");
+  if (UNICORN.some((c) => company.includes(c))) tags.push("Unicorn");
+  if (YC_COMPANIES.some((c) => company.includes(c))) tags.push("YC");
+  if (CRYPTO_WEB3.some((c) => company.includes(c))) tags.push("Crypto/Web3");
+  return tags;
+}
+
+const JOB_BOARD_PATTERNS: Array<{ pattern: RegExp; board: JobBoard }> = [
+  { pattern: /lever\.co/i, board: 'Lever' },
+  { pattern: /greenhouse\.io/i, board: 'Greenhouse' },
+  { pattern: /ashbyhq\.com/i, board: 'Ashby' },
+  { pattern: /linkedin\.com/i, board: 'Linkedin' },
+  { pattern: /myworkdayjobs\.com|workday\.com/i, board: 'Workday' },
+];
+
+export function detectJobBoard(applyLink: string | null, description: string | null): JobBoard {
+  // Try URL first
+  if (applyLink) {
+    for (const { pattern, board } of JOB_BOARD_PATTERNS) {
+      if (pattern.test(applyLink)) return board;
+    }
+  }
+  // Fallback: check description for board-specific URLs
+  if (description) {
+    for (const { pattern, board } of JOB_BOARD_PATTERNS) {
+      if (pattern.test(description)) return board;
+    }
+  }
+  return null;
+}

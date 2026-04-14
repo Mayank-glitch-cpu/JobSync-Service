@@ -46,14 +46,21 @@ coverage/
 
 # Pipeline data (keep ashby-slugs.json and companies.json, ignore step outputs)
 backend/data/step*.json
+legacy/backend/data/step*.json
 
 # Playwright (local-only slug discovery — browser profile, cookies, cache)
-backend/data/.playwright-profile/
+legacy/backend/data/.playwright-profile/
+legacy/backend/data/.playwright/
 
 # Stray archives / Windows artifacts
 files.zip
 nul
+*.tmp_*
+
+# Claude Code local settings (permissions, local overrides)
+.claude/settings.local.json
 
 # Temp
 *.tmp
 *.temp
+

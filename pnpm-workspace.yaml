@@ -1,3 +1,4 @@
 packages:
-  - 'backend'
-  - 'frontend'
+  - 'mcp-server'
+  - 'legacy/backend'
+  - 'legacy/frontend'

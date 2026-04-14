@@ -5,9 +5,9 @@
   "description": "Job tracking pipeline with developer dashboard",
   "scripts": {
     "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev",
-    "install:all": "cd backend && npm install && cd ../frontend && npm install"
+    "dev:backend": "cd legacy/backend && npm run dev",
+    "dev:frontend": "cd legacy/frontend && npm run dev",
+    "install:all": "cd legacy/backend && npm install && cd ../frontend && npm install"
   },
   "keywords": ["jobs", "pipeline", "ai", "airtable"],
   "license": "MIT",

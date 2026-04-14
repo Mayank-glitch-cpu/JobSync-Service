@@ -4,7 +4,19 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(npx tsc:*)",
       "Bash(del \"c:\\\\Users\\\\vyasm\\\\OneDrive\\\\Desktop\\\\JobsList\\\\backend\\\\src\\\\services\\\\activejobs-fetcher.ts\")",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(gh issue create --title 'MCP onboarding: resume parsing quality across formats' --body 'Tracking tradeoff from agentic MCP migration plan \\(onboarding flow\\).:*)",
+      "Bash(gh issue create --title 'MCP onboarding: role suggestion calibration' --body 'Tracking tradeoff from agentic MCP migration plan \\(onboarding flow\\).:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm typecheck:*)",
+      "WebFetch(domain:boards.greenhouse.io)",
+      "WebFetch(domain:jobs.ashbyhq.com)",
+      "WebFetch(domain:jobs.lever.co)",
+      "mcp__jobsync__classify_job_batch",
+      "mcp__jobsync__fetch_ashby_jobs",
+      "Bash(python:*)",
+      "mcp__jobsync__cache_is_seen",
+      "mcp__jobsync__airtable_upsert_job"
     ]
   }
 }
