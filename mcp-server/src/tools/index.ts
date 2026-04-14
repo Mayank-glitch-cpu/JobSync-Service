@@ -45,6 +45,10 @@ import {
   fetchGreenhouseTool,
   fetchLeverTool,
 } from "./fast-path-tools.js";
+import {
+  verifyJobLinkTool,
+  verifyJobLinkBatchTool,
+} from "./link-check-tools.js";
 
 export function registerTools(): ToolDefinition[] {
   return [
@@ -57,7 +61,7 @@ export function registerTools(): ToolDefinition[] {
         properties: {},
         additionalProperties: false,
       },
-      handler: async () => textResult({ pong: true, version: "0.1.0" }),
+      handler: async () => textResult({ pong: true, version: "0.2.4" }),
     },
     filterUsLocationTool,
     filterTitleKeywordsTool,
@@ -79,6 +83,8 @@ export function registerTools(): ToolDefinition[] {
     fetchGreenhouseTool,
     fetchLeverTool,
     fetchAshbyTool,
+    verifyJobLinkTool,
+    verifyJobLinkBatchTool,
   ];
 }
 

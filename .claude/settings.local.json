@@ -16,7 +16,8 @@
       "mcp__jobsync__fetch_ashby_jobs",
       "Bash(python:*)",
       "mcp__jobsync__cache_is_seen",
-      "mcp__jobsync__airtable_upsert_job"
+      "mcp__jobsync__airtable_upsert_job",
+      "Bash(npm run *)"
     ]
   }
 }

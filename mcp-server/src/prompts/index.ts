@@ -38,17 +38,22 @@ For each search result URL, call web_fetch. If it returns url_not_accessible or 
 ## Step 4: classify
 Call \`classify_job_batch\` with the parsed jobs. It returns which jobs pass the US/title/keyword filters and enriches each with industry, tags (FAANG+, Quant, YC, etc.), H1B sponsor flag, and detected job board.
 
-## Step 5: dedup (hybrid)
-For jobs that passed classification, call \`cache_is_seen\` with their apply links. For any that show \`seen: false\`, also call \`airtable_list_recent_jobs\` with lookbackDays=14 and cross-check — the cache can be stale.
+## Step 5: verify links are live
+For jobs that passed classification, call \`verify_job_link_batch\` with their apply links (max 20 per call; batch if needed).
+- Discard any job where \`active: false\` — the posting is closed, removed, or returning a 404. Do not upsert or cache dead links.
+- Jobs where \`active: true\` (or the check errored with a network issue) proceed to the next step.
 
-## Step 6: enrich & write
+## Step 6: dedup (hybrid)
+For jobs that passed link verification, call \`cache_is_seen\` with their apply links. For any that show \`seen: false\`, also call \`airtable_list_recent_jobs\` with lookbackDays=14 and cross-check — the cache can be stale.
+
+## Step 7: enrich & write
 For jobs that are new (not in cache, not in Airtable), write them using the sink configured in \`~/.jobsync/config.json\`:
 - If \`sink\` is \`"airtable"\` or \`"both"\`: call \`airtable_upsert_job\`.
 - If \`sink\` is \`"markdown"\` or \`"both"\`: call \`markdown_append_jobs\` to append a row to the local markdown log.
 
 If unsure which sink is active, call \`profile_read\` first — you can also check config via \`airtable_get_schema\` (it returns the active baseId/tableName; empty strings mean markdown-only). Only include jobs posted within the last ${lookbackHours} hours based on their datePosted. Discard older postings.
 
-## Step 7: update cache
+## Step 8: update cache
 After successful upsert, call \`cache_mark_seen\` with the created jobs so the next run skips them.
 
 ## Rules
@@ -56,7 +61,7 @@ After successful upsert, call \`cache_mark_seen\` with the created jobs so the n
 - Year must be ${new Date().getFullYear()}.
 - Do not fabricate data. If a field is missing from the posting, leave it null — the user can edit in Airtable.
 - Do not exceed 50 postings per run unless the user asks.
-- Report a short summary at the end: how many searched, how many passed filters, how many were new, how many were duplicates.`;
+- Report a short summary at the end: how many searched, how many passed filters, how many were live (link verified), how many were new, how many were duplicates.`;
 };
 
 const EXTRACT_JOB_FIELDS = (args: Record<string, string>): string => {
