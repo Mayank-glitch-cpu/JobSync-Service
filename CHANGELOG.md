@@ -6,8 +6,39 @@ Format: [Semantic Versioning](https://semver.org). Each release is tagged `v{ver
 
 ---
 
-## [0.2.6] — upcoming
-- TBD
+## [0.3.0] — 2026-04-15
+
+### Changed
+- License changed to MIT; `package.json` license field updated to `"MIT"`
+- LICENSE file updated with full MIT license text (copyright: Coral Labs & Mayank-glitch-cpu)
+
+---
+
+## [0.2.9] — 2026-04-15
+
+### Changed
+- Reordered CLI banner: JobSync info first, Coral Labs section below
+
+---
+
+## [0.2.8] — 2026-04-15
+
+### Added
+- Coral Labs branding in CLI banner (website, mentor Vivek Gupta, updated copyright)
+
+---
+
+## [0.2.7] — 2026-04-15
+### Added
+- CLI banner on every `jobsync-mcp` command — Coral Labs branding, website, mentor (Vivek Gupta), author, GitHub link, and copyright notice
+- `LICENSE` file: proprietary / All Rights Reserved — Coral Labs & Mayank-glitch-cpu
+- `package.json` license field changed from `"MIT"` to `"UNLICENSED"`
+
+---
+
+## [0.2.6] — 2026-04-14
+### Changed
+- Enhanced `jobsync_ping` tool with npm registry check, `updateAvailable` flag, and `changelog` URL
 
 ---
 

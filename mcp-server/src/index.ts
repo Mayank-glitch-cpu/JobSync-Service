@@ -19,7 +19,7 @@ async function main() {
   const server = new Server(
     {
       name: "jobsync-mcp",
-      version: "0.2.6",
+      version: "0.3.0",
     },
     {
       capabilities: {

@@ -4,6 +4,26 @@ import { createJobSyncBase, listBases } from "./lib/airtable-meta.js";
 import { parseResume } from "./lib/resume-parser.js";
 import { ensureProfileDir, rawResumePath, writeRawResume } from "./lib/profile.js";
 
+function printBanner() {
+  console.log(`
+╔══════════════════════════════════════════════════════════════╗
+║                  JobSync MCP  v0.3.0                         ║
+║         Agentic job-aggregation for your MCP client          ║
+║  GitHub : https://github.com/Mayank-glitch-cpu/JobSync-Service║
+╠══════════════════════════════════════════════════════════════╣
+║                    🪸  Coral Labs                            ║
+║              https://coral-lab-asu.github.io/                ║
+║                                                              ║
+║  Mentor : Vivek Gupta                                        ║
+║  Author : Mayank-glitch-cpu                                  ║
+║                                                              ║
+║  © 2025 Coral Labs & Mayank-glitch-cpu. All Rights Reserved. ║
+║  Unauthorized copying, distribution, or modification of      ║
+║  this software is strictly prohibited.                       ║
+╚══════════════════════════════════════════════════════════════╝
+`);
+}
+
 async function runInit() {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const ask = async (q: string, def?: string): Promise<string> => {
@@ -144,6 +164,7 @@ Usage:
 }
 
 async function main() {
+  printBanner();
   switch (cmd) {
     case undefined:
     case "serve":
