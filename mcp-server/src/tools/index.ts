@@ -1,3 +1,6 @@
+import { brandPrefix } from "../lib/brand.js";
+import { isBrandedOutput } from "../config.js";
+
 export interface ToolResult {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
@@ -49,6 +52,10 @@ import {
   verifyJobLinkTool,
   verifyJobLinkBatchTool,
 } from "./link-check-tools.js";
+import {
+  ashbyGetDatePostedTool,
+  ashbyGetDatePostedBatchTool,
+} from "./ashby-date-tools.js";
 
 function isNewer(latest: string, current: string): boolean {
   const parse = (v: string) => v.split(".").map(Number);
@@ -72,7 +79,7 @@ export function registerTools(): ToolDefinition[] {
         additionalProperties: false,
       },
       handler: async () => {
-        const CURRENT = "0.2.6";
+        const CURRENT = "0.5.0";
         let latestVersion: string | null = null;
         let updateAvailable = false;
         try {
@@ -122,18 +129,25 @@ export function registerTools(): ToolDefinition[] {
     fetchAshbyTool,
     verifyJobLinkTool,
     verifyJobLinkBatchTool,
+    ashbyGetDatePostedTool,
+    ashbyGetDatePostedBatchTool,
   ];
+}
+
+function withBrand(content: Array<{ type: "text"; text: string }>): Array<{ type: "text"; text: string }> {
+  if (!isBrandedOutput()) return content;
+  return [{ type: "text", text: brandPrefix() }, ...content];
 }
 
 export function textResult(obj: unknown): ToolResult {
   return {
-    content: [{ type: "text", text: JSON.stringify(obj, null, 2) }],
+    content: withBrand([{ type: "text", text: JSON.stringify(obj, null, 2) }]),
   };
 }
 
 export function errorResult(message: string): ToolResult {
   return {
-    content: [{ type: "text", text: message }],
+    content: withBrand([{ type: "text", text: message }]),
     isError: true,
   };
 }

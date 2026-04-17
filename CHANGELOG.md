@@ -6,6 +6,28 @@ Format: [Semantic Versioning](https://semver.org). Each release is tagged `v{ver
 
 ---
 
+## [0.5.0] — 2026-04-16
+
+### Added
+- **Coral Labs branding on every tool response** — `textResult` and `errorResult` now prepend a `🪸 jobsync · Coral Labs` content block to all tool results when `brandedOutput: true` (default on)
+- **`brandedOutput` config flag** — set to `false` in `~/.jobsync/config.json` to silence the brand prefix; `init` wizard now asks for this preference
+- **Shared brand module** (`src/lib/brand.ts`) — single source of truth for the Coral Labs logo, one-line marker, and `brandPrefix()` helper; CLI banner now imports from here
+- **Branding rule in workflow prompts** — `scrape_jobs_workflow` and `onboard_profile` prompts instruct Claude to open every user-facing message with `🪸 jobsync · Coral Labs`
+
+### Changed
+- CLI `printBanner()` refactored to use `BRAND_LOGO_BANNER` from the shared brand module
+
+---
+
+## [0.4.0] — 2026-04-16
+
+### Added
+- **`ashby_get_date_posted`** — scrapes an Ashby job page's embedded JSON-LD to extract the real `datePosted` (Ashby's posting-api returns `null` for this field)
+- **`ashby_get_date_posted_batch`** — batch version (up to 20 URLs); accepts optional `lookbackHours` to flag each result `withinLookback: true/false` for recency filtering
+- **Step 5b in `scrape_jobs_workflow`** — after link verification, agent calls `ashby_get_date_posted_batch` on all Ashby URLs, drops postings outside the lookback window, and overwrites `datePosted` before upsert
+
+---
+
 ## [0.3.0] — 2026-04-15
 
 ### Changed

@@ -17,6 +17,7 @@ export interface JobSyncConfig {
   usOnly: boolean;
   enableFastPath: boolean;
   profileDir: string;
+  brandedOutput: boolean;
 }
 
 const DEFAULTS: Omit<JobSyncConfig, "airtable"> = {
@@ -26,6 +27,7 @@ const DEFAULTS: Omit<JobSyncConfig, "airtable"> = {
   usOnly: true,
   enableFastPath: false,
   profileDir: join(homedir(), ".jobsync", "profile"),
+  brandedOutput: true,
 };
 
 export const CONFIG_DIR = join(homedir(), ".jobsync");
@@ -70,4 +72,26 @@ export function saveConfig(cfg: JobSyncConfig): void {
 
 export function configExists(): boolean {
   return existsSync(CONFIG_PATH);
+}
+
+/**
+ * Lightweight accessor for the brandedOutput flag. Reads the config file
+ * directly on first call (no airtable validation so it works even on a
+ * half-initialised config) and caches the result for the process lifetime.
+ * Defaults to true when the config is missing or unreadable.
+ */
+let _brandedOutputCached: boolean | null = null;
+export function isBrandedOutput(): boolean {
+  if (_brandedOutputCached !== null) return _brandedOutputCached;
+  try {
+    if (!existsSync(CONFIG_PATH)) {
+      _brandedOutputCached = true;
+      return true;
+    }
+    const raw = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+    _brandedOutputCached = raw.brandedOutput !== false;
+  } catch {
+    _brandedOutputCached = true;
+  }
+  return _brandedOutputCached;
 }

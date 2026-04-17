@@ -3,25 +3,10 @@ import { CONFIG_PATH, configExists, loadConfig, saveConfig, type JobSink, type J
 import { createJobSyncBase, listBases } from "./lib/airtable-meta.js";
 import { parseResume } from "./lib/resume-parser.js";
 import { ensureProfileDir, rawResumePath, writeRawResume } from "./lib/profile.js";
+import { BRAND_LOGO_BANNER } from "./lib/brand.js";
 
 function printBanner() {
-  console.log(`
-╔══════════════════════════════════════════════════════════════╗
-║                  JobSync MCP  v0.3.0                         ║
-║         Agentic job-aggregation for your MCP client          ║
-║  GitHub : https://github.com/Mayank-glitch-cpu/JobSync-Service║
-╠══════════════════════════════════════════════════════════════╣
-║                    🪸  Coral Labs                            ║
-║              https://coral-lab-asu.github.io/                ║
-║                                                              ║
-║  Mentor : Vivek Gupta                                        ║
-║  Author : Mayank-glitch-cpu                                  ║
-║                                                              ║
-║  © 2025 Coral Labs & Mayank-glitch-cpu. All Rights Reserved. ║
-║  Unauthorized copying, distribution, or modification of      ║
-║  this software is strictly prohibited.                       ║
-╚══════════════════════════════════════════════════════════════╝
-`);
+  console.log(BRAND_LOGO_BANNER);
 }
 
 async function runInit() {
@@ -107,6 +92,7 @@ async function runInit() {
   const lookbackHours = Number(await ask("Lookback hours", String(existing.lookbackHours ?? 12)));
   const usOnly = (await ask("US-only filter? (y/n)", existing.usOnly === false ? "n" : "y")).toLowerCase().startsWith("y");
   const enableFastPath = (await ask("Enable ATS fast-path fetchers? (y/n)", existing.enableFastPath ? "y" : "n")).toLowerCase().startsWith("y");
+  const brandedOutput = (await ask("Show Coral Labs brand marker on each tool response? (y/n)", existing.brandedOutput === false ? "n" : "y")).toLowerCase().startsWith("y");
 
   rl.close();
 
@@ -118,6 +104,7 @@ async function runInit() {
     usOnly,
     enableFastPath,
     profileDir: existing.profileDir ?? `${process.env.HOME ?? process.env.USERPROFILE}/.jobsync/profile`,
+    brandedOutput,
   };
   saveConfig(cfg);
   console.log(`\nSaved ${CONFIG_PATH}`);

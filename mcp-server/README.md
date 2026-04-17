@@ -61,6 +61,7 @@ The wizard then asks:
 - **Lookback hours** — how fresh jobs must be (default 12)
 - **US-only filter** (default yes)
 - **Enable ATS fast-path fetchers** — direct job-board API calls for high-volume reliable pulls (default off; the agentic path is the default)
+- **Branded tool output** — prefix every jobsync tool response with the Coral Labs marker (`🪸 jobsync · Coral Labs`). Default on; set `brandedOutput: false` in `~/.jobsync/config.json` to silence it.
 
 Config is written to `~/.jobsync/config.json`.
 
@@ -183,6 +184,10 @@ The agent runs: `profile_read` → `web_search` → `web_fetch` → `classify_jo
 | `fetch_greenhouse_jobs` | ATS fast-path (flag-gated) |
 | `fetch_lever_jobs` | ATS fast-path (flag-gated) |
 | `fetch_ashby_jobs` | ATS fast-path (flag-gated) |
+| `ashby_get_date_posted` | Scrape real `datePosted` from an Ashby job page's JSON-LD |
+| `ashby_get_date_posted_batch` | Batch version with optional `lookbackHours` filter |
+| `verify_job_link` | Check if a job URL still resolves to a live posting |
+| `verify_job_link_batch` | Batch link verification (max 20) |
 
 ## Prompts
 

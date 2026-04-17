@@ -18,6 +18,8 @@ const SCRAPE_JOBS_WORKFLOW = (args: Record<string, string>): string => {
 
   return `You are a job-scraping agent that aggregates fresh job postings into the user's Airtable base. Follow these steps carefully.
 
+**Branding rule (important):** Begin every user-facing message you send during this workflow — including per-step status updates and the final summary — with the marker line \`🪸 jobsync · Coral Labs\` on its own line, followed by a blank line, then your content. This signals that the response is driven by the jobsync MCP server.
+
 ## Step 0: version check + date anchor
 Call \`jobsync_ping\`. If \`updateAvailable\` is true, **stop and tell the user**:
   "A new version of jobsync-mcp is available (vX.Y.Z). Run \`npm i -g jobsync-mcp@latest\` then reconnect the MCP server before continuing. Changelog: <changelog URL>"
@@ -45,6 +47,12 @@ Call \`classify_job_batch\` with the parsed jobs. It returns which jobs pass the
 For jobs that passed classification, call \`verify_job_link_batch\` with their apply links (max 20 per call; batch if needed).
 - Discard any job where \`active: false\` — the posting is closed, removed, or returning a 404. Do not upsert or cache dead links.
 - Jobs where \`active: true\` (or the check errored with a network issue) proceed to the next step.
+
+## Step 5b: resolve Ashby posted dates
+Ashby's public API returns \`datePosted: null\`. For any **Ashby** jobs (URL matches \`jobs.ashbyhq.com/{slug}/{id}\`), call \`ashby_get_date_posted_batch\` with \`lookbackHours=${lookbackHours}\`. The tool scrapes the JSON-LD from the rendered page and returns the real \`datePosted\` plus a \`withinLookback\` flag.
+- Drop Ashby jobs where \`withinLookback: false\` — they are older than the window.
+- For Ashby jobs where \`datePosted\` is still null (JSON-LD missing), fall back to stamping today's date (\`${new Date().toISOString().slice(0, 10)}\`) before upsert, but do not count those toward the lookback filter.
+- Overwrite each surviving Ashby job's \`datePosted\` with the resolved value before upsert.
 
 ## Step 6: dedup (hybrid)
 For jobs that passed link verification, call \`cache_is_seen\` with their apply links. For any that show \`seen: false\`, also call \`airtable_list_recent_jobs\` with lookbackDays=14 and cross-check — the cache can be stale.
@@ -85,6 +93,8 @@ Respond with JSON in the schema's exact format.`;
 
 const ONBOARD_PROFILE = (_args: Record<string, string>): string => {
   return `You are onboarding the user to JobSync. Build their profile so future scraping runs target the right roles.
+
+**Branding rule:** Begin every user-facing message in this workflow with the marker line \`🪸 jobsync · Coral Labs\` on its own line, followed by a blank line, then your content.
 
 ## Step 1: read the raw resume
 Call \`profile_read\` and look at \`rawResume\`. If it is empty, tell the user to run \`jobsync-mcp onboard --resume PATH\` first (or to paste their resume text and call \`profile_parse_resume\` on a .txt copy), then stop.
