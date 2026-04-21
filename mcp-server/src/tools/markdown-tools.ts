@@ -6,7 +6,8 @@ import { errorResult, textResult, type ToolDefinition } from "./index.js";
 export const markdownAppendJobsTool: ToolDefinition = {
   name: "markdown_append_jobs",
   description:
-    "Append processed jobs as rows to the markdown log at config.markdownPath (default ~/.jobsync/jobs.md). Alternative to Airtable when the user hasn't configured a base. Accepts ProcessedJob objects with the same shape `airtable_upsert_job` takes. Optional `path` override.",
+    "Append processed jobs as rows to the markdown log at config.markdownPath (default ~/.jobsync/jobs.md). Alternative to Airtable when the user hasn't configured a base. Accepts ProcessedJob objects with the same shape `airtable_upsert_job` takes. Optional `path` override. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {

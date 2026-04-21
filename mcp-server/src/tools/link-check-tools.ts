@@ -49,6 +49,24 @@ function parseLeverUrl(url: string): { slug: string; postingId: string } | null 
   return { slug: m[1]!, postingId: m[2]! };
 }
 
+/** Extract Workday tenant + board + externalPath from a job URL. */
+function parseWorkdayUrl(url: string): { apiBase: string; externalPath: string } | null {
+  // https://{tenant}.wd{n}.myworkdayjobs.com/en-US/{board}/job/{loc}/{title}_{id}
+  const m = url.match(/^(https?:\/\/[^/]+\.myworkdayjobs\.com)\/([^?#]+)/i);
+  if (!m) return null;
+  const origin = m[1]!;
+  const fullPath = m[2]!; // e.g. en-US/External/job/Redmond/Title_JR-123
+  // Extract tenant and board from origin hostname
+  const hostname = new URL(origin).hostname; // tenant.wd5.myworkdayjobs.com
+  const tenant = hostname.split(".")[0]!;
+  const pathParts = fullPath.split("/").filter((p) => p && !/^[a-z]{2}(-[A-Z]{2})?$/.test(p));
+  const board = pathParts[0] ?? "External";
+  return {
+    apiBase: `${origin}/wday/cxs/${tenant}/${board}/jobs`,
+    externalPath: `/${fullPath}`,
+  };
+}
+
 /** Extract Ashby posting id from a hosted URL. */
 function parseAshbyUrl(url: string): { postingId: string } | null {
   // https://jobs.ashbyhq.com/{slug}/{uuid}
@@ -106,6 +124,52 @@ async function checkLever(slug: string, postingId: string): Promise<LinkStatus> 
     return { active: false, statusCode: res.status, reason: `Lever API returned unexpected status ${res.status}.` };
   } catch (err) {
     return { active: false, statusCode: null, reason: `Request failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+async function checkWorkday(apiBase: string, externalPath: string): Promise<LinkStatus> {
+  // Workday has no single-job lookup endpoint — search with the externalPath as a hint.
+  // If the job is gone the path simply won't appear in results; fall back to a GET check.
+  try {
+    const res = await fetchWithTimeout(apiBase.replace(/\/jobs$/, "") + externalPath, {
+      headers: { "user-agent": BROWSER_UA, accept: "text/html,*/*" },
+      redirect: "follow",
+    });
+    if (res.status === 404 || res.status === 410) {
+      return { active: false, statusCode: res.status, reason: `Workday job page returned ${res.status} — posting is gone.` };
+    }
+    if (res.status >= 500) {
+      return { active: false, statusCode: res.status, reason: `Workday server error ${res.status} — could not confirm posting is live.` };
+    }
+    // Scan body for soft-close language
+    const contentType = res.headers.get("content-type") ?? "";
+    if (res.status === 200 && (contentType.includes("text/html") || contentType.includes("text/plain"))) {
+      const reader = res.body?.getReader();
+      if (reader) {
+        let text = "";
+        const decoder = new TextDecoder();
+        let totalBytes = 0;
+        while (totalBytes < 32_768) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          text += decoder.decode(value, { stream: true });
+          totalBytes += value.byteLength;
+        }
+        reader.cancel().catch(() => undefined);
+        // Workday-specific closed indicators
+        const workdayClosed = /this job is no longer available|job has been filled|no longer accepting|position has been filled/i;
+        if (workdayClosed.test(text)) {
+          return { active: false, statusCode: 200, reason: "Workday page loaded but contains closed-job language." };
+        }
+      }
+    }
+    return { active: true, statusCode: res.status, reason: `Workday job page returned ${res.status} — no closure indicators detected.` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("abort") || msg.includes("timeout")) {
+      return { active: false, statusCode: null, reason: `Request timed out after ${FETCH_TIMEOUT_MS / 1000}s.` };
+    }
+    return { active: false, statusCode: null, reason: `Request failed: ${msg}` };
   }
 }
 
@@ -208,7 +272,8 @@ export const verifyJobLinkTool: ToolDefinition = {
     "Checks whether an apply URL still resolves to a live, open job posting. " +
     "For Greenhouse, Lever, and Ashby it uses the public posting API for a reliable status check. " +
     "For other URLs it does a GET with a browser User-Agent and scans the response for closure language. " +
-    "Returns { active, statusCode, reason }. Use this before upserting to Airtable to avoid syncing dead links.",
+    "Returns { active, statusCode, reason }. Use this before upserting to Airtable to avoid syncing dead links. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {
@@ -246,7 +311,12 @@ export const verifyJobLinkTool: ToolDefinition = {
         if (ashby) {
           result = await checkAshby(ashby.postingId);
         } else {
-          result = await checkGeneric(url);
+          const workday = parseWorkdayUrl(url);
+          if (workday) {
+            result = await checkWorkday(workday.apiBase, workday.externalPath);
+          } else {
+            result = await checkGeneric(url);
+          }
         }
       }
     }
@@ -260,7 +330,8 @@ export const verifyJobLinkBatchTool: ToolDefinition = {
   description:
     "Batch version of verify_job_link. Accepts up to 20 URLs and checks each concurrently. " +
     "Returns an array of { url, active, statusCode, reason } objects plus summary counts. " +
-    "Use this to bulk-validate a page of job postings before upserting to Airtable.",
+    "Use this to bulk-validate a page of job postings before upserting to Airtable. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {
@@ -304,7 +375,12 @@ export const verifyJobLinkBatchTool: ToolDefinition = {
             if (ashby) {
               result = await checkAshby(ashby.postingId);
             } else {
-              result = await checkGeneric(url);
+              const workday = parseWorkdayUrl(url);
+              if (workday) {
+                result = await checkWorkday(workday.apiBase, workday.externalPath);
+              } else {
+                result = await checkGeneric(url);
+              }
             }
           }
         }

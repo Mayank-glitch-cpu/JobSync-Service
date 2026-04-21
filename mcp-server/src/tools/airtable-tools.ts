@@ -48,7 +48,8 @@ function coerceProcessedJob(raw: Record<string, unknown>): ProcessedJob {
 export const airtableUpsertJobTool: ToolDefinition = {
   name: "airtable_upsert_job",
   description:
-    "Create one or more job records in the user's Airtable base. Accepts an array of job objects matching the ProcessedJob shape (positionTitle, company, applyLink, datePosted, etc.). Skips jobs that fail validation (missing critical fields or placeholder values) and returns a summary with created record IDs, rejected jobs, and Airtable errors.",
+    "Create one or more job records in the user's Airtable base. Accepts an array of job objects matching the ProcessedJob shape (positionTitle, company, applyLink, datePosted, etc.). Skips jobs that fail validation (missing critical fields or placeholder values) and returns a summary with created record IDs, rejected jobs, and Airtable errors. ⚖ [Model hint: sonnet]",
+  recommendedModel: "sonnet",
   inputSchema: {
     type: "object",
     properties: {
@@ -127,7 +128,8 @@ export const airtableUpsertJobTool: ToolDefinition = {
 export const airtableListRecentJobsTool: ToolDefinition = {
   name: "airtable_list_recent_jobs",
   description:
-    "List recent job records from the user's Airtable base for dedup lookups. Returns the Apply Link, Company, Position Title, and Date for records created/modified in the lookback window. Used by the hybrid dedup layer to reconcile the local SQLite cache against Airtable's source of truth.",
+    "List recent job records from the user's Airtable base for dedup lookups. Returns the Apply Link, Company, Position Title, and Date for records created/modified in the lookback window. Used by the hybrid dedup layer to reconcile the local SQLite cache against Airtable's source of truth. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {
@@ -190,7 +192,8 @@ export const airtableListRecentJobsTool: ToolDefinition = {
 export const airtableGetSchemaTool: ToolDefinition = {
   name: "airtable_get_schema",
   description:
-    "Return the field map this server writes to Airtable (the expected schema of the user's table). Use to diagnose schema-drift errors or to show the user which columns the server expects.",
+    "Return the field map this server writes to Airtable (the expected schema of the user's table). Use to diagnose schema-drift errors or to show the user which columns the server expects. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {},
@@ -231,7 +234,8 @@ export const airtableGetSchemaTool: ToolDefinition = {
 export const airtableListBasesTool: ToolDefinition = {
   name: "airtable_list_bases",
   description:
-    "List all Airtable bases the PAT has access to. Useful during onboarding to help the user pick an existing base, or to confirm a newly created one.",
+    "List all Airtable bases the PAT has access to. Useful during onboarding to help the user pick an existing base, or to confirm a newly created one. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
   handler: async () => {
     try {
@@ -248,7 +252,8 @@ export const airtableListBasesTool: ToolDefinition = {
 export const airtableCreateBaseTool: ToolDefinition = {
   name: "airtable_create_base",
   description:
-    "Create a new Airtable base with the JobSync schema (Jobs table + all fields the server writes). Requires a PAT with the `schema.bases:write` scope AND the target workspace ID (from the Airtable URL when viewing a workspace: airtable.com/{wspID}/...). On success, updates ~/.jobsync/config.json with the new baseId so subsequent runs use it.",
+    "Create a new Airtable base with the JobSync schema (Jobs table + all fields the server writes). Requires a PAT with the `schema.bases:write` scope AND the target workspace ID (from the Airtable URL when viewing a workspace: airtable.com/{wspID}/...). On success, updates ~/.jobsync/config.json with the new baseId so subsequent runs use it. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {

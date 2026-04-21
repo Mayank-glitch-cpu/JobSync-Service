@@ -6,9 +6,13 @@ export interface ToolResult {
   isError?: boolean;
 }
 
+export type ModelTier = "haiku" | "sonnet" | "opus";
+
 export interface ToolDefinition {
   name: string;
   description: string;
+  /** Recommended Claude model tier for this tool call. Surfaced in descriptions and via suggest_model_for_query. */
+  recommendedModel?: ModelTier;
   inputSchema: {
     type: "object";
     properties?: Record<string, unknown>;
@@ -47,6 +51,7 @@ import {
   fetchAshbyTool,
   fetchGreenhouseTool,
   fetchLeverTool,
+  fetchWorkdayTool,
 } from "./fast-path-tools.js";
 import {
   verifyJobLinkTool,
@@ -56,6 +61,7 @@ import {
   ashbyGetDatePostedTool,
   ashbyGetDatePostedBatchTool,
 } from "./ashby-date-tools.js";
+import { suggestModelForQueryTool } from "./model-advisor-tool.js";
 
 function isNewer(latest: string, current: string): boolean {
   const parse = (v: string) => v.split(".").map(Number);
@@ -72,14 +78,15 @@ export function registerTools(): ToolDefinition[] {
       name: "jobsync_ping",
       description:
         "Sanity-check tool. Returns pong, the running server version, and whether a newer version is available on npm. " +
-        "Always call this at the start of a workflow. If updateAvailable is true, tell the user to run `npm i -g jobsync-mcp@latest` before proceeding.",
+        "Always call this at the start of a workflow. If updateAvailable is true, tell the user to run `npm i -g jobsync-mcp@latest` before proceeding. ⚡ [Model hint: haiku]",
+      recommendedModel: "haiku" as const,
       inputSchema: {
         type: "object",
         properties: {},
         additionalProperties: false,
       },
       handler: async () => {
-        const CURRENT = "0.5.0";
+        const CURRENT = "0.7.0";
         let latestVersion: string | null = null;
         let updateAvailable = false;
         try {
@@ -127,10 +134,12 @@ export function registerTools(): ToolDefinition[] {
     fetchGreenhouseTool,
     fetchLeverTool,
     fetchAshbyTool,
+    fetchWorkdayTool,
     verifyJobLinkTool,
     verifyJobLinkBatchTool,
     ashbyGetDatePostedTool,
     ashbyGetDatePostedBatchTool,
+    suggestModelForQueryTool,
   ];
 }
 

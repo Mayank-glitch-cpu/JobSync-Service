@@ -17,7 +17,8 @@ const PROFILE_FILES: ProfileFile[] = ["skills", "experience", "projects"];
 export const profileReadTool: ToolDefinition = {
   name: "profile_read",
   description:
-    "Read the user's profile: skills.md, experience.md, projects.md, roles.json, and the raw resume text (if any). Use this at the start of every scrape run so role targeting reflects the user's actual background. Returns { skills, experience, projects, roles, activeRoles, rawResume }.",
+    "Read the user's profile: skills.md, experience.md, projects.md, roles.json, and the raw resume text (if any). Use this at the start of every scrape run so role targeting reflects the user's actual background. Returns { skills, experience, projects, roles, activeRoles, rawResume }. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {},
@@ -43,7 +44,8 @@ export const profileReadTool: ToolDefinition = {
 export const profileWriteFileTool: ToolDefinition = {
   name: "profile_write_file",
   description:
-    "Write one of the profile markdown files (skills, experience, or projects). Used by the onboarding agent after extracting structured content from the raw resume. Overwrites existing content — pass the full new file body.",
+    "Write one of the profile markdown files (skills, experience, or projects). Used by the onboarding agent after extracting structured content from the raw resume. Overwrites existing content — pass the full new file body. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {
@@ -74,7 +76,8 @@ export const profileWriteFileTool: ToolDefinition = {
 export const profileUpdateRolesTool: ToolDefinition = {
   name: "profile_update_roles",
   description:
-    "Update the user's role lists in roles.json. Pass any of `detected`, `custom`, `excluded` to replace that list, or `addCustom`/`addExcluded`/`removeCustom`/`removeExcluded` to mutate incrementally. Returns the updated roles plus the computed activeRoles (detected ∪ custom − excluded).",
+    "Update the user's role lists in roles.json. Pass any of `detected`, `custom`, `excluded` to replace that list, or `addCustom`/`addExcluded`/`removeCustom`/`removeExcluded` to mutate incrementally. Returns the updated roles plus the computed activeRoles (detected ∪ custom − excluded). 🔬 [Model hint: opus]",
+  recommendedModel: "opus",
   inputSchema: {
     type: "object",
     properties: {
@@ -125,7 +128,8 @@ export const profileUpdateRolesTool: ToolDefinition = {
 export const profileParseResumeTool: ToolDefinition = {
   name: "profile_parse_resume",
   description:
-    "Parse a resume file (PDF/DOCX/TXT/MD) at the given path, extract its raw text, and save it to ~/.jobsync/profile/raw-resume.txt. After this runs, the agent should read the raw text (via profile_read) and structure it into skills/experience/projects via profile_write_file, then suggest detected roles via profile_update_roles.",
+    "Parse a resume file (PDF/DOCX/TXT/MD) at the given path, extract its raw text, and save it to ~/.jobsync/profile/raw-resume.txt. After this runs, the agent should read the raw text (via profile_read) and structure it into skills/experience/projects via profile_write_file, then suggest detected roles via profile_update_roles. ⚖ [Model hint: sonnet]",
+  recommendedModel: "sonnet",
   inputSchema: {
     type: "object",
     properties: {

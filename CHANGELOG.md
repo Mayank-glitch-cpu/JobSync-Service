@@ -6,6 +6,35 @@ Format: [Semantic Versioning](https://semver.org). Each release is tagged `v{ver
 
 ---
 
+## [0.7.0] — 2026-04-20
+
+### Added
+- **`fetch_workday_jobs` tool** — fast-path fetcher for Workday ATS boards via the public CXS API (`POST /wday/cxs/{tenant}/{board}/jobs`). Accepts a full board URL (e.g. `https://microsoft.wd1.myworkdayjobs.com/en-US/External`) or a batch via `boardUrls`. Paginates automatically (20 per page, capped at 200). Returns `rawFields.postedOn` (e.g. "Posted 3 days ago") for recency filtering since Workday does not expose `datePosted` in its API.
+- **Workday link verification** in `verify_job_link` and `verify_job_link_batch` — detects `myworkdayjobs.com` URLs, fetches the job page, and scans for Workday-specific closed-job language alongside the existing generic soft-close patterns.
+- **Workday search query in `scrape_jobs_workflow`** — Step 2 now includes `site:myworkdayjobs.com <role> entry level USA <year>` alongside Greenhouse / Lever / Ashby queries.
+
+### Notes
+- Workday's CXS API is undocumented but publicly accessible; behavior may vary by tenant configuration.
+- `datePosted` will always be `null` for Workday jobs — use `rawFields.postedOn` to gauge recency until a scraping approach for individual job pages is added.
+
+---
+
+## [0.6.0] — 2026-04-20
+
+### Added
+- **`suggest_model_for_query` tool** — advisory tool that recommends the optimal Claude model tier (haiku / sonnet / opus) for a given query, workflow context, or named tool call. Returns `{ recommended, genericTier, anthropicModel, reason, estimatedTokensSaved }`. Accepts optional `context` (`scrape | onboarding | classification | extraction | freeform`) and `toolName` for static per-tool lookups.
+- **`recommendedModel` metadata on every tool** — each `ToolDefinition` now carries an optional `recommendedModel: "haiku" | "sonnet" | "opus"` field, and every tool description includes a `⚡/⚖/🔬 [Model hint: ...]` suffix so MCP clients can surface the recommendation without calling the advisor.
+- **Model-tier preamble in `scrape_jobs_workflow`** — the prompt now opens with a step-by-step tier table (Steps 0,1,4–8 → haiku; Steps 2–3 → sonnet; onboarding → opus) and explicit `/model` switching instructions for Claude Code clients.
+
+### Tier mapping
+| Tier | Tools |
+|---|---|
+| haiku | `jobsync_ping`, `cache_*`, `filter_*`, `airtable_list_*`, `airtable_get_schema`, `airtable_create_base`, `markdown_append_jobs`, `verify_job_link*`, `ashby_get_date_posted*`, `fetch_*_jobs`, `profile_read`, `profile_write_file` |
+| sonnet | `classify_job_batch`, `detect_industry_tags`, `profile_parse_resume`, `airtable_upsert_job` |
+| opus | `profile_update_roles` |
+
+---
+
 ## [0.5.0] — 2026-04-16
 
 ### Added

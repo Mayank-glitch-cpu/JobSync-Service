@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "jobsync": {
+      "command": "node",
+      "args": ["C:/Users/vyasm/OneDrive/Desktop/JobsList/mcp-server/dist/index.js"]
+    }
+  }
+}

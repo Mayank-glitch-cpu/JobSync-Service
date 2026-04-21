@@ -94,7 +94,8 @@ export const ashbyGetDatePostedTool: ToolDefinition = {
     "Ashby's public posting-api returns datePosted=null, but the rendered HTML contains " +
     '`"datePosted":"YYYY-MM-DD"` inside a JSON-LD script block. ' +
     "Use this to stamp accurate dates on Ashby jobs before upserting to Airtable, " +
-    "or to filter Ashby postings by recency. URL may be the job page or the /application page.",
+    "or to filter Ashby postings by recency. URL may be the job page or the /application page. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {
@@ -124,7 +125,8 @@ export const ashbyGetDatePostedBatchTool: ToolDefinition = {
     "scrapes each page's JSON-LD concurrently to resolve `datePosted`. " +
     "Optional `lookbackHours` flags each result with withinLookback=true/false so the " +
     "caller can drop stale postings in a single pass. " +
-    "Use this right after `fetch_ashby_jobs` to enrich rows with real posted dates before the lookback filter.",
+    "Use this right after `fetch_ashby_jobs` to enrich rows with real posted dates before the lookback filter. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {

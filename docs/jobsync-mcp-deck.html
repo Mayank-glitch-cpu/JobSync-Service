@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JobSync MCP — Slide Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --yellow: #F5C518;
+    --yellow-dim: #C9A000;
+    --yellow-pale: #FFF176;
+    --black: #0A0A0A;
+    --dark: #111111;
+    --card: #181818;
+    --card2: #1E1E1E;
+    --border: #2A2A2A;
+    --white: #FFFFFF;
+    --muted: #888888;
+    --text: #E8E8E8;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--black);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    overflow: hidden;
+  }
+
+  /* ── Deck container ── */
+  #deck {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── Individual slides ── */
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 48px 80px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(40px);
+    transition: opacity 0.55s cubic-bezier(.4,0,.2,1), transform 0.55s cubic-bezier(.4,0,.2,1);
+  }
+  .slide.active {
+    opacity: 1; pointer-events: auto; transform: translateY(0);
+  }
+  .slide.exit {
+    opacity: 0; transform: translateY(-40px);
+    transition: opacity 0.35s cubic-bezier(.4,0,.2,1), transform 0.35s cubic-bezier(.4,0,.2,1);
+  }
+
+  .slide-inner {
+    width: 100%; max-width: 1100px;
+    height: calc(100vh - 180px);
+    display: flex; flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Last block in each slide fills remaining vertical space */
+  .slide-inner > *:last-child {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* 2-col grids stretch cells to full column height */
+  .grid-2, .two-col {
+    align-items: stretch;
+  }
+
+  /* Direct card/callout/table children fill their grid cell */
+  .grid-2 > .card,
+  .grid-2 > .callout,
+  .grid-2 > .table-wrap,
+  .two-col > .card,
+  .two-col > .callout {
+    height: 100%;
+  }
+
+  /* Div wrappers inside 2-col grids fill their cell height */
+  .grid-2 > div,
+  .two-col > div {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Children inside wrapper divs share space equally */
+  .grid-2 > div > .card,
+  .grid-2 > div > .callout,
+  .grid-2 > div > .codeblock,
+  .grid-2 > div > .stat-row,
+  .two-col > div > .card,
+  .two-col > div > .callout,
+  .two-col > div > .codeblock {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* 3-col and 4-col grids: equal-height cells */
+  .grid-3, .grid-4 {
+    align-items: stretch;
+  }
+  .grid-3 > .card,
+  .grid-4 > .card {
+    height: 100%;
+  }
+
+  /* ── Accent line ── */
+  .accent-bar {
+    width: 56px; height: 4px;
+    background: var(--yellow);
+    border-radius: 2px;
+    margin-bottom: 4px;
+  }
+
+  /* ── Typography ── */
+  .slide-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--yellow);
+    font-weight: 700;
+  }
+  h1 {
+    font-size: clamp(36px, 5vw, 64px);
+    font-weight: 700; line-height: 1.05;
+    color: var(--white);
+  }
+  h2 {
+    font-size: clamp(26px, 3.5vw, 42px);
+    font-weight: 600; line-height: 1.15;
+    color: var(--white);
+  }
+  h3 {
+    font-size: clamp(14px, 1.8vw, 20px);
+    font-weight: 600; color: var(--yellow);
+    margin-bottom: 6px;
+  }
+  p, li {
+    font-size: clamp(13px, 1.4vw, 16px);
+    line-height: 1.7; color: var(--text);
+    font-weight: 400;
+  }
+  li { margin-left: 18px; }
+  ul { list-style: none; padding: 0; }
+  ul li::before {
+    content: '▸';
+    color: var(--yellow);
+    margin-right: 10px; font-size: 12px;
+  }
+
+  mark {
+    background: var(--yellow);
+    color: var(--black);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-weight: 600;
+  }
+
+  code, .mono {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.88em;
+    background: #1A1A1A;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    color: var(--yellow-pale);
+  }
+
+  /* ── Cards / Grids ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--yellow-dim); }
+  .card-accent { border-left: 3px solid var(--yellow); }
+
+  .tag {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1.5px;
+    background: rgba(245,197,24,0.12);
+    color: var(--yellow);
+    border: 1px solid rgba(245,197,24,0.25);
+    border-radius: 4px;
+    padding: 3px 8px;
+    margin-right: 6px; margin-bottom: 4px;
+  }
+
+  /* ── Hero / Title slide ── */
+  .slide-hero {
+    background: radial-gradient(ellipse 80% 60% at 60% 50%, rgba(245,197,24,0.06) 0%, transparent 70%),
+                var(--black);
+  }
+  .hero-eyebrow {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+  }
+  .hero-pill {
+    background: rgba(245,197,24,0.15);
+    border: 1px solid rgba(245,197,24,0.4);
+    border-radius: 100px;
+    padding: 4px 14px;
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--yellow); font-weight: 700;
+    font-family: 'Space Mono', monospace;
+  }
+  .hero-title { color: var(--white); }
+  .hero-title span { color: var(--yellow); }
+  .hero-sub {
+    font-size: clamp(14px, 1.8vw, 20px);
+    color: var(--muted); font-weight: 400;
+    max-width: 620px;
+  }
+  .hero-meta {
+    display: flex; gap: 32px; margin-top: 8px;
+  }
+  .hero-meta-item {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--muted);
+  }
+  .hero-meta-item span { color: var(--yellow); font-weight: 700; }
+
+  /* ── Diagram-style flow ── */
+  .flow {
+    display: flex; align-items: center; gap: 0; flex-wrap: wrap;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 24px;
+  }
+  .flow-node {
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--text);
+    white-space: nowrap;
+  }
+  .flow-node.highlight {
+    background: rgba(245,197,24,0.12);
+    border-color: var(--yellow-dim);
+    color: var(--yellow);
+  }
+  .flow-arrow {
+    padding: 0 8px; color: var(--yellow-dim);
+    font-size: 14px; user-select: none;
+  }
+
+  /* ── Big stat ── */
+  .stat-row { display: flex; gap: 20px; }
+  .stat-box {
+    flex: 1; background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .stat-num {
+    font-size: clamp(28px, 3.5vw, 44px); font-weight: 700;
+    color: var(--yellow); font-family: 'Space Mono', monospace;
+  }
+  .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* ── Tool table ── */
+  .tool-table { border-collapse: collapse; width: 100%; }
+  .tool-table th, .tool-table td {
+    padding: 10px 14px;
+    font-size: clamp(11px, 1.2vw, 13px);
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .tool-table th {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--yellow); font-weight: 700;
+    background: var(--card);
+  }
+  .tool-table td { color: var(--text); }
+  .tool-table tr:last-child td { border-bottom: none; }
+  .tool-table td:first-child {
+    font-family: 'Space Mono', monospace;
+    color: var(--yellow-pale); font-size: 11px;
+  }
+  .tool-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .table-wrap {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+
+  /* ── Nav ── */
+  #nav {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(20,20,20,0.92);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 10px 20px;
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+  .nav-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%; border: 1px solid var(--border);
+    background: var(--card2); color: var(--text);
+    cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .nav-btn:hover { background: var(--yellow); color: var(--black); border-color: var(--yellow); }
+  #slide-counter {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--muted);
+    min-width: 60px; text-align: center;
+  }
+  .progress-dots {
+    display: flex; gap: 5px; align-items: center;
+  }
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%; background: var(--border);
+    transition: background 0.3s, transform 0.3s;
+    cursor: pointer;
+  }
+  .dot.active { background: var(--yellow); transform: scale(1.4); }
+
+  /* ── Slide-specific layouts ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1.2fr; gap: 40px; align-items: start; }
+  .section-header { display: flex; flex-direction: column; gap: 8px; }
+
+  /* kbd shortcut hint */
+  #hint {
+    position: fixed; top: 20px; right: 24px;
+    font-family: 'Space Mono', monospace; font-size: 10px; color: #444;
+    letter-spacing: 1px;
+  }
+
+  /* ── Slide-number badge ── */
+  .slide-num-badge {
+    position: absolute; top: 32px; right: 40px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: #333;
+  }
+
+  /* icon-like emoji replacement */
+  .icon { font-size: 20px; line-height: 1; }
+
+  /* highlight box */
+  .callout {
+    background: rgba(245,197,24,0.08);
+    border: 1px solid rgba(245,197,24,0.25);
+    border-radius: 10px;
+    padding: 16px 20px;
+  }
+  .callout p { color: var(--text); font-size: 13px; }
+
+  /* code block */
+  .codeblock {
+    background: #0D0D0D;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px; line-height: 1.8;
+    color: #ccc;
+    overflow-x: auto;
+  }
+  .codeblock .kw { color: var(--yellow); }
+  .codeblock .str { color: #98C379; }
+  .codeblock .cmt { color: #555; }
+  .codeblock .fn { color: #61AFEF; }
+
+  @media (max-width: 768px) {
+    .slide { padding: 24px 24px; }
+    .grid-2, .grid-3, .grid-4, .two-col { grid-template-columns: 1fr; }
+    .stat-row { flex-direction: column; }
+    .flow { gap: 6px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="hint">← → SPACE to navigate</div>
+
+<div id="deck">
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 1 — HERO
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide slide-hero active" data-slide="1">
+    <span class="slide-num-badge">01 / 14</span>
+    <div class="slide-inner">
+      <div class="hero-eyebrow">
+        <div class="hero-pill">MCP Deep Dive</div>
+      </div>
+      <div class="accent-bar"></div>
+      <h1 class="hero-title">
+        <span>JobSync</span><br />
+        Model Context Protocol
+      </h1>
+      <p class="hero-sub">
+        An agentic job-search copilot powered by a purpose-built MCP server — deterministic tools,
+        zero hardcoded keys, your LLM driving the entire workflow.
+      </p>
+      <div class="hero-meta">
+        <div class="hero-meta-item">Package: <span>jobsync-mcp</span></div>
+        <div class="hero-meta-item">Tools: <span>22+</span></div>
+        <div class="hero-meta-item">Platforms: <span>Claude Code · Desktop · Cursor</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 2 — WHAT IS MCP?
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="2">
+    <span class="slide-num-badge">02 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Foundation</div>
+        <div class="accent-bar"></div>
+        <h2>What is the <mark>Model Context Protocol</mark>?</h2>
+      </div>
+      <div class="two-col">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="card card-accent">
+            <h3>Open Standard</h3>
+            <p>MCP is an open protocol (by Anthropic) that lets LLMs call external tools, read resources, and use structured prompts — across any client that implements the spec.</p>
+          </div>
+          <div class="card card-accent">
+            <h3>Client ↔ Server Model</h3>
+            <p>Your MCP <strong style="color:var(--yellow)">client</strong> (Claude Code, Claude Desktop, Cursor) connects to an MCP <strong style="color:var(--yellow)">server</strong> (like JobSync). The server declares tools; the LLM decides when to call them.</p>
+          </div>
+          <div class="card card-accent">
+            <h3>Model-Agnostic</h3>
+            <p>The server never imports the Anthropic SDK. Any model that speaks MCP can drive the workflow — swap clients freely.</p>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="callout">
+            <h3 style="margin-bottom:8px;">Three MCP Primitives</h3>
+            <ul>
+              <li><strong style="color:var(--white)">Tools</strong> — callable functions with typed inputs / outputs</li>
+              <li><strong style="color:var(--white)">Resources</strong> — readable data sources (files, DB, API)</li>
+              <li><strong style="color:var(--white)">Prompts</strong> — reusable workflow templates the LLM can invoke</li>
+            </ul>
+          </div>
+          <div class="card">
+            <p style="font-size:12px;color:var(--muted);">JobSync uses all three: <code>22+ tools</code>, <code>~/.jobsync/</code> file resources, and pre-built workflow prompts like <code>scrape_jobs_workflow</code>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 3 — ARCHITECTURE
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="3">
+    <span class="slide-num-badge">03 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Architecture</div>
+        <div class="accent-bar"></div>
+        <h2>How JobSync MCP is Built</h2>
+      </div>
+      <div class="grid-3">
+        <div class="card card-accent" style="grid-column: span 1;">
+          <h3>MCP Server Layer</h3>
+          <ul style="margin-top:8px;">
+            <li>Node.js + TypeScript</li>
+            <li>Exposes 22+ deterministic tools</li>
+            <li>SQLite for dedup cache</li>
+            <li>Zero LLM dependencies</li>
+          </ul>
+        </div>
+        <div class="card card-accent">
+          <h3>Your MCP Client</h3>
+          <ul style="margin-top:8px;">
+            <li>Claude Code (CLI)</li>
+            <li>Claude Desktop</li>
+            <li>Cursor IDE</li>
+            <li>Any MCP-compatible host</li>
+          </ul>
+        </div>
+        <div class="card card-accent">
+          <h3>Data Sinks</h3>
+          <ul style="margin-top:8px;">
+            <li>Airtable (full schema)</li>
+            <li>Markdown (~/.jobsync/jobs.md)</li>
+            <li>Both simultaneously</li>
+          </ul>
+        </div>
+      </div>
+      <div class="codeblock">
+<span class="cmt"># JobsList/</span>
+<span class="kw">mcp-server/</span>
+  src/
+    <span class="fn">tools/</span>      <span class="cmt">← 22+ MCP tool definitions</span>
+    <span class="fn">prompts/</span>    <span class="cmt">← scrape_jobs_workflow · onboard_profile</span>
+    <span class="fn">lib/</span>        <span class="cmt">← filter · airtable · cache · tags · fast-path</span>
+    <span class="fn">config.ts</span>   <span class="cmt">← ~/.jobsync/config.json loader</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 4 — FULL WORKFLOW
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="4">
+    <span class="slide-num-badge">04 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Workflow</div>
+        <div class="accent-bar"></div>
+        <h2>End-to-End Agentic <mark>Pipeline</mark></h2>
+      </div>
+      <div class="flow" style="flex-wrap:wrap;gap:8px 4px;">
+        <div class="flow-node highlight">profile_read<br /><span style="color:#888;font-size:9px;">roles.json</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">web_search<br /><span style="color:#888;font-size:9px;">LLM-native</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">web_fetch<br /><span style="color:#888;font-size:9px;">LLM-native</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node highlight">fetch_greenhouse_jobs<br /><span style="color:#888;font-size:9px;">fast-path ATS</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node highlight">classify_job_batch<br /><span style="color:#888;font-size:9px;">filter + tag</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node highlight">cache_is_seen<br /><span style="color:#888;font-size:9px;">dedup</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node highlight">airtable_upsert_job<br /><span style="color:#888;font-size:9px;">persist</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node highlight">cache_mark_seen<br /><span style="color:#888;font-size:9px;">stamp</span></div>
+      </div>
+      <div class="grid-2" style="margin-top:4px;">
+        <div class="callout">
+          <h3>What the LLM Decides</h3>
+          <ul style="margin-top:6px;">
+            <li>Which companies to search</li>
+            <li>Which postings match your profile</li>
+            <li>When to call each MCP tool</li>
+            <li>How to handle errors / retries</li>
+          </ul>
+        </div>
+        <div class="callout">
+          <h3>What the MCP Server Handles</h3>
+          <ul style="margin-top:6px;">
+            <li>Deterministic filtering logic</li>
+            <li>ATS API calls (Greenhouse, Lever, Ashby)</li>
+            <li>SQLite dedup cache state</li>
+            <li>Airtable / Markdown persistence</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 5 — FETCHING TOOLS
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="5">
+    <span class="slide-num-badge">05 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Tool Category 1</div>
+        <div class="accent-bar"></div>
+        <h2>ATS Fast-Path <mark>Fetchers</mark></h2>
+      </div>
+      <p style="color:var(--muted);margin-bottom:4px;">Pull job postings directly from Applicant Tracking System public APIs — bypassing web scraping entirely. Disabled by default; set <code>enableFastPath: true</code> in config.</p>
+      <div class="grid-3">
+        <div class="card card-accent">
+          <span class="tag">Greenhouse</span>
+          <h3 style="margin-top:10px;">fetch_greenhouse_jobs</h3>
+          <p>Calls <code>boards-api.greenhouse.io</code> public JSON endpoint. Pass a company slug like <code>"stripe"</code>. Supports batch slugs in one call.</p>
+        </div>
+        <div class="card card-accent">
+          <span class="tag">Lever</span>
+          <h3 style="margin-top:10px;">fetch_lever_jobs</h3>
+          <p>Calls <code>api.lever.co/v0/postings</code>. Slug is the Lever board identifier, e.g. <code>"netflix"</code> for <code>jobs.lever.co/netflix</code>.</p>
+        </div>
+        <div class="card card-accent">
+          <span class="tag">Ashby</span>
+          <h3 style="margin-top:10px;">fetch_ashby_jobs</h3>
+          <p>Calls <code>api.ashbyhq.com/posting-api/job-board</code>. Slug e.g. <code>"anthropic"</code>. Returns structured postings with all available metadata.</p>
+        </div>
+      </div>
+      <div class="callout">
+        <p><strong style="color:var(--yellow)">Why this matters:</strong> Web search indexes lag by hours. Fast-path fetchers hit the ATS JSON API directly — you get <strong style="color:var(--white)">real-time postings</strong> at scale without relying on the LLM's web search quota.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 6 — FILTER TOOLS
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="6">
+    <span class="slide-num-badge">06 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Tool Category 2</div>
+        <div class="accent-bar"></div>
+        <h2>Filter &amp; <mark>Classification</mark> Tools</h2>
+      </div>
+      <div class="grid-2">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="card card-accent">
+            <h3>filter_us_location</h3>
+            <p>Deterministically decides if a location string is non-US. Returns <code>{ likelyNonUS: boolean }</code>. Used before every upsert when US-only mode is active.</p>
+          </div>
+          <div class="card card-accent">
+            <h3>filter_title_keywords</h3>
+            <p>Cheap pre-filter: rejects excluded seniority keywords (Senior, Staff, Principal…) and requires at least one include keyword. Defaults tuned for new-grad tech roles.</p>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="card card-accent">
+            <h3>detect_industry_tags</h3>
+            <p>Given company + title, returns: <strong style="color:var(--yellow)">industry</strong> (22-category taxonomy), <strong style="color:var(--yellow)">tags</strong> (FAANG+, Quant, YC, Unicorn…), <strong style="color:var(--yellow)">H1B sponsor flag</strong>, and job board source.</p>
+          </div>
+          <div class="card card-accent">
+            <h3>classify_job_batch</h3>
+            <p>The <mark>power tool</mark> — runs all three classifiers over an entire array in one call. Returns a parallel verdicts array with <code>passes</code>, <code>industry</code>, <code>tags</code>, <code>h1bSponsor</code>. Minimises LLM round-trips.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 7 — AIRTABLE TOOLS
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="7">
+    <span class="slide-num-badge">07 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Tool Category 3</div>
+        <div class="accent-bar"></div>
+        <h2>Airtable <mark>Persistence</mark> Tools</h2>
+      </div>
+      <div class="table-wrap">
+        <table class="tool-table">
+          <thead>
+            <tr><th>Tool</th><th>What It Does</th><th>Key Args</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>airtable_upsert_job</td>
+              <td>Batch upsert jobs to the Jobs table. Uses position title + company as the deduplicate key. Updates existing rows in-place.</td>
+              <td><code>jobs[]</code>, <code>baseId</code></td>
+            </tr>
+            <tr>
+              <td>airtable_list_recent_jobs</td>
+              <td>Return the N most recently posted jobs from Airtable. Good for "show me today's sync" queries.</td>
+              <td><code>limit</code>, <code>baseId</code></td>
+            </tr>
+            <tr>
+              <td>airtable_get_schema</td>
+              <td>Inspect field types and options of your Airtable base. Useful for debugging field mismatches before upsert.</td>
+              <td><code>baseId</code></td>
+            </tr>
+            <tr>
+              <td>airtable_list_bases</td>
+              <td>List all accessible bases for the current PAT. Helps the LLM identify the right baseId without user input.</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>airtable_create_base</td>
+              <td>Auto-create a new base with the full JobSync schema (all 14 fields pre-configured). Requires PAT scope <code>schema.bases:write</code>.</td>
+              <td><code>name</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout" style="margin-top:4px;">
+        <p><strong style="color:var(--yellow)">Schema includes:</strong> Position Title · Date · Apply Link · Work Model · Location · Company · Tags · Industry · Salary · Job Description · Qualifications · H1B Sponsored · Is New Grad · Is Internship</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 8 — CACHE TOOLS
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="8">
+    <span class="slide-num-badge">08 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Tool Category 4</div>
+        <div class="accent-bar"></div>
+        <h2>SQLite Dedup <mark>Cache</mark> Tools</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr auto;gap:16px;flex:1;">
+        <div class="card card-accent" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="tag">Read</span>
+            <h3 style="margin-top:10px;">cache_is_seen</h3>
+            <p style="margin-top:8px;">Check if a job (by URL or composite key) has already been synced. Returns <code>{ seen: boolean }</code>. Called before every upsert to avoid duplicates.</p>
+          </div>
+          <p style="margin-top:14px;font-size:11px;color:var(--muted);">Step 1 of 2 in dedup loop</p>
+        </div>
+        <div class="card card-accent" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="tag">Write</span>
+            <h3 style="margin-top:10px;">cache_mark_seen</h3>
+            <p style="margin-top:8px;">Stamp a job as processed after a successful upsert. Persists to <code>~/.jobsync/cache.db</code> (SQLite). Survives process restarts.</p>
+          </div>
+          <p style="margin-top:14px;font-size:11px;color:var(--muted);">Step 2 of 2 in dedup loop</p>
+        </div>
+        <div class="card card-accent" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="tag">Maintenance</span>
+            <h3 style="margin-top:10px;">cache_prune</h3>
+            <p style="margin-top:8px;">Delete cache entries older than N days. Keeps the SQLite file lean. Recommended to run periodically or as part of a cron workflow.</p>
+          </div>
+          <p style="margin-top:14px;font-size:11px;color:var(--muted);">Run monthly or on schedule</p>
+        </div>
+        <div class="callout" style="grid-column:1 / -1;">
+          <h3 style="margin-bottom:8px;">Why SQLite (not in-memory)?</h3>
+          <p>Each MCP tool call is stateless — the server can be restarted between runs. SQLite on disk ensures dedup state persists across sessions, cron runs, and server restarts without requiring a separate database service.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 9 — PROFILE TOOLS
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="9">
+    <span class="slide-num-badge">09 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Tool Category 5</div>
+        <div class="accent-bar"></div>
+        <h2>Profile <mark>I/O</mark> Tools</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:16px;flex:1;">
+        <div class="card card-accent" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="tag">Read</span>
+            <h3 style="margin-top:10px;">profile_read</h3>
+            <p style="margin-top:8px;">Load the user's complete profile from <code>~/.jobsync/profile/</code>. Returns skills, experience, projects, and the detected/custom/excluded roles from <code>roles.json</code>.</p>
+          </div>
+          <p style="margin-top:14px;font-size:11px;color:var(--muted);">Called at the start of every workflow run</p>
+        </div>
+        <div class="card card-accent" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="tag">Write</span>
+            <h3 style="margin-top:10px;">profile_write_file</h3>
+            <p style="margin-top:8px;">Overwrite a specific profile file (skills.md, experience.md, etc.). Used by the onboarding flow to persist parsed resume content.</p>
+          </div>
+          <p style="margin-top:14px;font-size:11px;color:var(--muted);">Used during onboard to bootstrap profile</p>
+        </div>
+        <div class="card card-accent" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="tag">Update</span>
+            <h3 style="margin-top:10px;">profile_update_roles</h3>
+            <p style="margin-top:8px;">Merge changes into <code>roles.json</code> — add detected roles, custom roles, or exclusions without touching other profile files.</p>
+          </div>
+          <p style="margin-top:14px;font-size:11px;color:var(--muted);">Targeted update — leaves other files intact</p>
+        </div>
+        <div class="card card-accent" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="tag">Parse</span>
+            <h3 style="margin-top:10px;">profile_parse_resume</h3>
+            <p style="margin-top:8px;">Parse a plain-text resume into structured profile sections. Called once during <code>jobsync-mcp onboard</code> to bootstrap the profile directory.</p>
+          </div>
+          <p style="margin-top:14px;font-size:11px;color:var(--muted);">One-time setup — run with onboard command</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 10 — LINK + DATE TOOLS
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="10">
+    <span class="slide-num-badge">10 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Tool Category 6 &amp; 7</div>
+        <div class="accent-bar"></div>
+        <h2>Link Verification &amp; <mark>Date</mark> Tools</h2>
+      </div>
+      <div class="grid-2">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <h3 style="color:var(--white);font-size:16px;margin-bottom:4px;">Link Verification</h3>
+          <div class="card card-accent">
+            <h3>verify_job_link</h3>
+            <p>HEAD-request a job apply URL to confirm it still returns 200. Returns <code>{ live: boolean, statusCode }</code>. Prevents syncing dead listings.</p>
+          </div>
+          <div class="card card-accent">
+            <h3>verify_job_link_batch</h3>
+            <p>Same check over a batch of URLs in parallel. Returns per-URL verdicts. Run after classify and before upsert for a clean pipeline.</p>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <h3 style="color:var(--white);font-size:16px;margin-bottom:4px;">Ashby Date Tools</h3>
+          <div class="card card-accent">
+            <h3>ashby_get_date_posted</h3>
+            <p>Fetch the <code>publishedAt</code> date for a single Ashby posting via their detail API. Ashby's list endpoint returns <code>null</code> for <code>datePosted</code> — this fills the gap.</p>
+          </div>
+          <div class="card card-accent">
+            <h3>ashby_get_date_posted_batch</h3>
+            <p>Batch version — resolve dates for up to N Ashby postings in parallel. Falls back to stamping today's date if the API is unreachable.</p>
+          </div>
+        </div>
+      </div>
+      <div class="callout" style="margin-top:4px;">
+        <p><strong style="color:var(--yellow)">Known quirk:</strong> Ashby's listing API always returns <code>null</code> for <code>datePosted</code>. The date tools call the individual posting endpoint to retrieve the real <code>publishedAt</code> timestamp before upserting to Airtable.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 11 — MARKDOWN + PING
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="11">
+    <span class="slide-num-badge">11 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Tool Category 8 &amp; 9</div>
+        <div class="accent-bar"></div>
+        <h2>Markdown Sink &amp; <mark>Utility</mark> Tools</h2>
+      </div>
+      <div class="grid-2">
+        <div class="card card-accent">
+          <span class="tag">Sink</span>
+          <h3 style="margin-top:10px;">markdown_append_jobs</h3>
+          <p>Append jobs as a formatted Markdown table to <code>~/.jobsync/jobs.md</code>. No Airtable account needed. Great for quick audits, offline viewing, or Git-tracked job logs.</p>
+          <div style="margin-top:12px;" class="codeblock" style="font-size:10px;">
+<span class="cmt"># jobs.md output</span>
+<span class="kw">| Title | Company | Date | Link |</span>
+<span class="str">| SWE II | Stripe | 2026-04-17 | ... |</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="card card-accent">
+            <span class="tag">Utility</span>
+            <h3 style="margin-top:10px;">jobsync_ping</h3>
+            <p>Sanity-check tool. Returns <code>{ pong: true, version, latestVersion, updateAvailable }</code>. <strong style="color:var(--yellow)">Always the first call</strong> in any workflow — verifies the server is connected and running the latest version.</p>
+          </div>
+          <div class="callout">
+            <h3>Auto-update Check</h3>
+            <p>Ping hits <code>registry.npmjs.org/jobsync-mcp/latest</code> and compares semver. If <code>updateAvailable: true</code> the LLM notifies you to run <code>npm i -g jobsync-mcp@latest</code> before proceeding.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 12 — INSTALLATION
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="12">
+    <span class="slide-num-badge">12 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Getting Started</div>
+        <div class="accent-bar"></div>
+        <h2>Install &amp; <mark>Configure</mark></h2>
+      </div>
+      <div class="grid-2">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="codeblock" style="display:flex;flex-direction:column;gap:2px;">
+            <div><span class="cmt"># 1. Install globally</span></div>
+            <div><span class="kw">npm</span> i -g jobsync-mcp</div>
+            <div>&nbsp;</div>
+            <div><span class="cmt"># 2. Run setup wizard (sink, keys, options)</span></div>
+            <div><span class="kw">jobsync-mcp</span> init</div>
+            <div>&nbsp;</div>
+            <div><span class="cmt"># 3. Parse your resume into a profile</span></div>
+            <div><span class="kw">jobsync-mcp</span> onboard --resume /path/to/resume.pdf</div>
+          </div>
+          <div class="codeblock" style="display:flex;flex-direction:column;gap:2px;">
+            <div><span class="cmt"># Register with Claude Code (user-scoped)</span></div>
+            <div><span class="kw">claude</span> mcp add --scope user jobsync jobsync-mcp</div>
+            <div>&nbsp;</div>
+            <div><span class="fn">claude</span> mcp list</div>
+            <div><span class="cmt"># → jobsync: ✓ Connected</span></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="card card-accent">
+            <h3>Claude Desktop / Cursor</h3>
+            <div class="codeblock" style="margin-top:8px;display:flex;flex-direction:column;gap:2px;">
+              <div><span class="kw">jobsync-mcp</span> print-client-config</div>
+              <div>&nbsp;</div>
+              <div><span class="cmt"># Paste output into:</span></div>
+              <div><span class="cmt"># macOS: ~/Library/Application Support/Claude/claude_desktop_config.json</span></div>
+              <div><span class="cmt"># Win:   %APPDATA%\Claude\claude_desktop_config.json</span></div>
+              <div><span class="cmt"># Cursor: ~/.cursor/mcp.json</span></div>
+            </div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-box">
+              <div class="stat-num">22+</div>
+              <div class="stat-label">MCP Tools</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num">3</div>
+              <div class="stat-label">ATS Connectors</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num">≥22.5</div>
+              <div class="stat-label">Node Required</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 13 — USING THE PROMPTS
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="13">
+    <span class="slide-num-badge">13 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">MCP Prompts</div>
+        <div class="accent-bar"></div>
+        <h2>Running <mark>Workflows</mark></h2>
+      </div>
+      <div class="grid-2">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="card card-accent">
+            <span class="tag">One-Time</span>
+            <h3 style="margin-top:10px;">/mcp__jobsync__onboard_profile</h3>
+            <p>Reads <code>raw-resume.txt</code>, writes <code>skills.md</code> / <code>experience.md</code> / <code>projects.md</code>, detects and proposes roles. Confirm to save <code>roles.json</code>.</p>
+          </div>
+          <div class="card card-accent">
+            <span class="tag">Primary Workflow</span>
+            <h3 style="margin-top:10px;">/mcp__jobsync__scrape_jobs_workflow</h3>
+            <p>Full pipeline: ping → profile_read → search → classify → dedup → upsert. Optional args:</p>
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+              <code>companies=Anthropic,Stripe</code>
+              <code>roleKeywordsOverride=SDE</code>
+              <code>lookbackHours=48</code>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="callout">
+            <h3>As a Cron Job</h3>
+            <div class="codeblock" style="margin-top:8px;font-size:11px;">
+<span class="cmt"># Windows Task Scheduler / Unix cron</span>
+<span class="kw">claude</span> -p <span class="str">"invoke scrape_jobs_workflow
+from jobsync with lookbackHours=24"</span>
+            </div>
+            <p style="margin-top:8px;font-size:12px;color:var(--muted);">Set it to fire every morning — wake up to a fresh Airtable of new postings matching your profile.</p>
+          </div>
+          <div class="card">
+            <h3>Tips for Best Results</h3>
+            <ul style="margin-top:6px;">
+              <li>Run onboard once before your first workflow</li>
+              <li>Enable <code>enableFastPath</code> for real-time ATS data</li>
+              <li>Set <code>lookbackHours: 24</code> for daily cron runs</li>
+              <li>Use <code>cache_prune</code> monthly to keep DB lean</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SLIDE 14 — SUMMARY
+  ══════════════════════════════════════════════════════════ -->
+  <div class="slide" data-slide="14">
+    <span class="slide-num-badge">14 / 14</span>
+    <div class="slide-inner">
+      <div class="section-header">
+        <div class="slide-label">Recap</div>
+        <div class="accent-bar"></div>
+        <h2>Everything JobSync MCP <mark>Does</mark></h2>
+      </div>
+      <div class="grid-4">
+        <div class="card" style="border-top:2px solid var(--yellow);">
+          <h3>Fetch</h3>
+          <p style="font-size:12px;margin-top:6px;color:var(--muted);">Greenhouse · Lever · Ashby real-time ATS connectors</p>
+        </div>
+        <div class="card" style="border-top:2px solid var(--yellow);">
+          <h3>Classify</h3>
+          <p style="font-size:12px;margin-top:6px;color:var(--muted);">Title filter · US location · Industry · Tags · H1B in one batch call</p>
+        </div>
+        <div class="card" style="border-top:2px solid var(--yellow);">
+          <h3>Dedup</h3>
+          <p style="font-size:12px;margin-top:6px;color:var(--muted);">SQLite cache persists seen jobs across sessions &amp; cron runs</p>
+        </div>
+        <div class="card" style="border-top:2px solid var(--yellow);">
+          <h3>Persist</h3>
+          <p style="font-size:12px;margin-top:6px;color:var(--muted);">Airtable upsert · Markdown append · full schema auto-create</p>
+        </div>
+        <div class="card" style="border-top:2px solid var(--yellow);">
+          <h3>Profile</h3>
+          <p style="font-size:12px;margin-top:6px;color:var(--muted);">Resume parsing · role management · drives company targeting</p>
+        </div>
+        <div class="card" style="border-top:2px solid var(--yellow);">
+          <h3>Verify</h3>
+          <p style="font-size:12px;margin-top:6px;color:var(--muted);">Link liveness checks eliminate dead listings before sync</p>
+        </div>
+        <div class="card" style="border-top:2px solid var(--yellow);">
+          <h3>Date</h3>
+          <p style="font-size:12px;margin-top:6px;color:var(--muted);">Ashby date resolution fills the null datePosted gap</p>
+        </div>
+        <div class="card" style="border-top:2px solid var(--yellow);">
+          <h3>Automate</h3>
+          <p style="font-size:12px;margin-top:6px;color:var(--muted);">Cron-ready · update-check built-in · zero LLM deps in server</p>
+        </div>
+      </div>
+      <div class="callout" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;">
+        <div>
+          <p><strong style="color:var(--yellow)">Install:</strong> <code>npm i -g jobsync-mcp</code> &nbsp;·&nbsp; <strong style="color:var(--yellow)">GitHub:</strong> Mayank-glitch-cpu/JobSync-Service</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <span class="tag">Claude Code</span>
+          <span class="tag">Claude Desktop</span>
+          <span class="tag">Cursor</span>
+          <span class="tag">Node ≥22.5</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- Navigation -->
+<div id="nav">
+  <button class="nav-btn" id="prev-btn" title="Previous (← or Backspace)">&#8592;</button>
+  <div class="progress-dots" id="dots"></div>
+  <span id="slide-counter">1 / 14</span>
+  <button class="nav-btn" id="next-btn" title="Next (→ or Space)">&#8594;</button>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  let current = 0;
+
+  const dotsContainer = document.getElementById('dots');
+  const counter = document.getElementById('slide-counter');
+
+  // Build dots
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.addEventListener('click', () => goTo(i));
+    dotsContainer.appendChild(d);
+  });
+
+  function goTo(index) {
+    if (index < 0 || index >= total) return;
+    slides[current].classList.remove('active');
+    slides[current].classList.add('exit');
+    setTimeout(() => slides[current].classList.remove('exit'), 400);
+
+    current = index;
+    slides[current].classList.add('active');
+
+    // Update dots
+    dotsContainer.querySelectorAll('.dot').forEach((d, i) => {
+      d.classList.toggle('active', i === current);
+    });
+    counter.textContent = `${current + 1} / ${total}`;
+  }
+
+  document.getElementById('prev-btn').addEventListener('click', () => goTo(current - 1));
+  document.getElementById('next-btn').addEventListener('click', () => goTo(current + 1));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ')  { e.preventDefault(); goTo(current + 1); }
+    if (e.key === 'ArrowLeft'  || e.key === 'Backspace') { e.preventDefault(); goTo(current - 1); }
+    if (e.key === 'Home') goTo(0);
+    if (e.key === 'End')  goTo(total - 1);
+    if (e.key >= '1' && e.key <= '9') goTo(parseInt(e.key) - 1);
+  });
+
+  // Touch/swipe support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; });
+  document.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].screenX;
+    if (Math.abs(diff) > 50) diff > 0 ? goTo(current + 1) : goTo(current - 1);
+  });
+</script>
+</body>
+</html>

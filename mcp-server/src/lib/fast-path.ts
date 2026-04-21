@@ -115,3 +115,76 @@ export async function fetchAshby(slug: string): Promise<RawJob[]> {
     },
   }));
 }
+
+// ---------- Workday ----------
+// POST https://{tenant}.wd{n}.myworkdayjobs.com/wday/cxs/{tenant}/{board}/jobs
+// Body: { "limit": 20, "offset": 0, "searchText": "" }
+// Response: { "jobPostings": [...], "total": N }
+
+interface WorkdayPosting {
+  title: string;
+  externalPath: string;
+  locationsText?: string;
+  postedOn?: string;
+  jobReqId?: string;
+  jobFamilyGroup?: string;
+}
+
+function parseWorkdayUrl(boardUrl: string): { origin: string; tenant: string; board: string } {
+  const u = new URL(boardUrl.startsWith("http") ? boardUrl : `https://${boardUrl}`);
+  const tenant = u.hostname.split(".")[0] ?? "unknown";
+  // Path is typically /en-US/{board} — take the first non-locale segment
+  const board = u.pathname.split("/").filter((p) => p && !/^[a-z]{2}(-[A-Z]{2})?$/.test(p))[0] ?? "External";
+  return { origin: `${u.protocol}//${u.hostname}`, tenant, board };
+}
+
+export async function fetchWorkday(boardUrl: string): Promise<RawJob[]> {
+  const { origin, tenant, board } = parseWorkdayUrl(boardUrl);
+  const apiUrl = `${origin}/wday/cxs/${tenant}/${board}/jobs`;
+
+  const allJobs: RawJob[] = [];
+  let offset = 0;
+  const limit = 20;
+  const MAX_JOBS = 200;
+
+  while (allJobs.length < MAX_JOBS) {
+    const res = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "user-agent": FETCH_HEADERS["user-agent"],
+      },
+      body: JSON.stringify({ limit, offset, searchText: "" }),
+    });
+    if (!res.ok) throw new Error(`Workday API ${apiUrl} → ${res.status} ${res.statusText}`);
+
+    const data = (await res.json()) as { jobPostings: WorkdayPosting[]; total: number };
+    const postings = data.jobPostings ?? [];
+    if (postings.length === 0) break;
+
+    for (const p of postings) {
+      allJobs.push({
+        id: `workday:${tenant}:${p.jobReqId ?? p.externalPath}`,
+        positionTitle: p.title,
+        company: tenant,
+        location: p.locationsText ?? null,
+        applyLink: `${origin}${p.externalPath}`,
+        datePosted: null,
+        salary: null,
+        rawFields: {
+          source: "workday",
+          tenant,
+          board,
+          postedOn: p.postedOn ?? "",
+          jobFamily: p.jobFamilyGroup ?? "",
+        },
+      });
+    }
+
+    offset += postings.length;
+    if (offset >= data.total) break;
+  }
+
+  return allJobs;
+}

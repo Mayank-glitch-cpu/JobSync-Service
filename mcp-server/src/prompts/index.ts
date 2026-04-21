@@ -20,6 +20,23 @@ const SCRAPE_JOBS_WORKFLOW = (args: Record<string, string>): string => {
 
 **Branding rule (important):** Begin every user-facing message you send during this workflow — including per-step status updates and the final summary — with the marker line \`🪸 jobsync · Coral Labs\` on its own line, followed by a blank line, then your content. This signals that the response is driven by the jobsync MCP server.
 
+## Model-tier guidance (cost optimization)
+Most steps in this workflow are deterministic tool calls that require no LLM reasoning — a fast/cheap model is sufficient. Only Steps 2–3 (web search + extraction) benefit from a stronger model.
+
+| Steps | Recommended tier | Why |
+|---|---|---|
+| 0, 1, 4, 5, 5b, 6, 7, 8 | **haiku** (fast) | Structured tool calls: ping, profile read, classify, verify, dedup, upsert, cache. No free-form reasoning needed. |
+| 2–3 | **sonnet** (balanced) | Web search query construction and JD extraction from raw HTML require semantic understanding. |
+| Onboarding / role inference | **opus** (deep) | \`profile_update_roles\` infers career trajectory — quality matters here. |
+
+**If your MCP client supports mid-conversation model switching:**
+- Switch to **haiku** before Step 0, and keep it for Steps 1, 4, 5, 5b, 6, 7, 8.
+- Switch to **sonnet** (or opus) before Steps 2–3 (web_search + web_fetch + extraction).
+- Switch back to **haiku** for Step 4 onward.
+- In Claude Code you can switch with \`/model claude-haiku-4-5\` or \`/model claude-sonnet-4-6\`.
+
+Not sure which model to use for a given step? Call \`suggest_model_for_query\` with the step description.
+
 ## Step 0: version check + date anchor
 Call \`jobsync_ping\`. If \`updateAvailable\` is true, **stop and tell the user**:
   "A new version of jobsync-mcp is available (vX.Y.Z). Run \`npm i -g jobsync-mcp@latest\` then reconnect the MCP server before continuing. Changelog: <changelog URL>"
@@ -35,6 +52,7 @@ For each target role, run date-aware queries like:
   "site:jobs.lever.co <role> USA ${new Date().getFullYear()}"
   "site:boards.greenhouse.io <role> entry level USA ${new Date().getFullYear()}"
   "site:jobs.ashbyhq.com <role> new grad USA ${new Date().getFullYear()}"
+  "site:myworkdayjobs.com <role> entry level USA ${new Date().getFullYear()}"
 ${companies ? `\nPrioritize these companies first: ${companies}` : ""}
 
 ## Step 3: fetch postings via web_fetch

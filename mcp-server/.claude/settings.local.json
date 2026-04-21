@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__jobsync__jobsync_ping",
+      "mcp__jobsync__profile_read",
+      "WebSearch",
+      "WebFetch(domain:jobs.lever.co)",
+      "WebFetch(domain:boards.greenhouse.io)",
+      "WebFetch(domain:jobs.ashbyhq.com)",
+      "WebFetch(domain:job-boards.greenhouse.io)",
+      "mcp__jobsync__fetch_lever_jobs",
+      "mcp__jobsync__fetch_greenhouse_jobs",
+      "mcp__jobsync__fetch_ashby_jobs",
+      "Bash(python3 /tmp/combine_jobs.py)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python3 *)",
+      "mcp__jobsync__classify_job_batch",
+      "mcp__jobsync__verify_job_link_batch",
+      "mcp__jobsync__cache_is_seen",
+      "mcp__jobsync__airtable_list_recent_jobs",
+      "mcp__jobsync__airtable_upsert_job",
+      "mcp__jobsync__cache_mark_seen"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "jobsync"
+  ]
+}

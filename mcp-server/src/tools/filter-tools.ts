@@ -13,7 +13,8 @@ import { textResult, type ToolDefinition } from "./index.js";
 export const filterUsLocationTool: ToolDefinition = {
   name: "filter_us_location",
   description:
-    "Decide whether a location string looks non-US. Returns { likelyNonUS: boolean }. Use before deciding to keep or discard a job posting when usOnly mode is active.",
+    "Decide whether a location string looks non-US. Returns { likelyNonUS: boolean }. Use before deciding to keep or discard a job posting when usOnly mode is active. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {
@@ -31,7 +32,8 @@ export const filterUsLocationTool: ToolDefinition = {
 export const filterTitleKeywordsTool: ToolDefinition = {
   name: "filter_title_keywords",
   description:
-    "Cheap pre-filter for a job title. Rejects excluded seniority/role keywords and requires at least one include keyword. Optionally enforces US-only location. Defaults are tuned for new-grad tech roles.",
+    "Cheap pre-filter for a job title. Rejects excluded seniority/role keywords and requires at least one include keyword. Optionally enforces US-only location. Defaults are tuned for new-grad tech roles. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
   inputSchema: {
     type: "object",
     properties: {
@@ -69,7 +71,8 @@ export const filterTitleKeywordsTool: ToolDefinition = {
 export const detectIndustryTagsTool: ToolDefinition = {
   name: "detect_industry_tags",
   description:
-    "Deterministic classifier. Given a job's company name and title, returns the matched industry (from a fixed taxonomy), the company tier tags (FAANG+, Quant, Unicorn, YC, Crypto/Web3, Fortune 500), known-H1B-sponsor flag, and detected job board from the apply URL.",
+    "Deterministic classifier. Given a job's company name and title, returns the matched industry (from a fixed taxonomy), the company tier tags (FAANG+, Quant, Unicorn, YC, Crypto/Web3, Fortune 500), known-H1B-sponsor flag, and detected job board from the apply URL. ⚖ [Model hint: sonnet]",
+  recommendedModel: "sonnet",
   inputSchema: {
     type: "object",
     properties: {
@@ -109,7 +112,8 @@ interface BatchJob {
 export const classifyJobBatchTool: ToolDefinition = {
   name: "classify_job_batch",
   description:
-    "Composite classifier over an array of jobs. Runs US-location filter, title-keyword filter, and industry/tag/H1B/job-board detection in one call. Returns a parallel array of verdicts. Use this after web_fetch to process a page of postings efficiently.",
+    "Composite classifier over an array of jobs. Runs US-location filter, title-keyword filter, and industry/tag/H1B/job-board detection in one call. Returns a parallel array of verdicts. Use this after web_fetch to process a page of postings efficiently. ⚖ [Model hint: sonnet]",
+  recommendedModel: "sonnet",
   inputSchema: {
     type: "object",
     properties: {
