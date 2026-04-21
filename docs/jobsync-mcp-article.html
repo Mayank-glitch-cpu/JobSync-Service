@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Job Search Is Broken. Here's the Architecture That Fixes It.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+    --faint: #f2f1ed;
+    --accent: #c44b2a;
+    --accent-light: #fdf0ec;
+    --rule: #e0ddd6;
+    --green: #1d6b4f;
+    --green-light: #eaf5f0;
+    --code-bg: #f7f6f3;
+    --max: 680px;
+    --serif: 'Lora', Georgia, serif;
+    --sans: 'DM Sans', system-ui, sans-serif;
+  }
+
+  body {
+    background: #fff;
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 20px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+
+  /* ── HEADER ── */
+  .cover {
+    background: var(--ink);
+    color: #fff;
+    padding: 72px 24px 64px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 40px,
+      rgba(255,255,255,0.015) 40px,
+      rgba(255,255,255,0.015) 41px
+    );
+  }
+  .cover-inner { max-width: var(--max); margin: 0 auto; position: relative; }
+  .kicker {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #c44b2a;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .kicker::before {
+    content: '';
+    display: inline-block;
+    width: 28px;
+    height: 1px;
+    background: #c44b2a;
+  }
+  .cover h1 {
+    font-family: var(--serif);
+    font-size: clamp(32px, 5vw, 48px);
+    font-weight: 600;
+    line-height: 1.18;
+    color: #fff;
+    margin-bottom: 24px;
+    max-width: 580px;
+  }
+  .cover-sub {
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 300;
+    color: #ccc;
+    line-height: 1.55;
+    max-width: 520px;
+    margin-bottom: 40px;
+  }
+  .byline {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: #aaa;
+  }
+  .byline-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #c44b2a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .byline strong { color: #ddd; font-weight: 500; }
+  .byline-sep { color: #555; }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    background: var(--faint);
+    border-bottom: 1px solid var(--rule);
+    padding: 20px 24px;
+  }
+  .stats-inner {
+    max-width: var(--max);
+    margin: 0 auto;
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+  .stat {
+    font-family: var(--sans);
+  }
+  .stat-num {
+    font-size: 26px;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 3px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── ARTICLE BODY ── */
+  .article { padding: 56px 24px 80px; }
+  .article-inner { max-width: var(--max); margin: 0 auto; }
+
+  p { margin-bottom: 1.4em; }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 2.4em 0 0.7em;
+    line-height: 1.25;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--muted);
+    margin: 2em 0 0.5em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Pull quote */
+  .pullquote {
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 28px;
+    margin: 2.2em 0;
+  }
+  .pullquote p {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    line-height: 1.5;
+    color: var(--ink);
+    margin: 0;
+  }
+  .pullquote cite {
+    display: block;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-style: normal;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+
+  /* Callout box */
+  .callout {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 20px 24px;
+    margin: 2em 0;
+  }
+  .callout-label {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .callout p {
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    color: #3a1a0e;
+    margin: 0;
+  }
+
+  .callout.green {
+    background: var(--green-light);
+    border-color: var(--green);
+  }
+  .callout.green .callout-label { color: var(--green); }
+  .callout.green p { color: #1a3a2a; }
+
+  /* Section divider */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 2.8em 0 2em;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+
+  /* Data table */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--sans);
+    font-size: 14px;
+    margin: 1.6em 0;
+  }
+  .data-table thead th {
+    text-align: left;
+    padding: 10px 14px;
+    background: var(--faint);
+    font-weight: 500;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--rule);
+  }
+  .data-table tbody td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--rule);
+    line-height: 1.45;
+    vertical-align: top;
+    color: var(--ink);
+  }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table tbody tr:hover td { background: var(--faint); }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 100px;
+    letter-spacing: 0.04em;
+  }
+  .badge-red { background: #fce8e8; color: #a32d2d; }
+  .badge-green { background: #eaf3de; color: #3b6d11; }
+  .badge-amber { background: #faeeda; color: #854f0b; }
+
+  /* Architecture diagram */
+  .arch-diagram {
+    background: var(--faint);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 28px 20px;
+    margin: 2em 0;
+    font-family: var(--sans);
+  }
+  .arch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .arch-row:last-child { margin-bottom: 0; }
+  .arch-node {
+    background: #fff;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .arch-node.accent {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+  }
+  .arch-node.highlight {
+    background: #c44b2a;
+    border-color: #c44b2a;
+    color: #fff;
+  }
+  .arch-node.muted {
+    background: var(--faint);
+    border-color: var(--rule);
+    color: var(--muted);
+  }
+  .arch-arrow {
+    color: var(--muted);
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .arch-label {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .arch-section { margin-bottom: 18px; }
+  .arch-section:last-child { margin-bottom: 0; }
+  .arch-divider {
+    height: 1px;
+    background: var(--rule);
+    margin: 16px 0;
+  }
+
+  /* Code block */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 18px 20px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    overflow-x: auto;
+    margin: 1.4em 0;
+    color: var(--ink);
+  }
+  code { font-family: 'Courier New', monospace; font-size: 0.85em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+
+  /* Source footnotes */
+  .sources {
+    margin-top: 3em;
+    padding-top: 1.5em;
+    border-top: 1px solid var(--rule);
+  }
+  .sources h3 {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 1em;
+  }
+  .sources ol {
+    padding-left: 1.2em;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .sources ol li { margin-bottom: 0.4em; }
+  .sources a { color: var(--accent); text-decoration: none; }
+  .sources a:hover { text-decoration: underline; }
+
+  /* Tag row */
+  .tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 2.4em;
+    padding-top: 1.6em;
+    border-top: 1px solid var(--rule);
+  }
+  .tag {
+    font-family: var(--sans);
+    font-size: 12px;
+    padding: 5px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  /* TOC */
+  .toc {
+    background: var(--faint);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 0 0 2.4em;
+    font-family: var(--sans);
+  }
+  .toc-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .toc ol {
+    padding-left: 1.2em;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--ink);
+  }
+  .toc ol li { margin-bottom: 4px; }
+  .toc a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--rule); }
+  .toc a:hover { border-bottom-color: var(--accent); color: var(--accent); }
+
+  /* Highlight stat inline */
+  .inline-stat {
+    font-family: var(--sans);
+    font-weight: 500;
+    color: var(--accent);
+  }
+
+  /* ── SETUP TABS / ACCORDION ── */
+  .setup-tabs {
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 1.6em 0 2em;
+    font-family: var(--sans);
+  }
+  .setup-tab {
+    border-bottom: 1px solid var(--rule);
+  }
+  .setup-tab:last-child { border-bottom: none; }
+  .setup-tab-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    cursor: pointer;
+    user-select: none;
+    background: var(--faint);
+    transition: background 0.15s;
+  }
+  .setup-tab-header:hover { background: #eae9e3; }
+  .setup-tab.open .setup-tab-header { background: var(--ink); color: #fff; }
+  .setup-tab-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .setup-tab-badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 9px;
+    border-radius: 100px;
+    background: rgba(255,255,255,0.15);
+    color: inherit;
+    letter-spacing: 0.04em;
+  }
+  .setup-tab:not(.open) .setup-tab-badge {
+    background: var(--rule);
+    color: var(--muted);
+  }
+  .setup-tab-chevron {
+    font-size: 13px;
+    color: var(--muted);
+    transition: transform 0.2s;
+  }
+  .setup-tab.open .setup-tab-chevron {
+    transform: rotate(180deg);
+    color: rgba(255,255,255,0.5);
+  }
+  .setup-tab-body {
+    display: none;
+    padding: 20px 20px 24px;
+    background: #fff;
+    border-top: 1px solid var(--rule);
+  }
+  .setup-tab.open .setup-tab-body { display: block; }
+  .setup-tab-body p {
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--ink);
+    margin-bottom: 1em;
+  }
+  .setup-tab-body p:last-child { margin-bottom: 0; }
+  .setup-tab-body pre {
+    font-size: 12.5px;
+    margin: 0.8em 0;
+  }
+  .setup-step {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 18px;
+    align-items: flex-start;
+  }
+  .setup-step:last-child { margin-bottom: 0; }
+  .setup-step-num {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+  .setup-step-content { flex: 1; }
+  .setup-step-content strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 5px;
+  }
+  .setup-step-content p {
+    font-size: 13px;
+    margin-bottom: 0.5em;
+  }
+
+  /* ── VIDEO LINK ── */
+  .video-link-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    background: var(--ink);
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin: 1.6em 0 2em;
+    text-decoration: none;
+  }
+  .video-link-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    margin-top: 2px;
+  }
+  .video-link-content { flex: 1; }
+  .video-link-label {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.45);
+    margin-bottom: 5px;
+  }
+  .video-link-title {
+    display: block;
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 500;
+    color: #fff;
+    text-decoration: none;
+    line-height: 1.3;
+    margin-bottom: 6px;
+  }
+  .video-link-title:hover {
+    text-decoration: underline;
+    text-decoration-color: rgba(255,255,255,0.4);
+  }
+  .video-link-meta {
+    font-family: var(--sans);
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  @media (max-width: 600px) {
+    body { font-size: 18px; }
+    .cover { padding: 48px 20px 44px; }
+    .arch-row { gap: 6px; }
+    .arch-node { font-size: 12px; padding: 6px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-inner">
+    <div class="kicker">Market Analysis &middot; Infrastructure &middot; AI Agents</div>
+    <h1>The Job Search Is Broken. Here's the Architecture That Fixes It.</h1>
+    <p class="cover-sub">Why agentic hiring is stalling on trust and privacy — and how Model Context Protocol flips the equation by putting users back in control.</p>
+    <div class="byline">
+      <div class="byline-avatar">MV</div>
+      <div>
+        <strong>Mayank Vyas</strong> &nbsp;<span class="byline-sep">·</span>&nbsp; ML Research Engineer, CoRAL Lab &nbsp;<span class="byline-sep">·</span>&nbsp; Founder, mutu.ai
+        <br>April 2026 &nbsp;<span class="byline-sep">·</span>&nbsp; 14 min read
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stats-inner">
+    <div class="stat">
+      <div class="stat-num">81%</div>
+      <div class="stat-label">recruiters who post ghost jobs<sup>1</sup></div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">3 in 10</div>
+      <div class="stat-label">companies with fake postings active right now<sup>1</sup></div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">265k+</div>
+      <div class="stat-label">live jobs accessible via MCP today<sup>2</sup></div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">$0</div>
+      <div class="stat-label">cloud infra cost to run MCP locally</div>
+    </div>
+  </div>
+</div>
+
+<!-- ARTICLE BODY -->
+<div class="article">
+<div class="article-inner">
+
+  <div class="toc">
+    <div class="toc-label">In this article</div>
+    <ol>
+      <li><a href="#why-broken">Why the current system is structurally broken</a></li>
+      <li><a href="#ghost-problem">The ghost job crisis and its privacy implications</a></li>
+      <li><a href="#agent-lag">Why agentic job search is lagging</a></li>
+      <li><a href="#mcp-solution">How MCP resolves the trust problem</a></li>
+      <li><a href="#local-cost">Running it locally: the cost argument</a></li>
+      <li><a href="#market">Market landscape and opportunity</a></li>
+      <li><a href="#jobsync">jobsync-mcp: what it is and why it matters</a></li>
+      <li><a href="#setup">Setup: Claude Desktop &amp; Claude Code</a></li>
+    </ol>
+  </div>
+
+  <p>Every year, millions of job seekers submit hundreds of applications into what increasingly resembles a data extraction machine dressed up as a hiring process. Platforms collect resumes, contact details, salary expectations, career histories, and employment preferences — and the systems receiving this data operate with near-zero transparency about what happens to it next.</p>
+
+  <p>Meanwhile, the promise of AI-powered job search remains frustratingly unfulfilled. We have frontier language models that can draft cover letters, parse job descriptions, and reason across complex criteria. We have agents that can browse the web and fill out forms. And yet, truly <em>autonomous, trustworthy</em> job search still doesn't exist at scale. Why?</p>
+
+  <p>The answer isn't capability. It's architecture.</p>
+
+  <div id="why-broken"></div>
+  <h2>The current system is structurally broken</h2>
+
+  <p>The modern job board is built on a fundamentally misaligned incentive structure. Job seekers provide extraordinarily sensitive personal data — resume, work history, identity signals, location, salary floor — in exchange for the opportunity to apply. But the platform's actual customer is the employer, not the applicant.</p>
+
+  <p>This creates a quiet but serious information asymmetry. The platform optimizes for employer engagement, ad revenue, and data network effects. The job seeker optimizes for privacy, relevance, and speed. These goals frequently conflict.</p>
+
+  <div class="callout">
+    <div class="callout-label">The core tension</div>
+    <p>Job seekers submit the most personally sensitive data of their professional lives — and have essentially no visibility into how it is used, shared, or retained once it leaves their hands.</p>
+  </div>
+
+  <p>Job boards have historically generated revenue through data monetization, recruiter access tiers, and targeted advertising. The job seeker's profile is, in many meaningful respects, the product — not the customer. Applicant data may be shared with third parties through partnerships or affiliate relationships in ways that users don't fully anticipate when they click "Apply."</p>
+
+  <div id="ghost-problem"></div>
+  <h2>The ghost job crisis and what it reveals about data privacy</h2>
+
+  <p>One of the clearest signals of how broken the current system is: ghost jobs. A ghost job is a posting published by a legitimate company for a role that does not exist — or that was already filled, or that the company has no immediate intention of filling.</p>
+
+  <p>The scale of this problem is staggering. A 2024 survey found that <span class="inline-stat">81% of recruiters have posted ghost jobs</span>, and a separate analysis found that <span class="inline-stat">three in ten companies</span> currently have at least one fake posting active.<sup>1</sup></p>
+
+  <div class="pullquote">
+    <p>"Ghost job postings — by design — do not provide proper notice because they do not state the hiring manager's true intent for collecting this data."</p>
+    <cite>— IAPP Analysis, International Association of Privacy Professionals, December 2024</cite>
+  </div>
+
+  <p>The data privacy implications here are significant and underappreciated. Under frameworks like the EU's GDPR and California's CCPA, employers are required to provide notice of their purpose for collecting personal data at the point of collection. Ghost jobs, by definition, use a false pretext — the applicant consents to data collection for the stated purpose of being considered for a role, but the actual use may be talent pool harvesting, market signaling, or competitive intelligence.</p>
+
+  <p>This isn't a fringe edge case. It's an industry-scale practice that inverts the transparency requirements that modern privacy law is built on. And it illustrates a deeper truth: the hiring infrastructure that millions of people interact with daily was not designed with data minimization or user control in mind.</p>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Data point collected</th>
+        <th>User intent</th>
+        <th>Potential secondary use</th>
+        <th>Disclosure quality</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Resume / CV</td>
+        <td>Apply for a specific role</td>
+        <td>Talent pool, third-party sourcing</td>
+        <td><span class="badge badge-red">Often unclear</span></td>
+      </tr>
+      <tr>
+        <td>Salary expectation</td>
+        <td>Express compensation fit</td>
+        <td>Market benchmarking, internal comp analysis</td>
+        <td><span class="badge badge-red">Rarely disclosed</span></td>
+      </tr>
+      <tr>
+        <td>Location / address</td>
+        <td>Confirm geographic eligibility</td>
+        <td>Demographic segmentation, ad targeting</td>
+        <td><span class="badge badge-amber">Sometimes disclosed</span></td>
+      </tr>
+      <tr>
+        <td>Application activity</td>
+        <td>Track application status</td>
+        <td>Platform analytics, sold to recruiters</td>
+        <td><span class="badge badge-red">Almost never disclosed</span></td>
+      </tr>
+      <tr>
+        <td>Social profiles (linked)</td>
+        <td>Supplement application</td>
+        <td>Data enrichment, cross-platform profiling</td>
+        <td><span class="badge badge-red">Often buried in ToS</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div id="agent-lag"></div>
+  <h2>Why agentic job search is lagging — it's not capability, it's trust</h2>
+
+  <p>The AI agent that could intelligently search for jobs, filter for genuine fit, draft tailored applications, and track progress across platforms technically exists. The models are capable. The tooling is maturing. Yet truly autonomous job search agents haven't achieved mainstream adoption.</p>
+
+  <p>Industry analysis points to a clear culprit: agentic systems require broad permissions to do useful work, and those broad permissions amplify existing privacy risks substantially.<sup>3</sup> An agent that can read your resume, access your email, navigate job portals, and submit applications on your behalf needs extraordinary levels of trust to operate safely.</p>
+
+  <div class="callout">
+    <div class="callout-label">The agentic privacy problem</div>
+    <p>Agentic AI systems tend to need broad permissions to accomplish useful workflows. In job search, those permissions touch the most sensitive data a person generates in their professional life. The wider the permissions, the greater the risk of over-collection, unintended sharing, and unclear data lineage.</p>
+  </div>
+
+  <p>There's also the cost and brittleness problem. An agent that operates by browsing job boards through general web scraping must maintain parsers for dozens of site architectures, handle CAPTCHAs and login walls, detect stale listings, and reconcile duplicate postings across platforms. This is expensive, fragile, and fundamentally unscalable — the agent spends most of its cycles fighting web infrastructure rather than doing useful reasoning.</p>
+
+  <p>This is the gap that MCP-native job search infrastructure is designed to close.</p>
+
+  <div id="mcp-solution"></div>
+  <h2>How MCP resolves the trust and architecture problem</h2>
+
+  <p>Model Context Protocol is an open standard that defines how AI agents connect to external tools and data sources in a structured, auditable way. Instead of an agent roaming the web with broad HTTP access, MCP allows it to query specific endpoints through defined schemas — with explicit scopes, authentication, and rate controls at each boundary.</p>
+
+  <p>For job search, this is a meaningful architectural shift. Rather than a scraper that approximates job data, an MCP-native job search server exposes live, authenticated, structured job data that an agent can query directly. The agent knows exactly what it's accessing, the server knows exactly what it's exposing, and the user controls what permissions flow between them.</p>
+
+  <div class="arch-diagram">
+    <div class="arch-section">
+      <div class="arch-label">Traditional agentic job search</div>
+      <div class="arch-row">
+        <div class="arch-node accent">LLM Agent</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node muted">Browser automation</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node muted">Scrape Indeed</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node muted">Scrape LinkedIn</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node muted">Parse HTML...</div>
+      </div>
+      <p style="font-size: 13px; color: #888; font-family: 'DM Sans', sans-serif; margin-top: 8px;">Fragile. Broad permissions. No audit trail. Breaks constantly.</p>
+    </div>
+    <div class="arch-divider"></div>
+    <div class="arch-section">
+      <div class="arch-label">MCP-native job search (jobsync-mcp)</div>
+      <div class="arch-row">
+        <div class="arch-node accent">LLM Agent</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node highlight">jobsync-mcp</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node">Ashby</div>
+        <div class="arch-node">Greenhouse</div>
+        <div class="arch-node">Lever</div>
+        <div class="arch-node">Workday</div>
+      </div>
+      <p style="font-size: 13px; color: #888; font-family: 'DM Sans', sans-serif; margin-top: 8px;">Structured. Scoped. Auditable. User-controlled. Runs locally.</p>
+    </div>
+  </div>
+
+  <p>This matters for three distinct reasons. First, it makes agent behavior <em>auditable</em>: every tool call goes through a defined interface, so you can inspect exactly what data was requested and what was returned. Second, it enables <em>scope control</em>: the MCP server exposes only the data it's configured to expose — there's no risk of a browser agent silently capturing everything on a page. Third, it supports <em>data minimization</em>: the agent requests structured job data without touching user authentication credentials, session cookies, or behavioral signals that scraping inherently captures.</p>
+
+  <p>From a security standpoint, production MCP implementations need robust authentication, authorization enforcement, and supply-chain controls to be trustworthy.<sup>4</sup> But these are solvable engineering problems — and critically, they're solvable locally, without routing sensitive data through a third-party cloud service at all.</p>
+
+  <div id="local-cost"></div>
+  <h2>Running it locally: the cost argument that changes everything</h2>
+
+  <p>One of the most underappreciated aspects of MCP-based job search infrastructure is what local deployment means for both cost and privacy simultaneously.</p>
+
+  <p>Traditional agentic job search services that operate as SaaS products must route all user data through their own infrastructure — resumes, job preferences, application history, identity signals. This creates the classic centralized-data problem: you're trading privacy for convenience, and you're trusting the platform operator to handle your career data responsibly.</p>
+
+  <p>An MCP server running locally inverts this completely. The job data flows from ATS platforms to your local server to your local agent. The resume never leaves your machine unless you explicitly send it to an application endpoint. The preference profile lives in local config. The only external calls are outbound queries to job API endpoints — the equivalent of a structured search, not a data harvest.</p>
+
+  <div class="callout green">
+    <div class="callout-label">The local advantage</div>
+    <p>A locally-running MCP job search server costs nothing in cloud infrastructure, keeps sensitive career data on the user's device, and gives the agent structured access to live job listings — without requiring the user to trust a third-party platform with their resume, identity, or application history.</p>
+  </div>
+
+  <p>The cost calculus is similarly compelling. Running <code>jobsync-mcp</code> as a local Node.js service costs zero in hosting fees. The API calls to ATS platforms (Greenhouse, Lever, Ashby, Workday) are either free for public job endpoints or use minimal quota from authenticated developer access. The agent itself runs against whatever LLM the user has access to — Claude, GPT-4, or a local model. The entire stack is composable, auditable, and free to self-host.</p>
+
+  <p>Compare this to a SaaS job search agent that might cost $20–50/month, routes all your data through their servers, uses opaque matching logic, and may monetize your profile data to employer customers. The local MCP model is not just cheaper — it's structurally more aligned with user interests.</p>
+
+  <div id="market"></div>
+  <h2>Market landscape: who is building here and what's missing</h2>
+
+  <p>The MCP job search category is early but moving fast. Several independent developers have shipped MCP-based job search tools in 2025–2026, with community posts describing access to 265,000+ live job listings through agent-queryable interfaces.<sup>2</sup> Enterprise staffing firms are also entering the space: Aquent, which places talent at Fortune 500 companies, launched a native MCP server in early 2026 to expose its live job inventory to AI agents — explicitly citing the shift toward "agent-mediated job discovery" as the driver.<sup>5</sup></p>
+
+  <div class="callout">
+    <div class="callout-label">What's already in the ecosystem</div>
+    <p>npm packages including <code>jobsync-mcp</code>, <code>@foundrole/ai-job-search-mcp</code>, and others are already indexed on npm and libraries.io, suggesting the category is real and early-stage developers are staking positions. Enterprise adoption (Aquent's MCP launch) validates the demand from the supply side.</p>
+  </div>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Architecture type</th>
+        <th>Privacy posture</th>
+        <th>Cost to user</th>
+        <th>Data control</th>
+        <th>Agent readiness</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Traditional job board (Indeed, LinkedIn)</td>
+        <td><span class="badge badge-red">Low</span></td>
+        <td>Free / freemium</td>
+        <td><span class="badge badge-red">None</span></td>
+        <td><span class="badge badge-red">None</span></td>
+      </tr>
+      <tr>
+        <td>SaaS AI job agent (Jobright, Simplify)</td>
+        <td><span class="badge badge-amber">Medium</span></td>
+        <td>$20–50/mo</td>
+        <td><span class="badge badge-amber">Partial</span></td>
+        <td><span class="badge badge-amber">Partial</span></td>
+      </tr>
+      <tr>
+        <td>Browser-based scraping agent</td>
+        <td><span class="badge badge-red">Low</span></td>
+        <td>Variable</td>
+        <td><span class="badge badge-red">Low</span></td>
+        <td><span class="badge badge-amber">Medium</span></td>
+      </tr>
+      <tr>
+        <td>Local MCP server (jobsync-mcp)</td>
+        <td><span class="badge badge-green">High</span></td>
+        <td>$0 hosting</td>
+        <td><span class="badge badge-green">Full</span></td>
+        <td><span class="badge badge-green">Native</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>The gap in the market is not more scraping-based job bots. The gap is <em>privacy-preserving job workflow infrastructure</em> — a layer between the user's agent and the fragmented ATS ecosystem that speaks MCP natively, handles live data freshness, normalizes schemas across employers, and runs locally at zero marginal cost.</p>
+
+  <div id="jobsync"></div>
+  <h2>jobsync-mcp: infrastructure for the agentic hiring era</h2>
+
+  <p><code>jobsync-mcp</code> is built on the premise that the highest-value position in agentic job search is not the agent itself — it's the data access layer. The agent is increasingly a commodity; the structured, fresh, privacy-preserving connection to actual job data is not.</p>
+
+  <p>The service provides MCP-native tool endpoints for the major ATS platforms that underpin most serious hiring: Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Recruitee, and Workable. These platforms power hiring at thousands of companies, and their public job endpoints expose real, live inventory without requiring scraping.</p>
+
+  <pre>// Example: Greenhouse ATS fetcher via jobsync-mcp
+const jobs = await mcp.callTool("jobsync_greenhouse_search", {
+  company: "anthropic",
+  keywords: ["machine learning", "research"],
+  location: "San Francisco"
+});
+
+// Returns structured, normalized job objects
+// No scraping. No session cookies. No fragile HTML parsing.
+// Runs entirely on the user's local machine.</pre>
+
+  <p>The architecture is deliberately minimal. The server runs as a local Node.js process, exposes tool definitions via the MCP protocol, and routes queries to ATS APIs. The user's agent — Claude, GPT, or any MCP-compatible client — can call these tools with natural language intent and receive structured job data back. The user's resume and preferences stay local unless they explicitly choose to submit.</p>
+
+  <div id="setup"></div>
+  <h2>Get it running in under 5 minutes</h2>
+
+  <div class="video-link-block">
+    <div class="video-link-icon">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="10" cy="10" r="9.5" stroke="currentColor" stroke-opacity="0.4"/>
+        <path d="M8 7l6 3-6 3V7z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div class="video-link-content">
+      <div class="video-link-label">Setup walkthrough</div>
+      <a class="video-link-title" href="https://1drv.ms/v/c/39b5cec4e8e836c3/IQAKZ6ZV5L9nTqZ6y40M_loAAWO7Y7ObwpbpmRj6fI5IbKY?e=OVU2lp" target="_blank" rel="noopener">Watch: jobsync-mcp full setup demo →</a>
+      <div class="video-link-meta">OneDrive &nbsp;·&nbsp; ~3 min</div>
+    </div>
+  </div>
+
+  <p>Here's everything you need to go from zero to running live job queries through Claude. Pick your environment below — both take under five minutes.</p>
+
+  <div class="setup-tabs">
+
+    <!-- TAB 1: Claude Desktop -->
+    <div class="setup-tab open" id="tab-desktop">
+      <div class="setup-tab-header" onclick="toggleTab('tab-desktop')">
+        <div class="setup-tab-title">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="2" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M5 14h6M8 12v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Claude Desktop
+          <span class="setup-tab-badge">Recommended</span>
+        </div>
+        <span class="setup-tab-chevron">▾</span>
+      </div>
+      <div class="setup-tab-body">
+        <div class="setup-step">
+          <div class="setup-step-num">1</div>
+          <div class="setup-step-content">
+            <strong>Check prerequisites</strong>
+            <pre>node --version   # needs v18+
+npm --version    # needs v9+</pre>
+          </div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-step-num">2</div>
+          <div class="setup-step-content">
+            <strong>Install jobsync-mcp globally</strong>
+            <pre>npm install -g jobsync-mcp</pre>
+            <p>Verify the binary is accessible:</p>
+            <pre>jobsync-mcp --version</pre>
+          </div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-step-num">3</div>
+          <div class="setup-step-content">
+            <strong>Edit claude_desktop_config.json</strong>
+            <p>macOS: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code><br>
+            Windows: <code>%APPDATA%\Claude\claude_desktop_config.json</code></p>
+            <pre>{
+  "mcpServers": {
+    "jobsync": {
+      "command": "jobsync-mcp",
+      "args": []
+    }
+  }
+}</pre>
+          </div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-step-num">4</div>
+          <div class="setup-step-content">
+            <strong>Fully quit and relaunch Claude Desktop</strong>
+            <p>The jobsync tools will appear in the tools menu (hammer icon). Try a first query:</p>
+            <pre>Find ML research roles at AI labs in San Francisco
+hiring through Greenhouse or Ashby right now.</pre>
+          </div>
+        </div>
+        <p style="font-size: 13px; color: var(--muted); margin-top: 8px;">If the tools don't appear, confirm <code>jobsync-mcp</code> is on your <code>$PATH</code>. On Windows, restart your shell after the global install.</p>
+      </div>
+    </div>
+
+    <!-- TAB 2: Claude Code -->
+    <div class="setup-tab" id="tab-code">
+      <div class="setup-tab-header" onclick="toggleTab('tab-code')">
+        <div class="setup-tab-title">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M4.5 5.5L2 8l2.5 2.5M11.5 5.5L14 8l-2.5 2.5M9 4l-2 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/></svg>
+          Claude Code (CLI)
+          <span class="setup-tab-badge">For developers</span>
+        </div>
+        <span class="setup-tab-chevron">▾</span>
+      </div>
+      <div class="setup-tab-body">
+        <p>Claude Code discovers MCP servers via the <code>claude mcp add</code> command or a <code>.mcp.json</code> file in your project root. Both approaches work — choose the one that fits your workflow.</p>
+
+        <div class="setup-step">
+          <div class="setup-step-num">1</div>
+          <div class="setup-step-content">
+            <strong>One-command install (recommended)</strong>
+            <p>Run this from your terminal — Claude Code registers jobsync-mcp automatically via npx, no global install needed:</p>
+            <pre># macOS / Linux / WSL
+claude mcp add jobsync -- npx jobsync-mcp</pre>
+            <pre># Native Windows PowerShell
+claude mcp add jobsync -- npx jobsync-mcp</pre>
+            <p>Verify it registered:</p>
+            <pre>claude mcp list</pre>
+            <p>You should see <code>jobsync</code> in the list.</p>
+          </div>
+        </div>
+
+        <div class="setup-step">
+          <div class="setup-step-num">2</div>
+          <div class="setup-step-content">
+            <strong>Alternative — project-scoped .mcp.json</strong>
+            <p>Useful for teams or repo-level config. Create <code>.mcp.json</code> in your project root:</p>
+            <pre>{
+  "mcpServers": {
+    "jobsync": {
+      "command": "npx",
+      "args": ["jobsync-mcp"]
+    }
+  }
+}</pre>
+            <p>Claude Code picks this up automatically on next launch from that directory. npx resolves the package from the local <code>node_modules</code> first, then the npm registry — no global install required.</p>
+          </div>
+        </div>
+
+        <div class="setup-step">
+          <div class="setup-step-num">3</div>
+          <div class="setup-step-content">
+            <strong>Import from Claude Desktop (if already configured)</strong>
+            <p>If you've already set up jobsync in Claude Desktop, you can sync the config to Claude Code in one command:</p>
+            <pre>claude mcp add-from-claude-desktop</pre>
+          </div>
+        </div>
+
+        <div class="setup-step">
+          <div class="setup-step-num">4</div>
+          <div class="setup-step-content">
+            <strong>Test it in Claude Code</strong>
+            <pre>claude
+# Then in the REPL:
+&gt; Find backend engineering roles at YC-backed startups
+  using Greenhouse or Lever, remote-friendly.</pre>
+            <p>The jobsync tools fire automatically. Results come back as structured JSON that Claude reasons over inline.</p>
+          </div>
+        </div>
+        <p style="font-size: 13px; color: var(--muted); margin-top: 8px;">If npx can't resolve the package, run <code>npm install -g jobsync-mcp</code> first, then use <code>"command": "jobsync-mcp"</code> instead of npx in your config.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function toggleTab(id) {
+      var tabs = document.querySelectorAll('.setup-tab');
+      tabs.forEach(function(t) {
+        if (t.id === id) {
+          t.classList.toggle('open');
+        } else {
+          t.classList.remove('open');
+        }
+      });
+    }
+  </script>
+
+  <div class="pullquote">
+    <p>Agentic job search isn't failing because the use case is weak. It's lagging because the market doesn't yet trust broad-agent data access. MCP-based architecture is the answer — because it makes the agent controllable, auditable, and privacy-respecting by default.</p>
+  </div>
+
+  <p>The long-term vision is larger than job search. As AI agents become the primary interface through which people navigate professional opportunities — not just jobs, but contracts, collaborations, and career decisions — the infrastructure layer that governs how those agents access data becomes critical. Who controls that layer determines who benefits from the agentic economy.</p>
+
+  <p>The choice is between a world where career data flows through opaque SaaS intermediaries that extract rent from both sides, and one where users run their own agent infrastructure locally, with full control over what data flows where. <code>jobsync-mcp</code> is a bet on the second world.</p>
+
+  <div class="divider">·</div>
+
+  <h2>What to watch</h2>
+
+  <p>Several trends will determine how quickly this category matures. First, the rate of ATS platform MCP adoption: if Greenhouse, Lever, and Workday publish official MCP servers, the fragmented access problem largely solves itself and the differentiation shifts to matching quality and user experience. Second, the evolution of privacy regulation around agentic AI — the IAPP and others are actively developing frameworks for how notice and consent apply when an agent acts on a person's behalf.<sup>1</sup> Third, whether enterprise employers start requiring or preferring applications submitted through structured channels over scraped-form submissions — a shift that would make ATS-native MCP access a genuine competitive advantage for job seekers.</p>
+
+  <p>The category is real, the timing is right, and the architecture is sound. The question is execution speed.</p>
+
+  <div class="tags">
+    <span class="tag">MCP</span>
+    <span class="tag">Agentic AI</span>
+    <span class="tag">Job Search</span>
+    <span class="tag">Privacy</span>
+    <span class="tag">Infrastructure</span>
+    <span class="tag">ATS</span>
+    <span class="tag">Claude</span>
+    <span class="tag">Open Source</span>
+  </div>
+
+  <div class="sources">
+    <h3>Sources</h3>
+    <ol>
+      <li>Bushey K., Kanthasamy S. <a href="https://iapp.org/news/a/ghost-jobs-the-phantom-hiring-trend-with-startling-data-privacy-implications" target="_blank">Ghost jobs: The phantom hiring trend with data privacy implications.</a> IAPP, December 2024.</li>
+      <li>Community post: <em>I built an MCP that lets Claude search 265k live jobs.</em> r/mcp, Reddit, 2025.</li>
+      <li>SC World. <em>Five privacy concerns around agentic AI.</em> scworld.com.</li>
+      <li>Tetrate. <a href="https://tetrate.io/learn/ai/mcp/security-privacy-considerations" target="_blank">MCP Security Best Practices: Authentication, Authorization & Supply Chain Protection.</a></li>
+      <li>Hunter Z. <a href="https://aquent.com/blog/built-for-ai-discoverability-mcp-to-connect-ai-agents-with-enterprise-jobs" target="_blank">MCP to connect AI agents with enterprise jobs.</a> Aquent, March 2026.</li>
+      <li>Owkin. <em>Data protection is a hard problem for agentic AI.</em> owkin.com.</li>
+      <li>Hospital Recruiting. <em>Do job boards take steps to protect job seeker data?</em> hospitalrecruiting.com.</li>
+      <li>Cerbos. <em>MCP security: AI agent authorization — a CISO and architect's guide.</em> cerbos.dev.</li>
+      <li>npm registry. <a href="https://www.npmjs.com/package/jobsync-mcp" target="_blank">jobsync-mcp package versions.</a></li>
+    </ol>
+  </div>
+
+</div>
+</div>
+
+</body>
+</html>
