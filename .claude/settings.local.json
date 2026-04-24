@@ -17,7 +17,14 @@
       "Bash(python:*)",
       "mcp__jobsync__cache_is_seen",
       "mcp__jobsync__airtable_upsert_job",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Read(//c/Users/vyasm/Downloads/**)",
+      "Bash(unzip -l \"Shader wallpapers-handoff.zip\")",
+      "Bash(unzip -o \"Shader wallpapers-handoff.zip\" -d \"/tmp/shader-handoff\")"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "jobsync"
+  ]
 }

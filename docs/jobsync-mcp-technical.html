@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JobSync MCP — Technical Documentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #1a1a1a;
+  --muted: #6b6b6b;
+  --faint: #f2f1ed;
+  --accent: #c44b2a;
+  --accent-light: #fdf0ec;
+  --rule: #e0ddd6;
+  --green: #1d6b4f;
+  --green-light: #eaf5f0;
+  --blue: #1a4d8f;
+  --blue-light: #eef3fb;
+  --purple: #5b3d8f;
+  --purple-light: #f3eefb;
+  --code-bg: #f7f6f3;
+  --serif: 'Lora', Georgia, serif;
+  --sans: 'DM Sans', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'Courier New', monospace;
+  --content-max: 720px;
+  --sidebar-w: 240px;
+  --total-max: 1080px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── COVER ── */
+.cover {
+  background: var(--ink);
+  color: #fff;
+  padding: 64px 24px 56px;
+  position: relative;
+  overflow: hidden;
+}
+.cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent, transparent 40px,
+    rgba(255,255,255,0.015) 40px, rgba(255,255,255,0.015) 41px
+  );
+}
+.cover-inner { max-width: var(--content-max); margin: 0 auto; position: relative; }
+.kicker {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kicker::before {
+  content: '';
+  display: inline-block;
+  width: 28px; height: 1px;
+  background: var(--accent);
+}
+.cover h1 {
+  font-family: var(--serif);
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 600;
+  line-height: 1.2;
+  color: #fff;
+  margin-bottom: 16px;
+}
+.cover-sub {
+  font-size: 16px;
+  font-weight: 300;
+  color: #bbb;
+  line-height: 1.6;
+  max-width: 560px;
+  margin-bottom: 32px;
+}
+.cover-meta {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-size: 13px;
+  color: #888;
+  flex-wrap: wrap;
+}
+.cover-meta span { display: flex; align-items: center; gap: 6px; }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(196,75,42,0.18);
+  color: #f5a58a;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+/* ── LAYOUT ── */
+.page-shell {
+  max-width: var(--total-max);
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  gap: 56px;
+  align-items: flex-start;
+}
+
+/* ── SIDEBAR TOC ── */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  position: sticky;
+  top: 32px;
+  padding: 40px 0;
+  align-self: flex-start;
+}
+.toc-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 16px;
+  padding-left: 12px;
+}
+.toc { list-style: none; }
+.toc li { line-height: 1.3; }
+.toc a {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 4px 12px;
+  border-left: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.toc a:hover { color: var(--ink); border-left-color: var(--rule); }
+.toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+.toc .toc-section > a {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  margin-top: 14px;
+  padding-left: 12px;
+  border-left: none;
+}
+.toc .toc-sub { list-style: none; }
+.toc .toc-sub a { font-size: 12px; padding-left: 20px; }
+
+/* ── MAIN CONTENT ── */
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 48px 0 120px;
+}
+
+/* ── SECTION HEADINGS ── */
+.content h2 {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-top: 72px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule);
+}
+.content h2:first-child { margin-top: 0; }
+
+.content h3 {
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 40px;
+  margin-bottom: 12px;
+}
+
+.content h4 {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-top: 28px;
+  margin-bottom: 8px;
+}
+
+.content p {
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.75;
+  color: #2a2a2a;
+  margin-bottom: 16px;
+}
+
+.content ul, .content ol {
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.7;
+  color: #2a2a2a;
+  margin: 0 0 16px 20px;
+}
+.content li { margin-bottom: 4px; }
+
+/* ── TOOL CARD ── */
+.tool-card {
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 28px 0;
+}
+.tool-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--faint);
+  border-bottom: 1px solid var(--rule);
+}
+.tool-name {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.tool-hint {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.hint-haiku { background: var(--green-light); color: var(--green); }
+.hint-sonnet { background: var(--blue-light); color: var(--blue); }
+.hint-opus { background: var(--purple-light); color: var(--purple); }
+.tool-card-body { padding: 16px 20px; }
+.tool-card-body p {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: #3a3a3a;
+  margin-bottom: 12px;
+}
+.tool-card-body p:last-child { margin-bottom: 0; }
+
+/* ── PARAMS TABLE ── */
+.param-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-family: var(--sans);
+  margin: 8px 0 0;
+}
+.param-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.param-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #f0ede8;
+  vertical-align: top;
+  line-height: 1.45;
+}
+.param-table tr:last-child td { border-bottom: none; }
+.param-table .param-name { font-family: var(--mono); font-size: 12px; color: #1a1a1a; font-weight: 500; }
+.param-table .param-type { color: var(--blue); font-family: var(--mono); font-size: 11px; }
+.param-table .req { color: var(--accent); font-size: 10px; font-weight: 600; }
+
+/* ── CODE ── */
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 16px 20px;
+  overflow-x: auto;
+  margin: 16px 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: #2a2a2a;
+}
+code {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #2a2a2a;
+}
+pre code { background: none; border: none; padding: 0; font-size: inherit; }
+
+/* ── CALLOUT ── */
+.callout {
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 20px 0;
+  display: flex;
+  gap: 12px;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.callout-note { background: var(--blue-light); border-left: 3px solid var(--blue); }
+.callout-warn { background: #fffbea; border-left: 3px solid #d4a017; }
+.callout-tip { background: var(--green-light); border-left: 3px solid var(--green); }
+
+/* ── FILE TREE ── */
+.file-tree {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.8;
+  color: #2a2a2a;
+}
+.file-tree .dir { color: var(--blue); font-weight: 500; }
+.file-tree .comment { color: var(--muted); font-size: 12px; }
+
+/* ── FLOW DIAGRAM ── */
+.flow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+  margin: 20px 0;
+  font-family: var(--sans);
+  font-size: 13px;
+}
+.flow-step {
+  background: var(--faint);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 8px 14px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.flow-arrow {
+  color: var(--muted);
+  padding: 0 8px;
+  font-size: 16px;
+}
+
+/* ── FAQ ── */
+.faq-item {
+  border-top: 1px solid var(--rule);
+  padding: 20px 0;
+}
+.faq-item:last-child { border-bottom: 1px solid var(--rule); }
+.faq-q {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.faq-a {
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.7;
+  color: #3a3a3a;
+}
+
+/* ── SECTION INTRO ── */
+.section-intro {
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.75;
+  color: #4a4a4a;
+  font-style: italic;
+  margin-bottom: 28px;
+  padding-left: 16px;
+  border-left: 3px solid var(--rule);
+}
+
+/* ── CONFIG TABLE ── */
+.config-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  margin: 16px 0;
+}
+.config-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 12px;
+  border-bottom: 2px solid var(--rule);
+  font-family: var(--sans);
+}
+.config-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid #f0ede8;
+  vertical-align: top;
+  line-height: 1.5;
+  font-family: var(--sans);
+}
+.config-table tr:last-child td { border-bottom: none; }
+.config-table .key { font-family: var(--mono); font-size: 12px; font-weight: 500; }
+.config-table .type { color: var(--blue); font-family: var(--mono); font-size: 11px; }
+.config-table .default { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 860px) {
+  .sidebar { display: none; }
+  .page-shell { padding: 0 16px; }
+}
+
+/* ── SCROLL SPY ── */
+.content section { scroll-margin-top: 32px; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-inner">
+    <div class="kicker">Technical Documentation</div>
+    <h1>JobSync MCP — Complete Reference</h1>
+    <p class="cover-sub">Every tool, every parameter, every config field. A self-sufficient guide to deploying and operating the JobSync Model Context Protocol server for automated job search pipelines.</p>
+    <div class="cover-meta">
+      <span><strong style="color:#fff">v1.x</strong></span>
+      <span>20+ MCP tools</span>
+      <span>Node.js · TypeScript</span>
+      <span class="badge">⚡ MCP Server</span>
+    </div>
+  </div>
+</div>
+
+<!-- SHELL -->
+<div class="page-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="toc-label">On this page</div>
+    <ul class="toc">
+      <li class="toc-section"><a href="#overview">Overview</a></li>
+      <li class="toc-section"><a href="#install">Installation &amp; Config</a></li>
+      <ul class="toc-sub">
+        <li><a href="#config-fields">Config fields</a></li>
+        <li><a href="#filesystem">File system layout</a></li>
+        <li><a href="#claude-desktop">Claude Desktop setup</a></li>
+      </ul>
+      <li class="toc-section"><a href="#profile">Profile &amp; Resume</a></li>
+      <ul class="toc-sub">
+        <li><a href="#profile-read">profile_read</a></li>
+        <li><a href="#profile-write">profile_write_file</a></li>
+        <li><a href="#profile-roles">profile_update_roles</a></li>
+        <li><a href="#profile-parse">profile_parse_resume</a></li>
+      </ul>
+      <li class="toc-section"><a href="#portals">Portals Config</a></li>
+      <ul class="toc-sub">
+        <li><a href="#portals-read">portals_read</a></li>
+        <li><a href="#portals-write">portals_write</a></li>
+        <li><a href="#portals-master">portals_master_list</a></li>
+      </ul>
+      <li class="toc-section"><a href="#fetchers">ATS Fast-Path Fetchers</a></li>
+      <ul class="toc-sub">
+        <li><a href="#greenhouse">fetch_greenhouse_jobs</a></li>
+        <li><a href="#lever">fetch_lever_jobs</a></li>
+        <li><a href="#ashby">fetch_ashby_jobs</a></li>
+        <li><a href="#workday">fetch_workday_jobs</a></li>
+      </ul>
+      <li class="toc-section"><a href="#filters">Filters &amp; Classification</a></li>
+      <ul class="toc-sub">
+        <li><a href="#filter-us">filter_us_location</a></li>
+        <li><a href="#filter-title">filter_title_keywords</a></li>
+        <li><a href="#detect-tags">detect_industry_tags</a></li>
+        <li><a href="#classify-batch">classify_job_batch</a></li>
+      </ul>
+      <li class="toc-section"><a href="#links">Link Verification</a></li>
+      <ul class="toc-sub">
+        <li><a href="#verify-link">verify_job_link</a></li>
+        <li><a href="#verify-batch">verify_job_link_batch</a></li>
+      </ul>
+      <li class="toc-section"><a href="#cache">Cache Layer</a></li>
+      <ul class="toc-sub">
+        <li><a href="#cache-seen">cache_is_seen</a></li>
+        <li><a href="#cache-mark">cache_mark_seen</a></li>
+        <li><a href="#cache-prune">cache_prune</a></li>
+      </ul>
+      <li class="toc-section"><a href="#airtable">Airtable Integration</a></li>
+      <ul class="toc-sub">
+        <li><a href="#at-upsert">airtable_upsert_job</a></li>
+        <li><a href="#at-list">airtable_list_recent_jobs</a></li>
+        <li><a href="#at-schema">airtable_get_schema</a></li>
+        <li><a href="#at-bases">airtable_list_bases</a></li>
+        <li><a href="#at-create">airtable_create_base</a></li>
+      </ul>
+      <li class="toc-section"><a href="#pipeline">Application Pipeline</a></li>
+      <ul class="toc-sub">
+        <li><a href="#pl-upsert">pipeline_upsert_jobs</a></li>
+        <li><a href="#pl-applied">pipeline_mark_applied</a></li>
+        <li><a href="#pl-status">pipeline_update_status</a></li>
+        <li><a href="#pl-get">pipeline_get_status</a></li>
+      </ul>
+      <li class="toc-section"><a href="#dataflow">Data Flow</a></li>
+      <li class="toc-section"><a href="#model-hints">Model Hints</a></li>
+      <li class="toc-section"><a href="#faq">FAQ</a></li>
+    </ul>
+  </aside>
+
+  <!-- CONTENT -->
+  <main class="content">
+
+    <!-- OVERVIEW -->
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>JobSync MCP is a <strong>Model Context Protocol server</strong> that gives Claude (or any MCP-compatible LLM client) direct, structured access to job-search infrastructure — ATS APIs, an application pipeline, a deduplication cache, Airtable, and your personal profile. Instead of asking Claude to "find me jobs," you run automated multi-step workflows entirely inside the model context window: fetch → classify → deduplicate → store → track.</p>
+      <p>The server exposes <strong>23 tools</strong> across eight functional domains. Each tool has a recommended model hint (⚡ haiku, ⚖ sonnet, 🔬 opus) so orchestrators can route calls to the cheapest capable model. All persistent state lives under <code>~/.jobsync/</code> — no cloud services required beyond Airtable (which is optional if you use the markdown sink).</p>
+      <div class="callout callout-note">
+        <span class="callout-icon">ℹ</span>
+        <div>JobSync MCP is not a browser scraper. It calls <em>public ATS job-board APIs</em> (Greenhouse, Lever, Ashby, Workday) directly. No Playwright, no HTML parsing, no rate-limit circumvention.</div>
+      </div>
+
+      <h3>Architecture at a glance</h3>
+      <div class="flow">
+        <div class="flow-step">LLM Client<br><small style="font-weight:300;color:#888">Claude / any MCP host</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">MCP stdio transport</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">jobsync-mcp server</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">ATS APIs / Airtable / SQLite / TSV</div>
+      </div>
+      <p>The server runs as a subprocess of the MCP host. All tool calls are synchronous JSON-over-stdio. The server reads <code>~/.jobsync/config.json</code> on startup and validates required credentials based on the configured <code>sink</code>.</p>
+    </section>
+
+    <!-- INSTALLATION & CONFIG -->
+    <section id="install">
+      <h2>Installation &amp; Configuration</h2>
+
+      <h3>Install</h3>
+      <pre><code>npm install -g jobsync-mcp
+
+# Initialise config interactively
+jobsync-mcp init</code></pre>
+
+      <p>The <code>init</code> command creates <code>~/.jobsync/config.json</code> with your Airtable credentials and preferred settings. You can also write the file manually — the schema is documented below.</p>
+
+      <h3 id="config-fields">Config fields — <code>~/.jobsync/config.json</code></h3>
+      <table class="config-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="key">airtable.pat</td>
+            <td class="type">string</td>
+            <td class="default">—</td>
+            <td>Airtable Personal Access Token. Required when <code>sink</code> is <code>airtable</code> or <code>both</code>. Needs scopes: <code>data.records:write</code>, <code>schema.bases:read</code>. Add <code>schema.bases:write</code> if you want <code>airtable_create_base</code>.</td>
+          </tr>
+          <tr>
+            <td class="key">airtable.baseId</td>
+            <td class="type">string</td>
+            <td class="default">—</td>
+            <td>Airtable base ID (starts with <code>app…</code>). Required with airtable sink.</td>
+          </tr>
+          <tr>
+            <td class="key">airtable.tableName</td>
+            <td class="type">string</td>
+            <td class="default">"Jobs"</td>
+            <td>Name of the table within the base where job records are upserted.</td>
+          </tr>
+          <tr>
+            <td class="key">airtable.fieldMap</td>
+            <td class="type">object</td>
+            <td class="default">undefined</td>
+            <td>Optional override mapping from JobSync field names to your Airtable column names. Useful if you renamed columns in an existing base.</td>
+          </tr>
+          <tr>
+            <td class="key">sink</td>
+            <td class="type">"airtable" | "markdown" | "both"</td>
+            <td class="default">"airtable"</td>
+            <td>Where jobs are written. <code>markdown</code> writes to <code>markdownPath</code>. <code>both</code> writes to both simultaneously.</td>
+          </tr>
+          <tr>
+            <td class="key">markdownPath</td>
+            <td class="type">string</td>
+            <td class="default">~/.jobsync/jobs.md</td>
+            <td>Absolute path for markdown output. Only used when sink includes <code>markdown</code>.</td>
+          </tr>
+          <tr>
+            <td class="key">lookbackHours</td>
+            <td class="type">number</td>
+            <td class="default">12</td>
+            <td>How far back (in hours) the scrape workflow considers a job "recently seen" for dedup purposes. Increase if you run scrapes less frequently.</td>
+          </tr>
+          <tr>
+            <td class="key">usOnly</td>
+            <td class="type">boolean</td>
+            <td class="default">true</td>
+            <td>When true, the location filter rejects roles with clearly non-US locations. Set to <code>false</code> for remote-global or international searches.</td>
+          </tr>
+          <tr>
+            <td class="key">enableFastPath</td>
+            <td class="type">boolean</td>
+            <td class="default">false</td>
+            <td>Gate for the four ATS fetcher tools. Set to <code>true</code> to enable <code>fetch_greenhouse_jobs</code>, <code>fetch_lever_jobs</code>, <code>fetch_ashby_jobs</code>, and <code>fetch_workday_jobs</code>.</td>
+          </tr>
+          <tr>
+            <td class="key">profileDir</td>
+            <td class="type">string</td>
+            <td class="default">~/.jobsync/profile</td>
+            <td>Directory containing <code>skills.md</code>, <code>experience.md</code>, <code>projects.md</code>, <code>roles.json</code>, and <code>raw-resume.txt</code>.</td>
+          </tr>
+          <tr>
+            <td class="key">brandedOutput</td>
+            <td class="type">boolean</td>
+            <td class="default">true</td>
+            <td>When true, tool responses include JobSync branding headers. Set to <code>false</code> for plain JSON output.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-warn">
+        <span class="callout-icon">⚠</span>
+        <div>The server validates credentials on startup. If <code>sink</code> requires Airtable but <code>airtable.pat</code> or <code>airtable.baseId</code> are missing, the server will throw immediately — not at call time.</div>
+      </div>
+
+      <h3 id="filesystem">File system layout</h3>
+      <div class="file-tree">
+        <span class="dir">~/.jobsync/</span><br>
+        ├── config.json          <span class="comment"># Server config (PAT, baseId, sink, …)</span><br>
+        ├── cache.db             <span class="comment"># SQLite dedup cache</span><br>
+        ├── pipeline.tsv         <span class="comment"># Application tracking (tab-separated)</span><br>
+        ├── portals.yml          <span class="comment"># Portal scanner config (search queries, companies)</span><br>
+        ├── jobs.md              <span class="comment"># Markdown sink output (if sink includes "markdown")</span><br>
+        └── <span class="dir">profile/</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;├── skills.md        <span class="comment"># Curated skill list</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;├── experience.md    <span class="comment"># Work history in markdown</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;├── projects.md      <span class="comment"># Notable projects</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;├── roles.json       <span class="comment"># Detected / custom / excluded job roles</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;└── raw-resume.txt   <span class="comment"># Plaintext resume parsed from PDF/DOCX</span>
+      </div>
+
+      <h3 id="claude-desktop">Claude Desktop setup</h3>
+      <p>Add the server to <code>claude_desktop_config.json</code> (macOS: <code>~/Library/Application Support/Claude/</code>, Windows: <code>%APPDATA%\Claude\</code>):</p>
+      <pre><code>{
+  "mcpServers": {
+    "jobsync": {
+      "command": "npx",
+      "args": ["-y", "jobsync-mcp"]
+    }
+  }
+}</code></pre>
+      <p>After saving, restart Claude Desktop. The server appears in the tool list as <strong>jobsync</strong>.</p>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="profile">
+      <h2>Profile &amp; Resume Tools</h2>
+      <p class="section-intro">The profile system stores your professional identity in structured markdown files. Claude reads these files to understand your background during fit-analysis and job-match scoring. You can bootstrap the profile by pasting your resume — the parser handles PDF, DOCX, TXT, and MD.</p>
+
+      <div class="tool-card" id="profile-read">
+        <div class="tool-card-header">
+          <span class="tool-name">profile_read</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Returns the full contents of every profile file in a single call. Use this at the start of a fit-analysis session so Claude has your background available in context.</p>
+          <h4>Parameters</h4>
+          <p><em>None.</em></p>
+          <h4>Returns</h4>
+          <table class="param-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">skills</td><td class="param-type">string</td><td>Contents of <code>skills.md</code></td></tr>
+              <tr><td class="param-name">experience</td><td class="param-type">string</td><td>Contents of <code>experience.md</code></td></tr>
+              <tr><td class="param-name">projects</td><td class="param-type">string</td><td>Contents of <code>projects.md</code></td></tr>
+              <tr><td class="param-name">roles</td><td class="param-type">object</td><td>Raw <code>roles.json</code> — detected, custom, excluded arrays</td></tr>
+              <tr><td class="param-name">activeRoles</td><td class="param-type">string[]</td><td>Computed: <code>(detected ∪ custom) − excluded</code></td></tr>
+              <tr><td class="param-name">rawResume</td><td class="param-type">string</td><td>Contents of <code>raw-resume.txt</code> (empty string if absent)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="profile-write">
+        <div class="tool-card-header">
+          <span class="tool-name">profile_write_file</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Overwrites one of the three profile markdown files. Use this after onboarding to save structured skill or experience content that Claude generated from your resume.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">file</td><td class="param-type">"skills"|"experience"|"projects"</td><td class="req">required</td><td>Which file to write.</td></tr>
+              <tr><td class="param-name">content</td><td class="param-type">string</td><td class="req">required</td><td>Full markdown content to write. Overwrites existing file.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="profile-roles">
+        <div class="tool-card-header">
+          <span class="tool-name">profile_update_roles</span>
+          <span class="tool-hint hint-opus">🔬 opus</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Manages the three-way role system: <strong>detected</strong> (auto-inferred from resume), <strong>custom</strong> (user-added), and <strong>excluded</strong> (suppressed from searches). The <code>activeRoles</code> set used for scraping is <code>(detected ∪ custom) − excluded</code>.</p>
+          <p>You can either replace entire arrays (<code>detected</code>, <code>custom</code>, <code>excluded</code>) or perform incremental mutations (<code>addCustom</code>, <code>addExcluded</code>, <code>removeCustom</code>, <code>removeExcluded</code>). Incremental mutations are preferred for interactive editing.</p>
+          <h4>Parameters (all optional, at least one required)</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">detected</td><td class="param-type">string[]</td><td>Replace the full detected roles array (from resume parsing).</td></tr>
+              <tr><td class="param-name">custom</td><td class="param-type">string[]</td><td>Replace the full custom roles array.</td></tr>
+              <tr><td class="param-name">excluded</td><td class="param-type">string[]</td><td>Replace the full excluded roles array.</td></tr>
+              <tr><td class="param-name">addCustom</td><td class="param-type">string[]</td><td>Append to custom array without touching the rest.</td></tr>
+              <tr><td class="param-name">addExcluded</td><td class="param-type">string[]</td><td>Append to excluded array.</td></tr>
+              <tr><td class="param-name">removeCustom</td><td class="param-type">string[]</td><td>Remove specific entries from custom array.</td></tr>
+              <tr><td class="param-name">removeExcluded</td><td class="param-type">string[]</td><td>Remove specific entries from excluded array.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="profile-parse">
+        <div class="tool-card-header">
+          <span class="tool-name">profile_parse_resume</span>
+          <span class="tool-hint hint-sonnet">⚖ sonnet</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Parses a resume file into plaintext and saves it to <code>raw-resume.txt</code> in the profile directory. Supports PDF, DOCX, TXT, and MD formats. After parsing, run <code>profile_update_roles</code> to extract role keywords from the raw text.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">path</td><td class="param-type">string</td><td class="req">required</td><td>Absolute path to the resume file on the local filesystem.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ success, savedPath, charCount }</code> — path where <code>raw-resume.txt</code> was written and the character count of extracted text.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PORTALS -->
+    <section id="portals">
+      <h2>Portals Configuration Tools</h2>
+      <p class="section-intro">The portals config (<code>~/.jobsync/portals.yml</code>) drives scrape workflows — it defines which companies to monitor and which search queries to run. These tools let Claude read, update, and initialise this file from a built-in master company list.</p>
+
+      <div class="tool-card" id="portals-read">
+        <div class="tool-card-header">
+          <span class="tool-name">portals_read</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Returns the raw YAML content of <code>portals.yml</code> plus an <code>exists</code> flag. If the file does not yet exist, <code>exists</code> is <code>false</code> and <code>content</code> is empty — use this to trigger onboarding.</p>
+          <h4>Returns</h4>
+          <table class="param-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">content</td><td class="param-type">string</td><td>Raw YAML string, or empty string if file absent.</td></tr>
+              <tr><td class="param-name">exists</td><td class="param-type">boolean</td><td>Whether the file exists.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="portals-write">
+        <div class="tool-card-header">
+          <span class="tool-name">portals_write</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Overwrites <code>portals.yml</code> with the provided YAML string. Used during onboarding after Claude selects relevant companies from the master list. Can also be called directly for manual edits.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">content</td><td class="param-type">string</td><td class="req">required</td><td>Full YAML content to write. Must not be empty.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="portals-master">
+        <div class="tool-card-header">
+          <span class="tool-name">portals_master_list</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Returns the built-in YAML snippet covering ~60 companies across AI labs, developer tools, voice AI, SaaS, and fintech. During onboarding, Claude calls this, filters by the user's target roles, then passes the subset to <code>portals_write</code>.</p>
+          <h4>Returns</h4>
+          <table class="param-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">masterCompanyList</td><td class="param-type">string</td><td>YAML snippet — all built-in companies with their ATS slugs.</td></tr>
+              <tr><td class="param-name">path</td><td class="param-type">string</td><td>Target path where portals.yml would be written.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <h3>Portals YAML structure</h3>
+      <pre><code>search_queries:
+  - "software engineer AI"
+  - "backend engineer"
+
+tracked_companies:
+  - name: Anthropic
+    ats: ashby
+    slug: anthropic
+  - name: OpenAI
+    ats: greenhouse
+    slug: openai
+  - name: Vercel
+    ats: lever
+    slug: vercel</code></pre>
+      <p>Each entry in <code>tracked_companies</code> maps directly to a fast-path fetcher call. The <code>ats</code> field must be one of <code>greenhouse</code>, <code>lever</code>, <code>ashby</code>, or <code>workday</code>.</p>
+    </section>
+
+    <!-- FETCHERS -->
+    <section id="fetchers">
+      <h2>ATS Fast-Path Fetchers</h2>
+      <p class="section-intro">These four tools call public ATS job-board APIs directly — no browser, no scraping. They return structured job arrays ready for classification and dedup. All four require <code>enableFastPath: true</code> in config.</p>
+
+      <div class="callout callout-warn">
+        <span class="callout-icon">⚠</span>
+        <div>Fast-path tools are disabled by default. Set <code>"enableFastPath": true</code> in <code>~/.jobsync/config.json</code> to enable them.</div>
+      </div>
+
+      <div class="tool-card" id="greenhouse">
+        <div class="tool-card-header">
+          <span class="tool-name">fetch_greenhouse_jobs</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Fetches open roles from the Greenhouse job board API at <code>boards-api.greenhouse.io/v1/boards/{slug}/jobs</code>. Supports one slug or an array for batch fetching.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">slug</td><td class="param-type">string</td><td></td><td>Single company slug (e.g. <code>"openai"</code>).</td></tr>
+              <tr><td class="param-name">slugs</td><td class="param-type">string[]</td><td></td><td>Array of slugs for batch fetching. Provide <em>either</em> <code>slug</code> or <code>slugs</code>.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ total, jobs[] }</code> where each job has: <code>id, positionTitle, company, location, applyLink, datePosted, jobBoard: "greenhouse"</code>.</p>
+          <h4>Notes</h4>
+          <p>Link verification for Greenhouse uses the API (a 404 on <code>/jobs/{id}</code> means the role is closed) rather than a browser GET — faster and more reliable.</p>
+        </div>
+      </div>
+
+      <div class="tool-card" id="lever">
+        <div class="tool-card-header">
+          <span class="tool-name">fetch_lever_jobs</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Fetches postings from the Lever public API at <code>api.lever.co/v0/postings/{slug}?mode=json</code>.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">slug</td><td class="param-type">string</td><td></td><td>Single company slug (e.g. <code>"vercel"</code>).</td></tr>
+              <tr><td class="param-name">slugs</td><td class="param-type">string[]</td><td></td><td>Array of slugs for batch fetching.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ total, jobs[] }</code> — each job: <code>id, positionTitle, company, location, applyLink, datePosted, team, jobBoard: "lever"</code>.</p>
+          <h4>Notes</h4>
+          <p>Link verification checks the <code>state</code> field via the Lever API — a state of <code>"closed"</code> marks the link inactive.</p>
+        </div>
+      </div>
+
+      <div class="tool-card" id="ashby">
+        <div class="tool-card-header">
+          <span class="tool-name">fetch_ashby_jobs</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Fetches postings from the Ashby HQ posting API at <code>api.ashbyhq.com/posting-api/job-board/{slug}</code>. Ashby is popular among AI-native companies (Anthropic, Perplexity, etc.).</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">slug</td><td class="param-type">string</td><td></td><td>Single Ashby company slug.</td></tr>
+              <tr><td class="param-name">slugs</td><td class="param-type">string[]</td><td></td><td>Array of slugs for batch fetching.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ total, jobs[] }</code> — each job includes <code>isListed</code> field; only listed jobs are returned.</p>
+          <div class="callout callout-note">
+            <span class="callout-icon">ℹ</span>
+            <div><strong>Known quirk:</strong> Ashby returns <code>null</code> for <code>datePosted</code>. The server stamps today's date as a fallback before upserting to Airtable. Do not rely on this date for recency filtering.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tool-card" id="workday">
+        <div class="tool-card-header">
+          <span class="tool-name">fetch_workday_jobs</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Fetches jobs from Workday's internal CXS (Candidate Experience) API. Accepts the full board URL rather than a slug, since Workday tenants have unique subdomains and paths.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">boardUrl</td><td class="param-type">string</td><td></td><td>Full Workday board URL (e.g. <code>"https://company.wd1.myworkdayjobs.com/en-US/External"</code>).</td></tr>
+              <tr><td class="param-name">boardUrls</td><td class="param-type">string[]</td><td></td><td>Array of board URLs for batch fetching.</td></tr>
+            </tbody>
+          </table>
+          <h4>Notes</h4>
+          <p>Workday's <code>datePosted</code> is also unreliable from the API payload — use <code>rawFields.postedOn</code> instead for accurate post dates. Link verification uses a GET request combined with soft-close pattern matching in the response body.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FILTERS -->
+    <section id="filters">
+      <h2>Filters &amp; Classification</h2>
+      <p class="section-intro">These tools form the classification pipeline. Run them after fetching to strip irrelevant roles before touching the cache or Airtable. For most workflows, <code>classify_job_batch</code> is the single call you need — it composes all filters internally.</p>
+
+      <div class="tool-card" id="filter-us">
+        <div class="tool-card-header">
+          <span class="tool-name">filter_us_location</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Determines whether a location string is likely non-US. Uses pattern matching against known country/city patterns — does not make a network call.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">location</td><td class="param-type">string</td><td class="req">required</td><td>Location string from job posting (e.g. <code>"London, UK"</code>, <code>"Remote"</code>).</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ likelyNonUS: boolean }</code></p>
+        </div>
+      </div>
+
+      <div class="tool-card" id="filter-title">
+        <div class="tool-card-header">
+          <span class="tool-name">filter_title_keywords</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Tests a job title (and optionally location) against include/exclude keyword lists. Returns <code>passes: false</code> if the title matches an exclude keyword or fails to match any include keyword.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">title</td><td class="param-type">string</td><td class="req">required</td><td>Job title to evaluate.</td></tr>
+              <tr><td class="param-name">location</td><td class="param-type">string</td><td></td><td>Location string — used for US-only check when <code>usOnly</code> is set.</td></tr>
+              <tr><td class="param-name">include</td><td class="param-type">string[]</td><td></td><td>Whitelist keywords. Title must match at least one. Case-insensitive.</td></tr>
+              <tr><td class="param-name">exclude</td><td class="param-type">string[]</td><td></td><td>Blacklist keywords. Title must match none. Case-insensitive.</td></tr>
+              <tr><td class="param-name">usOnly</td><td class="param-type">boolean</td><td></td><td>When true, non-US locations also fail the filter.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ passes: boolean, title, location }</code></p>
+        </div>
+      </div>
+
+      <div class="tool-card" id="detect-tags">
+        <div class="tool-card-header">
+          <span class="tool-name">detect_industry_tags</span>
+          <span class="tool-hint hint-sonnet">⚖ sonnet</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Classifies a job into an industry and enriches it with tags. Uses a combination of heuristic pattern matching and LLM-assisted reasoning (hence sonnet). Also flags H1B sponsorship likelihood and identifies the originating job board.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">company</td><td class="param-type">string</td><td class="req">required</td><td>Company name.</td></tr>
+              <tr><td class="param-name">positionTitle</td><td class="param-type">string</td><td class="req">required</td><td>Job title.</td></tr>
+              <tr><td class="param-name">applyLink</td><td class="param-type">string</td><td></td><td>Apply URL — used to infer ATS and job board.</td></tr>
+              <tr><td class="param-name">jobDescription</td><td class="param-type">string</td><td></td><td>Full job description text for richer classification.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <table class="param-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">industry</td><td class="param-type">string</td><td>Classified industry (e.g. <code>"AI / ML"</code>, <code>"Fintech"</code>).</td></tr>
+              <tr><td class="param-name">tags</td><td class="param-type">string</td><td>Comma-separated tags (e.g. <code>"FAANG+,YC,Remote"</code>).</td></tr>
+              <tr><td class="param-name">h1bSponsor</td><td class="param-type">boolean</td><td>Estimated H1B sponsorship likelihood.</td></tr>
+              <tr><td class="param-name">jobBoard</td><td class="param-type">string</td><td>Inferred originating job board.</td></tr>
+              <tr><td class="param-name">industryOptions</td><td class="param-type">string[]</td><td>Alternate industry classifications considered.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="classify-batch">
+        <div class="tool-card-header">
+          <span class="tool-name">classify_job_batch</span>
+          <span class="tool-hint hint-sonnet">⚖ sonnet</span>
+        </div>
+        <div class="tool-card-body">
+          <p>The recommended single-call entry point for classification. Internally runs <code>filter_us_location</code>, <code>filter_title_keywords</code>, and <code>detect_industry_tags</code> for every job in the batch, returning a split of accepted vs. rejected with per-job reasoning.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">jobs</td><td class="param-type">object[]</td><td class="req">required</td><td>Array of job objects, each with at minimum <code>positionTitle</code>, <code>company</code>, <code>applyLink</code>. Optional: <code>location</code>, <code>jobDescription</code>.</td></tr>
+              <tr><td class="param-name">include</td><td class="param-type">string[]</td><td></td><td>Title include keywords. Defaults to active roles from profile if omitted.</td></tr>
+              <tr><td class="param-name">exclude</td><td class="param-type">string[]</td><td></td><td>Title exclude keywords.</td></tr>
+              <tr><td class="param-name">usOnly</td><td class="param-type">boolean</td><td></td><td>Defaults to <code>config.usOnly</code>.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <table class="param-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">total</td><td class="param-type">number</td><td>Input job count.</td></tr>
+              <tr><td class="param-name">accepted</td><td class="param-type">number</td><td>Jobs that passed all filters.</td></tr>
+              <tr><td class="param-name">rejected</td><td class="param-type">number</td><td>Jobs that failed at least one filter.</td></tr>
+              <tr><td class="param-name">results</td><td class="param-type">object[]</td><td>Each result: <code>{ job, passes, rejectReason?, industry, tags }</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- LINK VERIFICATION -->
+    <section id="links">
+      <h2>Link Verification</h2>
+      <p class="section-intro">Job postings go stale. These tools check whether an apply link is still active before storing or presenting it. Board-specific logic handles the nuances of each ATS's closure patterns.</p>
+
+      <div class="tool-card" id="verify-link">
+        <div class="tool-card-header">
+          <span class="tool-name">verify_job_link</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Checks whether a single job apply URL is still active. Uses board-specific strategies for known ATS domains and a generic GET + soft-close pattern match for unknown boards.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">url</td><td class="param-type">string</td><td class="req">required</td><td>The apply URL to verify.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <table class="param-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">url</td><td class="param-type">string</td><td>The verified URL.</td></tr>
+              <tr><td class="param-name">active</td><td class="param-type">boolean</td><td><code>true</code> if the role appears open.</td></tr>
+              <tr><td class="param-name">statusCode</td><td class="param-type">number</td><td>HTTP status code returned.</td></tr>
+              <tr><td class="param-name">reason</td><td class="param-type">string</td><td>Human-readable explanation for the verdict.</td></tr>
+            </tbody>
+          </table>
+          <h4>Board-specific strategies</h4>
+          <table class="param-table">
+            <thead><tr><th>ATS</th><th>Strategy</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">Greenhouse</td><td>API 404 on <code>/jobs/{id}</code> → inactive</td></tr>
+              <tr><td class="param-name">Lever</td><td>API <code>state === "closed"</code> → inactive</td></tr>
+              <tr><td class="param-name">Ashby</td><td>API <code>isListed === false</code> → inactive</td></tr>
+              <tr><td class="param-name">Workday</td><td>GET + soft-close regex on response body</td></tr>
+              <tr><td class="param-name">Generic</td><td>GET + <code>SOFT_CLOSED_PATTERNS</code> regex set</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="verify-batch">
+        <div class="tool-card-header">
+          <span class="tool-name">verify_job_link_batch</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Verifies up to 20 URLs in parallel. Use this to audit existing pipeline entries or clean up stale Airtable records.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">urls</td><td class="param-type">string[]</td><td class="req">required</td><td>Array of apply URLs to verify. Maximum 20 per call.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ total, active, inactive, results[] }</code> — each result matches the single-link shape.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CACHE -->
+    <section id="cache">
+      <h2>Cache Layer</h2>
+      <p class="section-intro">The dedup cache is a SQLite database at <code>~/.jobsync/cache.db</code>. Every processed job is stamped here by its apply link. On subsequent scrape runs, seen links are skipped before hitting any classification or storage logic — keeping downstream calls cheap.</p>
+
+      <div class="tool-card" id="cache-seen">
+        <div class="tool-card-header">
+          <span class="tool-name">cache_is_seen</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Checks whether one or more apply links have already been processed. Accepts a single URL or a batch array.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">applyLink</td><td class="param-type">string</td><td></td><td>Single URL to check.</td></tr>
+              <tr><td class="param-name">applyLinks</td><td class="param-type">string[]</td><td></td><td>Array of URLs to check in bulk.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p>Single: <code>{ seen: boolean, record? }</code> — <code>record</code> contains the cache entry if seen.<br>
+          Batch: <code>{ results: Array&lt;{ applyLink, seen, record? }&gt; }</code></p>
+        </div>
+      </div>
+
+      <div class="tool-card" id="cache-mark">
+        <div class="tool-card-header">
+          <span class="tool-name">cache_mark_seen</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Marks one or more jobs as seen in the cache. Call this after a job has been classified and stored — not before, so a mid-run crash doesn't permanently skip unprocessed jobs.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">jobs</td><td class="param-type">object[]</td><td class="req">required</td><td>Each entry: <code>{ applyLink, company, positionTitle }</code>. All three are stored in the cache record.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ marked: number, cacheSize: number }</code></p>
+        </div>
+      </div>
+
+      <div class="tool-card" id="cache-prune">
+        <div class="tool-card-header">
+          <span class="tool-name">cache_prune</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Deletes cache entries older than <code>days</code> days. Run monthly or on a schedule to prevent the SQLite file from growing unbounded.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">days</td><td class="param-type">number</td><td></td><td>Entries older than this many days are deleted. Default: <code>90</code>.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ deleted: number, cacheSize: number }</code></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- AIRTABLE -->
+    <section id="airtable">
+      <h2>Airtable Integration</h2>
+      <p class="section-intro">Airtable is the default authoritative sink — the place where all passing jobs land after classification. The schema is fixed: the server creates exactly the columns it knows about and maps them consistently. You can inspect that schema at any time with <code>airtable_get_schema</code>.</p>
+
+      <div class="tool-card" id="at-upsert">
+        <div class="tool-card-header">
+          <span class="tool-name">airtable_upsert_job</span>
+          <span class="tool-hint hint-sonnet">⚖ sonnet</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Creates or updates job records in Airtable. Uses <code>applyLink</code> as the dedup key — if a record with that link already exists it is updated in-place, otherwise a new record is created.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">jobs</td><td class="param-type">object[]</td><td class="req">required</td><td>Array of job objects. Required fields per job: <code>positionTitle</code>, <code>company</code>, <code>applyLink</code>. Optional: <code>location</code>, <code>datePosted</code>, <code>industry</code>, <code>tags</code>, <code>fitScore</code>, <code>notes</code>.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ created: number, failed: number, rejected: number }</code> — <code>rejected</code> counts jobs that failed schema validation before even hitting the API.</p>
+          <div class="callout callout-tip">
+            <span class="callout-icon">✓</span>
+            <div>Always call <code>cache_mark_seen</code> after a successful upsert batch, not before. This ensures that a failed upsert doesn't permanently skip a job on the next run.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tool-card" id="at-list">
+        <div class="tool-card-header">
+          <span class="tool-name">airtable_list_recent_jobs</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Fetches recently created Airtable records for dedup reconciliation. Use this when the SQLite cache has been cleared or on a new machine — pull existing Airtable records then re-seed the cache.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">lookbackDays</td><td class="param-type">number</td><td></td><td>How many days back to fetch records. Default: <code>14</code>.</td></tr>
+              <tr><td class="param-name">maxRecords</td><td class="param-type">number</td><td></td><td>Maximum number of records to return. Default: <code>500</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="at-schema">
+        <div class="tool-card-header">
+          <span class="tool-name">airtable_get_schema</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Returns the field map the server uses when writing to Airtable — useful for debugging column name mismatches or understanding the exact output format.</p>
+          <h4>Parameters</h4>
+          <p><em>None.</em></p>
+        </div>
+      </div>
+
+      <div class="tool-card" id="at-bases">
+        <div class="tool-card-header">
+          <span class="tool-name">airtable_list_bases</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Lists all Airtable bases accessible to the configured PAT. Useful during setup to find your base ID or to verify the PAT has the right permissions.</p>
+          <h4>Parameters</h4>
+          <p><em>None.</em></p>
+          <h4>Returns</h4>
+          <p><code>{ bases: Array&lt;{ id, name, permissionLevel }&gt; }</code></p>
+        </div>
+      </div>
+
+      <div class="tool-card" id="at-create">
+        <div class="tool-card-header">
+          <span class="tool-name">airtable_create_base</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Creates a new Airtable base pre-configured with the JobSync schema (all required columns, correct field types). Optionally sets the new base as the active base in config. Requires the <code>schema.bases:write</code> PAT scope.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">workspaceId</td><td class="param-type">string</td><td class="req">required</td><td>Airtable workspace ID to create the base in.</td></tr>
+              <tr><td class="param-name">name</td><td class="param-type">string</td><td></td><td>Base name. Defaults to <code>"JobSync"</code>.</td></tr>
+              <tr><td class="param-name">setAsActive</td><td class="param-type">boolean</td><td></td><td>If true, writes the new <code>baseId</code> to <code>config.json</code>. Default: <code>true</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PIPELINE -->
+    <section id="pipeline">
+      <h2>Application Pipeline</h2>
+      <p class="section-intro">The pipeline is a tab-separated file (<code>~/.jobsync/pipeline.tsv</code>) that tracks every job you're considering, have applied to, or are interviewing for. It's intentionally a flat file — easy to inspect, easy to back up, easy to query with a spreadsheet tool.</p>
+
+      <h3>Pipeline statuses</h3>
+      <div class="callout callout-note">
+        <span class="callout-icon">ℹ</span>
+        <div>Valid status values: <code>pending</code> · <code>applied</code> · <code>interviewing</code> · <code>offer</code> · <code>rejected</code> · <code>withdrawn</code></div>
+      </div>
+
+      <div class="tool-card" id="pl-upsert">
+        <div class="tool-card-header">
+          <span class="tool-name">pipeline_upsert_jobs</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Adds new jobs to the pipeline or refreshes metadata for existing entries. The <code>applyLink</code> is the dedup key. For existing entries, status, <code>appliedAt</code>, and notes are <strong>preserved</strong> — only metadata fields (title, company, fit score, tags) are updated. Call this after fit analysis to persist all scored roles.</p>
+          <h4>Parameters — <code>jobs</code> array items</h4>
+          <table class="param-table">
+            <thead><tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">positionTitle</td><td class="param-type">string</td><td class="req">required</td><td>Job title.</td></tr>
+              <tr><td class="param-name">company</td><td class="param-type">string</td><td class="req">required</td><td>Company name.</td></tr>
+              <tr><td class="param-name">applyLink</td><td class="param-type">string</td><td class="req">required</td><td>Primary dedup key.</td></tr>
+              <tr><td class="param-name">id</td><td class="param-type">string</td><td></td><td>Stable job ID from ATS scraper.</td></tr>
+              <tr><td class="param-name">location</td><td class="param-type">string</td><td></td><td></td></tr>
+              <tr><td class="param-name">datePosted</td><td class="param-type">string</td><td></td><td>YYYY-MM-DD format.</td></tr>
+              <tr><td class="param-name">industry</td><td class="param-type">string</td><td></td><td></td></tr>
+              <tr><td class="param-name">tags</td><td class="param-type">string</td><td></td><td>Comma-separated tag string.</td></tr>
+              <tr><td class="param-name">fitScore</td><td class="param-type">string</td><td></td><td>Score 1–10 as a string.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="pl-applied">
+        <div class="tool-card-header">
+          <span class="tool-name">pipeline_mark_applied</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Marks one or more jobs as <code>applied</code> by their exact apply links. Sets <code>appliedAt</code> to today's date (YYYY-MM-DD). Call this whenever the user confirms they have submitted an application.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">applyLinks</td><td class="param-type">string[]</td><td class="req">required</td><td>Exact apply link URLs of submitted applications.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="pl-status">
+        <div class="tool-card-header">
+          <span class="tool-name">pipeline_update_status</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Updates the status and/or notes of one or more pipeline entries. Identify jobs by <code>applyLink</code> (preferred) or <code>id</code>.</p>
+          <h4>Parameters — <code>updates</code> array items</h4>
+          <table class="param-table">
+            <thead><tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">status</td><td class="param-type">string</td><td class="req">required</td><td>New status value (see valid values above).</td></tr>
+              <tr><td class="param-name">applyLink</td><td class="param-type">string</td><td></td><td>Primary lookup key.</td></tr>
+              <tr><td class="param-name">id</td><td class="param-type">string</td><td></td><td>Fallback if applyLink unavailable.</td></tr>
+              <tr><td class="param-name">notes</td><td class="param-type">string</td><td></td><td>Optional free-text note (e.g. recruiter name, next steps).</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tool-card" id="pl-get">
+        <div class="tool-card-header">
+          <span class="tool-name">pipeline_get_status</span>
+          <span class="tool-hint hint-haiku">⚡ haiku</span>
+        </div>
+        <div class="tool-card-body">
+          <p>Reads the full pipeline and returns entries grouped by status with summary counts. Power this to a dashboard view or use it to decide where to focus next.</p>
+          <h4>Parameters</h4>
+          <table class="param-table">
+            <thead><tr><th>Param</th><th>Type</th><th></th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="param-name">statusFilter</td><td class="param-type">string[]</td><td></td><td>If provided, only return entries with these statuses. Omit for all entries.</td></tr>
+            </tbody>
+          </table>
+          <h4>Returns</h4>
+          <p><code>{ summary: { pending, applied, interviewing, offer, rejected, withdrawn }, grouped: { [status]: job[] } }</code></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DATA FLOW -->
+    <section id="dataflow">
+      <h2>Data Flow &amp; Workflow Architecture</h2>
+      <p>A complete scrape workflow — from cold start to Airtable record — follows this sequence:</p>
+
+      <h3>1. Onboarding (first run)</h3>
+      <div class="flow" style="flex-direction:column; align-items:flex-start; gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">profile_parse_resume</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Extract raw resume text</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">profile_update_roles</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Detect job roles from resume</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">portals_master_list</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Get ~60 company list</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">portals_write</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Save filtered company list to portals.yml</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">airtable_create_base</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Create Airtable base (optional)</div></div>
+      </div>
+
+      <h3>2. Scrape workflow (recurring)</h3>
+      <div class="flow" style="flex-direction:column; align-items:flex-start; gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">portals_read</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Load companies and search queries</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">fetch_*_jobs (per company)</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Fetch raw job arrays from ATS APIs</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">cache_is_seen (bulk)</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Filter out already-processed links</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">classify_job_batch</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Apply title/location filters + tag detection</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">verify_job_link_batch</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Confirm links are still active (optional)</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">airtable_upsert_job</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Write accepted jobs to Airtable</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">pipeline_upsert_jobs</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Add to local pipeline TSV</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">cache_mark_seen</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Stamp processed links in SQLite</div></div>
+      </div>
+
+      <h3>3. Application tracking (ongoing)</h3>
+      <div class="flow" style="flex-direction:column; align-items:flex-start; gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">pipeline_get_status</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Review pipeline dashboard</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">pipeline_mark_applied</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Stamp applied date</div></div>
+        <div style="display:flex;align-items:center;gap:8px;"><div class="flow-step">pipeline_update_status</div><div class="flow-arrow">→</div><div style="font-size:13px;color:#666">Track interview / offer / rejection</div></div>
+      </div>
+    </section>
+
+    <!-- MODEL HINTS -->
+    <section id="model-hints">
+      <h2>Model Hints</h2>
+      <p>Every tool is tagged with a recommended model hint. MCP orchestrators that support model routing can use this to minimize cost without sacrificing accuracy.</p>
+      <table class="config-table">
+        <thead>
+          <tr><th>Hint</th><th>Model</th><th>Used for</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span style="background:#eaf5f0;color:#1d6b4f;font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;">⚡ haiku</span></td>
+            <td class="key">claude-haiku-*</td>
+            <td>Fast, deterministic operations: cache lookups, TSV reads/writes, ATS API fetches, simple YAML reads.</td>
+          </tr>
+          <tr>
+            <td><span style="background:#eef3fb;color:#1a4d8f;font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;">⚖ sonnet</span></td>
+            <td class="key">claude-sonnet-*</td>
+            <td>Mid-complexity classification and write operations: industry detection, job batch classification, Airtable upserts, resume parsing.</td>
+          </tr>
+          <tr>
+            <td><span style="background:#f3eefb;color:#5b3d8f;font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;">🔬 opus</span></td>
+            <td class="key">claude-opus-*</td>
+            <td>High-judgment tasks: role extraction and management where nuanced understanding of career trajectories matters.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout callout-note">
+        <span class="callout-icon">ℹ</span>
+        <div>Model hints are advisory — the MCP server does not enforce them. They are included in tool descriptions as <code>⚡ [Model hint: haiku]</code> text so orchestrators can parse and act on them.</div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq">
+      <h2>Frequently Asked Questions</h2>
+
+      <div class="faq-item">
+        <div class="faq-q">Do I need Airtable? Can I use the markdown sink instead?</div>
+        <div class="faq-a">Yes. Set <code>"sink": "markdown"</code> in config and point <code>markdownPath</code> to any file. The Airtable PAT and baseId are only validated when sink is <code>"airtable"</code> or <code>"both"</code>. The application pipeline (<code>pipeline.tsv</code>) works independently of the sink setting.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Why are fast-path fetchers disabled by default?</div>
+        <div class="faq-a">ATS API calls generate real HTTP traffic to company infrastructure. Enabling them by default on installation would cause surprise outbound requests. Set <code>"enableFastPath": true</code> explicitly once you understand what will be called — then the four fetcher tools appear in Claude's tool list.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Ashby returns null for datePosted. What date gets stored?</div>
+        <div class="faq-a">The server stamps today's date (ISO YYYY-MM-DD) as a fallback before writing to Airtable. This means Ashby-sourced jobs will always appear "posted today." Do not use <code>datePosted</code> for recency filtering on Ashby jobs — use the Airtable <code>createdTime</code> field instead.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">How does the dedup cache interact with Airtable?</div>
+        <div class="faq-a">They operate independently. The SQLite cache tracks which <code>applyLink</code> URLs have been <em>processed</em> (fetched, classified, attempted upsert). Airtable dedup is based on whether a record with that <code>applyLink</code> already exists in the table. If you clear the cache on a new machine, use <code>airtable_list_recent_jobs</code> to pull existing records and re-seed the cache with <code>cache_mark_seen</code>.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">What happens if an ATS company slug returns a 404?</div>
+        <div class="faq-a">The fetcher returns an error result for that slug and continues with others in the batch. A 404 on a Greenhouse or Lever slug usually means the company doesn't use that ATS or has changed their board URL. Check the <code>portals_master_list</code> notes — some companies have specific Workday board URLs that must be used instead.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Can I run multiple scrape sessions concurrently?</div>
+        <div class="faq-a">Technically yes, but SQLite write contention on <code>cache.db</code> and concurrent TSV writes to <code>pipeline.tsv</code> can cause race conditions. Run scrape sessions sequentially. The MCP stdio transport is single-tenant by design — one Claude session per server process.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">How do I add a company that isn't in the master list?</div>
+        <div class="faq-a">Edit <code>portals.yml</code> directly (or use <code>portals_write</code>) and add an entry under <code>tracked_companies</code> with the correct <code>ats</code> and <code>slug</code>. For Workday companies, use the <code>boardUrl</code> field instead of <code>slug</code> since Workday tenants don't follow a uniform slug pattern.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">The server throws on startup about missing airtable.pat. How do I fix it?</div>
+        <div class="faq-a">Either add your Airtable PAT and baseId to <code>~/.jobsync/config.json</code>, or change <code>"sink"</code> to <code>"markdown"</code> if you don't want Airtable. Run <code>jobsync-mcp init</code> to re-run the interactive setup, which will walk you through both options.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">How do I score jobs for fit before applying?</div>
+        <div class="faq-a">Call <code>profile_read</code> to load your background, then run each job (or a batch) through <code>classify_job_batch</code> which returns enriched results. Have Claude add a <code>fitScore</code> (1–10) field based on your skills and experience, then call <code>pipeline_upsert_jobs</code> with the scored results. The score is stored in the pipeline TSV and forwarded to Airtable on upsert.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Is my resume or profile data sent anywhere?</div>
+        <div class="faq-a">Profile files live exclusively at <code>~/.jobsync/profile/</code> on your local machine. They are read into the Claude context window when you call <code>profile_read</code>, which means the contents are sent to Anthropic's API as part of your conversation — the same as any other text you share with Claude. No other third party receives them.</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+// Scroll spy for sidebar TOC
+const links = document.querySelectorAll('.toc a[href^="#"]');
+const sections = Array.from(links).map(l => document.querySelector(l.getAttribute('href'))).filter(Boolean);
+
+function onScroll() {
+  let current = sections[0];
+  for (const s of sections) {
+    if (s.getBoundingClientRect().top <= 80) current = s;
+  }
+  links.forEach(l => {
+    l.classList.toggle('active', l.getAttribute('href') === '#' + current.id);
+  });
+}
+
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+</script>
+
+</body>
+</html>
