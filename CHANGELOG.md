@@ -6,6 +6,14 @@ Format: [Semantic Versioning](https://semver.org). Each release is tagged `v{ver
 
 ---
 
+## [0.8.2] — 2026-04-23
+
+### Fixed
+- **Fit analysis table missing apply links** — `scrape_jobs_workflow` Step 9 now enforces the exact table column format (`Score | Role | Company | Location | Date Posted | Manual Apply | Agentic Apply`). Previously Claude substituted a `Why` column and dropped the `[Apply ↗](url)` link.
+- **Scored jobs not persisted to pipeline** — Step 9 and `analyze_job_fit` Step 4 both now explicitly require `pipeline_upsert_jobs` to be called after the fit table is rendered. The previous wording ("follow the full analyze_job_fit steps") was too vague and Claude skipped the upsert, leaving the pipeline dashboard empty after a scrape run.
+
+---
+
 ## [0.7.0] — 2026-04-20
 
 ### Added

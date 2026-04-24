@@ -62,6 +62,17 @@ import {
   ashbyGetDatePostedBatchTool,
 } from "./ashby-date-tools.js";
 import { suggestModelForQueryTool } from "./model-advisor-tool.js";
+import {
+  portalsMasterListTool,
+  portalsReadTool,
+  portalsWriteTool,
+} from "./portals-tools.js";
+import {
+  pipelineGetStatusTool,
+  pipelineMarkAppliedTool,
+  pipelineUpdateStatusTool,
+  pipelineUpsertJobsTool,
+} from "./pipeline-tools.js";
 
 function isNewer(latest: string, current: string): boolean {
   const parse = (v: string) => v.split(".").map(Number);
@@ -70,6 +81,59 @@ function isNewer(latest: string, current: string): boolean {
   if (lMaj !== cMaj) return (lMaj ?? 0) > (cMaj ?? 0);
   if (lMin !== cMin) return (lMin ?? 0) > (cMin ?? 0);
   return (lPat ?? 0) > (cPat ?? 0);
+}
+
+// Rough token estimate: ~4 chars per token (good enough for display metadata).
+function estimateTokens(value: unknown): number {
+  return Math.ceil(JSON.stringify(value).length / 4);
+}
+
+// Wraps a tool handler to append _tokenUsage to every result's last JSON block.
+function withTokenMeta(tool: ToolDefinition): ToolDefinition {
+  const orig = tool.handler;
+  return {
+    ...tool,
+    handler: async (args) => {
+      const tokensIn = estimateTokens(args);
+      const result = await orig(args);
+      const outputText = result.content.map((c) => c.text).join("");
+      const tokensOut = estimateTokens(outputText);
+
+      const meta = {
+        estimatedIn: tokensIn,
+        estimatedOut: tokensOut,
+        totalEstimated: tokensIn + tokensOut,
+        recommendedModel: tool.recommendedModel ?? "haiku",
+      };
+
+      // Inject into the last content block if it is JSON; otherwise append plain text.
+      const blocks = result.content;
+      const last = blocks.length > 0 ? blocks[blocks.length - 1] : undefined;
+      try {
+        if (!last) throw new Error("empty");
+        const parsed: Record<string, unknown> = JSON.parse(last.text);
+        parsed._tokenUsage = meta;
+        return {
+          ...result,
+          content: [
+            ...blocks.slice(0, -1),
+            { type: "text" as const, text: JSON.stringify(parsed, null, 2) },
+          ],
+        };
+      } catch {
+        return {
+          ...result,
+          content: [
+            ...blocks,
+            {
+              type: "text" as const,
+              text: `📊 tokens ~${tokensIn} in · ~${tokensOut} out · model hint: ${meta.recommendedModel}`,
+            },
+          ],
+        };
+      }
+    },
+  };
 }
 
 export function registerTools(): ToolDefinition[] {
@@ -81,12 +145,12 @@ export function registerTools(): ToolDefinition[] {
         "Always call this at the start of a workflow. If updateAvailable is true, tell the user to run `npm i -g jobsync-mcp@latest` before proceeding. ⚡ [Model hint: haiku]",
       recommendedModel: "haiku" as const,
       inputSchema: {
-        type: "object",
+        type: "object" as const,
         properties: {},
         additionalProperties: false,
       },
       handler: async () => {
-        const CURRENT = "0.7.0";
+        const CURRENT = "0.8.0";
         let latestVersion: string | null = null;
         let updateAvailable = false;
         try {
@@ -140,7 +204,14 @@ export function registerTools(): ToolDefinition[] {
     ashbyGetDatePostedTool,
     ashbyGetDatePostedBatchTool,
     suggestModelForQueryTool,
-  ];
+    pipelineUpsertJobsTool,
+    pipelineMarkAppliedTool,
+    pipelineUpdateStatusTool,
+    pipelineGetStatusTool,
+    portalsReadTool,
+    portalsWriteTool,
+    portalsMasterListTool,
+  ].map(withTokenMeta);
 }
 
 function withBrand(content: Array<{ type: "text"; text: string }>): Array<{ type: "text"; text: string }> {
