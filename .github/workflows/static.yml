@@ -41,6 +41,8 @@ jobs:
           cp docs/jobsync-mcp-article.html _site/jobsync-mcp-article.html
           cp docs/jobsync-mcp-deck.html _site/jobsync-mcp-deck.html
           cp docs/jobsync-mcp-technical.html _site/jobsync-mcp-technical.html
+          cp -r docs/artifacts _site/artifacts
+          cp CONTRIBUTING.md _site/CONTRIBUTING.md
           touch _site/.nojekyll
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
