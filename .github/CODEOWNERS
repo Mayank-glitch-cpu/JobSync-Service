@@ -1,0 +1,11 @@
+# All files require review from the maintainer.
+# GitHub automatically requests a review when a PR touches any of these paths.
+
+*                          @Mayank-glitch-cpu
+
+# MCP server source — extra scrutiny
+mcp-server/src/**          @Mayank-glitch-cpu
+mcp-server/package.json    @Mayank-glitch-cpu
+
+# CI / repo config — always gated
+.github/**                 @Mayank-glitch-cpu
