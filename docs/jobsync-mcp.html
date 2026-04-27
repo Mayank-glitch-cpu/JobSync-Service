@@ -736,6 +736,97 @@
     border-top: 1px solid var(--rule);
     font-family: 'Space Mono', monospace; font-size: 12px; color: var(--ink-muted);
   }
+
+  /* ── TESTIMONIALS MARQUEE ── */
+  .testimonials-marquee-outer {
+    padding: 48px 0 52px;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    overflow: hidden;
+  }
+  .testimonials-eyebrow {
+    max-width: 1200px; margin: 0 auto;
+    padding: 0 24px 24px;
+  }
+  @media (min-width: 768px) { .testimonials-eyebrow { padding: 0 64px 24px; } }
+
+  .testimonials-rail {
+    position: relative;
+    overflow: hidden;
+  }
+  .testimonials-rail::before,
+  .testimonials-rail::after {
+    content: "";
+    position: absolute; top: 0; bottom: 0;
+    width: 140px; z-index: 2; pointer-events: none;
+  }
+  .testimonials-rail::before {
+    left: 0;
+    background: linear-gradient(90deg, var(--paper) 0%, transparent 100%);
+  }
+  .testimonials-rail::after {
+    right: 0;
+    background: linear-gradient(-90deg, var(--paper) 0%, transparent 100%);
+  }
+
+  .testimonials-track {
+    display: flex;
+    gap: 18px;
+    width: max-content;
+    padding: 4px 0 8px;
+    animation: marquee-scroll 38s linear infinite;
+  }
+  .testimonials-rail:hover .testimonials-track {
+    animation-play-state: paused;
+  }
+  @keyframes marquee-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  .tcard {
+    width: 300px; flex-shrink: 0;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: 8px; padding: 22px 22px 20px;
+    display: flex; flex-direction: column; gap: 14px;
+    transition: border-color 140ms, box-shadow 140ms;
+    cursor: default;
+  }
+  .tcard:hover {
+    border-color: var(--ink-muted);
+    box-shadow: 0 4px 18px -6px rgba(0,0,0,0.25);
+  }
+  .tcard-stars { display: flex; gap: 2px; }
+  .tcard-star {
+    font-size: 13px; line-height: 1;
+    color: var(--coral);
+  }
+  .tcard-star.empty { color: var(--rule); }
+  .tcard-quote {
+    font-size: 13.5px; line-height: 1.55;
+    color: var(--ink-soft); flex: 1;
+  }
+  .tcard-quote::before { content: "\201C"; }
+  .tcard-quote::after  { content: "\201D"; }
+  .tcard-footer {
+    display: flex; align-items: center;
+    justify-content: space-between; gap: 10px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+  }
+  .tcard-name {
+    font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    font-size: 13px; font-weight: 600; color: var(--ink);
+  }
+  .tcard-client {
+    font-family: 'Space Mono', monospace;
+    font-size: 10.5px; padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--paper); border: 1px solid var(--rule);
+    color: var(--ink-muted); white-space: nowrap; flex-shrink: 0;
+  }
 </style>
 </head>
 <body>
@@ -830,6 +921,158 @@
     </div>
   </div>
 </section>
+
+<!-- ── TESTIMONIALS MARQUEE ── -->
+<div class="testimonials-marquee-outer" aria-label="User testimonials">
+  <div class="testimonials-eyebrow">
+    <div class="eyebrow">What users are saying</div>
+  </div>
+  <div class="testimonials-rail">
+    <div class="testimonials-track">
+
+      <!-- card 1 -->
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star empty">★</span>
+        </div>
+        <div class="tcard-quote">Saving time finding jobs — found jobs that are still open and relevant.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">Prisha</div>
+          <div class="tcard-client">Claude Code</div>
+        </div>
+      </div>
+
+      <!-- card 2 -->
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span>
+        </div>
+        <div class="tcard-quote">Simplifying the job reminders setup which many tools fail to do.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">Namana Kanchan</div>
+          <div class="tcard-client">Claude Code</div>
+        </div>
+      </div>
+
+      <!-- card 3 -->
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star empty">★</span><span class="tcard-star empty">★</span>
+        </div>
+        <div class="tcard-quote">Job search within the past 24 hours — no stale listings.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">M</div>
+          <div class="tcard-client">Claude Desktop</div>
+        </div>
+      </div>
+
+      <!-- card 4 -->
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span>
+        </div>
+        <div class="tcard-quote">Browsing jobs across different domains — all from one place.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">Ishita Sharma</div>
+          <div class="tcard-client">Claude Code</div>
+        </div>
+      </div>
+
+      <!-- card 5 -->
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span>
+        </div>
+        <div class="tcard-quote">Focused job search in specialised domains like robotics — finally works.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">Gouuraav Khaandurii</div>
+          <div class="tcard-client">Claude Code</div>
+        </div>
+      </div>
+
+      <!-- card 6 -->
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span>
+        </div>
+        <div class="tcard-quote">No more manual spreadsheets. Central retrieval and tracking across multiple platforms.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">Charu Sneha L R</div>
+          <div class="tcard-client">Claude Code</div>
+        </div>
+      </div>
+
+      <!-- duplicate set for seamless loop -->
+
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star empty">★</span>
+        </div>
+        <div class="tcard-quote">Saving time finding jobs — found jobs that are still open and relevant.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">Prisha</div>
+          <div class="tcard-client">Claude Code</div>
+        </div>
+      </div>
+
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span>
+        </div>
+        <div class="tcard-quote">Simplifying the job reminders setup which many tools fail to do.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">Namana Kanchan</div>
+          <div class="tcard-client">Claude Code</div>
+        </div>
+      </div>
+
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star empty">★</span><span class="tcard-star empty">★</span>
+        </div>
+        <div class="tcard-quote">Job search within the past 24 hours — no stale listings.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">M</div>
+          <div class="tcard-client">Claude Desktop</div>
+        </div>
+      </div>
+
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span>
+        </div>
+        <div class="tcard-quote">Browsing jobs across different domains — all from one place.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">Ishita Sharma</div>
+          <div class="tcard-client">Claude Code</div>
+        </div>
+      </div>
+
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span>
+        </div>
+        <div class="tcard-quote">Focused job search in specialised domains like robotics — finally works.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">Gouuraav Khaandurii</div>
+          <div class="tcard-client">Claude Code</div>
+        </div>
+      </div>
+
+      <div class="tcard">
+        <div class="tcard-stars">
+          <span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span><span class="tcard-star">★</span>
+        </div>
+        <div class="tcard-quote">No more manual spreadsheets. Central retrieval and tracking across multiple platforms.</div>
+        <div class="tcard-footer">
+          <div class="tcard-name">Charu Sneha L R</div>
+          <div class="tcard-client">Claude Code</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 <!-- ── TERMINAL DEMO ── -->
 <section class="section-rule" id="workflow">
