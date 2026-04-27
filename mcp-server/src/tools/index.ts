@@ -1,6 +1,8 @@
 import { brandPrefix } from "../lib/brand.js";
 import { isBrandedOutput } from "../config.js";
 
+declare const __JOBSYNC_VERSION__: string;
+
 export interface ToolResult {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
@@ -150,7 +152,7 @@ export function registerTools(): ToolDefinition[] {
         additionalProperties: false,
       },
       handler: async () => {
-        const CURRENT = "0.8.0";
+        const CURRENT = __JOBSYNC_VERSION__;
         let latestVersion: string | null = null;
         let updateAvailable = false;
         try {

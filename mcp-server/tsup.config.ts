@@ -1,4 +1,5 @@
 import { defineConfig } from "tsup";
+import pkg from "./package.json" assert { type: "json" };
 
 export default defineConfig({
   entry: ["src/index.ts", "src/cli.ts"],
@@ -8,10 +9,9 @@ export default defineConfig({
   sourcemap: true,
   splitting: false,
   shims: true,
-  // Preserve `node:` prefix on built-in imports — otherwise Node can't
-  // resolve `node:sqlite` when written as bare `sqlite`.
   platform: "node",
-  // Preserve `node:` prefix on built-in imports — otherwise Node can't
-  // resolve `node:sqlite` when written as bare `sqlite`.
   external: ["node:sqlite"],
+  define: {
+    __JOBSYNC_VERSION__: JSON.stringify(pkg.version),
+  },
 });

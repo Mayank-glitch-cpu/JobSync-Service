@@ -108,10 +108,12 @@ If unsure which sink is active, call \`profile_read\` first — you can also che
 ## Step 8: update cache
 After successful upsert, call \`cache_mark_seen\` with the created jobs so the next run skips them.
 
-## Step 9: fit analysis handoff
-After cache update, run the **analyze_job_fit** workflow inline using the newly synced jobs.
+## Step 9: fit analysis + dashboard pipeline handoff
+After cache update, run the **analyze_job_fit** workflow inline using every job that passed classification and link verification in this run, including jobs that were duplicates in cache/Airtable.
 
-Collect each synced job as a JSON array with these fields (omit null fields):
+Do **not** limit this handoff to newly synced Airtable/markdown jobs. The dashboard pipeline is the user's application tracker, so searched jobs that are live and relevant must still be scored and persisted even when they were already seen by the sync cache.
+
+Collect each live classified job as a JSON array with these fields (omit null fields):
 \`id\`, \`positionTitle\`, \`company\`, \`location\`, \`applyLink\`, \`datePosted\`, \`industry\`, \`tags\`, \`jobDescription\`, \`qualifications\`
 
 Then follow the full \`analyze_job_fit\` prompt steps: call \`profile_read\`, score each job, render the color-coded fit table, and **call \`pipeline_upsert_jobs\`**.
@@ -126,16 +128,16 @@ Then follow the full \`analyze_job_fit\` prompt steps: call \`profile_read\`, sc
 - **Agentic Apply** column: always render as \`🔜 Coming soon\`.
 - Do NOT substitute these columns with a "Why" or "Reason" column.
 
-**Pipeline upsert (mandatory):** After rendering the table, call \`pipeline_upsert_jobs\` with every scored job. Pass \`id\`, \`positionTitle\`, \`company\`, \`location\`, \`applyLink\`, \`datePosted\`, \`industry\`, \`tags\` (comma-joined), and \`fitScore\` (as a string). This step is required — do not skip it even if no jobs were filtered out.
+**Pipeline upsert (mandatory):** After rendering the table, call \`pipeline_upsert_jobs\` with every scored job. Pass \`id\`, \`positionTitle\`, \`company\`, \`location\`, \`applyLink\`, \`datePosted\`, \`industry\`, \`tags\` (comma-joined), and \`fitScore\` (as a string). This step is required for all live classified jobs, including duplicates that were not written to Airtable/markdown during Step 7.
 
-If no new jobs were synced this run, skip Step 9 and show only the summary.
+If no jobs passed classification and link verification this run, skip Step 9 and show only the summary.
 
 ## Rules
 - USA locations only unless the user explicitly overrides.
 - Year must be ${new Date().getFullYear()}.
 - Do not fabricate data. If a field is missing from the posting, leave it null — the user can edit in Airtable.
 - Do not exceed 50 postings per run unless the user asks.
-- Report a short summary at the end: how many searched, how many passed filters, how many were live (link verified), how many were new, how many were duplicates.`;
+- Report a short summary at the end: how many searched, how many passed filters, how many were live (link verified), how many were new, how many were duplicates, and how many were sent to the pipeline.`;
 };
 
 const EXTRACT_JOB_FIELDS = (args: Record<string, string>): string => {
