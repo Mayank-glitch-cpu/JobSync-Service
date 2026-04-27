@@ -3,6 +3,7 @@
 An agentic job-search copilot that uses your own MCP client (Claude Desktop, Claude Code, Cursor) to discover, classify, and sync fresh job postings into your own Airtable base — or a local markdown file. Model-agnostic: you bring the LLM, JobSync handles the plumbing.
 
 [![A desktop screenshot of JobSync setup in progress, with PowerShell windows on the left running jobsync-mcp init, jobsync-mcp onboard --resume, and claude mcp add, a browser on the upper right showing the JobSync npm page and setup instructions, and an Airtable Jobs base on the lower right with columns for Position Title, Company, Date, Apply Link, and Location. Visible text includes Claude Code, JobSync, Jobs, and Connected. The scene feels practical and instructional.](./yt-JobSync_thumbnail.png)](https://youtu.be/M1cRe2JjIhg?si=O-j9zefMdMABVQr4)
+[![SafeSkill 50/100](https://img.shields.io/badge/SafeSkill-50%2F100_Use%20with%20Caution-orange)](https://safeskill.dev/scan/mayank-glitch-cpu-jobsync-service)
 
 ---
 
