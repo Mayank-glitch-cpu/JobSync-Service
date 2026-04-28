@@ -38,8 +38,7 @@ Most steps in this workflow are deterministic tool calls that require no LLM rea
 Not sure which model to use for a given step? Call \`suggest_model_for_query\` with the step description.
 
 ## Step 0: version check + date anchor
-Call \`jobsync_ping\`. If \`updateAvailable\` is true, **stop and tell the user**:
-  "A new version of jobsync-mcp is available (vX.Y.Z). Run \`npm i -g jobsync-mcp@latest\` then reconnect the MCP server before continuing. Changelog: <changelog URL>"
+Call \`jobsync_ping\` to confirm the server is reachable and log the running version.
 
 Then get the current UTC timestamp (bash/date or system clock). Confirm the year and use it in all search queries — stale caches are a common failure mode.
 
@@ -108,29 +107,48 @@ If unsure which sink is active, call \`profile_read\` first — you can also che
 ## Step 8: update cache
 After successful upsert, call \`cache_mark_seen\` with the created jobs so the next run skips them.
 
-## Step 9: fit analysis + dashboard pipeline handoff
-After cache update, run the **analyze_job_fit** workflow inline using every job that passed classification and link verification in this run, including jobs that were duplicates in cache/Airtable.
+## Step 9: fit analysis + dashboard pipeline handoff (MANDATORY — do not skip)
 
-Do **not** limit this handoff to newly synced Airtable/markdown jobs. The dashboard pipeline is the user's application tracker, so searched jobs that are live and relevant must still be scored and persisted even when they were already seen by the sync cache.
+**This step is required even when all jobs were duplicates in cache/Airtable. Every live, classified job must be scored and persisted to the dashboard pipeline.**
 
-Collect each live classified job as a JSON array with these fields (omit null fields):
-\`id\`, \`positionTitle\`, \`company\`, \`location\`, \`applyLink\`, \`datePosted\`, \`industry\`, \`tags\`, \`jobDescription\`, \`qualifications\`
+### 9a: load profile for scoring
+Call \`profile_read\` to retrieve the user's \`skills\`, \`experience\`, \`projects\`, and \`activeRoles\`.
 
-Then follow the full \`analyze_job_fit\` prompt steps: call \`profile_read\`, score each job, render the color-coded fit table, and **call \`pipeline_upsert_jobs\`**.
+### 9b: score every live classified job
+For each job that passed Steps 4–5 (classification + link verification), assign a **fitScore** 1–10:
 
-**Table format (mandatory — use these exact columns):**
+| Dimension | Weight | What to look for |
+|---|---|---|
+| Skills match | 35% | Does the JD's required stack appear in the user's skills? |
+| Experience alignment | 30% | Do the user's past roles/seniority match the JD? |
+| Role targeting | 20% | Is this role in the user's \`activeRoles\` list? |
+| Growth potential | 15% | Stretch role that fits trajectory without being a mismatch? |
+
+Scoring: 9–10 near-perfect · 7–8 strong · 5–6 moderate · 3–4 weak · 1–2 poor fit.
+
+### 9c: render the fit table (NEVER output raw JSON — always render as markdown table)
 
 | Score | Role | Company | Location | Date Posted | Manual Apply | Agentic Apply |
 |-------|------|---------|----------|-------------|--------------|---------------|
-| 🟢 **9/10** | Software Engineer | Stripe | Remote, USA | ${new Date().toISOString().slice(0, 10)} | [Apply ↗](https://example.com) | 🔜 Coming soon |
+| 🟢 **9/10** | Software Engineer | Stripe | Remote, USA | ${new Date().toISOString().slice(0, 10)} | [Apply ↗](https://stripe.com/jobs/listing/software-engineer/123456) | [Auto-apply ↗](#) |
 
-- **Manual Apply** column: always render as \`[Apply ↗](applyLink)\` — this is the direct URL to the job posting.
-- **Agentic Apply** column: always render as \`🔜 Coming soon\`.
+- Sort rows by fitScore descending.
+- Score badges: 🟢 8–10 · 🟡 5–7 · 🔴 1–4.
+- **Manual Apply**: render as \`[Apply ↗](FULL_URL)\`. The URL must be the **complete, untruncated applyLink from the job object** — never copy a URL that was visually wrapped or clipped in a previous output.
+- **Agentic Apply**: always \`[Auto-apply ↗](#)\`. Never render "Coming soon".
 - Do NOT substitute these columns with a "Why" or "Reason" column.
 
-**Pipeline upsert (mandatory):** After rendering the table, call \`pipeline_upsert_jobs\` with every scored job. Pass \`id\`, \`positionTitle\`, \`company\`, \`location\`, \`applyLink\`, \`datePosted\`, \`industry\`, \`tags\` (comma-joined), and \`fitScore\` (as a string). This step is required for all live classified jobs, including duplicates that were not written to Airtable/markdown during Step 7.
+### 9d: upsert to pipeline (MANDATORY — call even for duplicate/cached jobs)
+Call \`pipeline_upsert_jobs\` with **every scored job** from Step 9b. Required fields: \`id\`, \`positionTitle\`, \`company\`, \`location\`, \`applyLink\`, \`datePosted\`, \`industry\`, \`tags\` (comma-joined string), \`fitScore\` (number as string).
 
-If no jobs passed classification and link verification this run, skip Step 9 and show only the summary.
+**URL integrity rule:** The \`applyLink\` passed to \`pipeline_upsert_jobs\` MUST be the complete URL from the original job data — never a URL copied from the rendered table above. Ashby UUIDs are 36 characters; Greenhouse/Lever IDs are numeric. Verify the URL ends at the correct boundary before passing it.
+
+This is not optional. Jobs already in Airtable/cache must still be upserted here so the dashboard stays current.
+
+After the upsert call, add one line:
+> "Pipeline updated — run the **pipeline_dashboard** prompt any time to track your applications."
+
+Only skip Steps 9b–9d if zero jobs passed classification and link verification in this run.
 
 ## Rules
 - USA locations only unless the user explicitly overrides.
@@ -238,6 +256,8 @@ Call \`pipeline_get_status\` with no filter to retrieve all entries grouped by s
 
 ## Step 2: render the dashboard
 
+**CRITICAL RENDERING RULE: NEVER output raw JSON or plain lists. Always render every section as the markdown tables shown below. If a section has 0 entries, omit it entirely — do not show an empty table.**
+
 Output the following sections in order. Omit a section entirely if its count is 0.
 
 ---
@@ -256,11 +276,19 @@ Output the following sections in order. Omit a section entirely if its count is 
 ---
 
 ### 🟡 Pending · N roles to apply to
-> Sorted by fit score descending. Click a link, then tell me "I applied to [Company]" to move it forward.
+> Top 25 by fit score. Say "show all pending" for the rest. Say "auto-apply to [Company]" to let the agent fill the form.
 
-| Fit | Role | Company | Location | Date Posted | Manual Apply | Agentic Apply |
-|-----|------|---------|----------|-------------|--------------|---------------|
-| 🟢 9/10 | Software Engineer | Stripe | Remote, USA | 2026-04-23 | [Apply ↗](url) | 🔜 Coming soon |
+| Fit | Role | Company | Apply |
+|-----|------|---------|-------|
+| 🟢 10/10 | Fullstack Software Engineer, Applied AI | LangChain | [Apply ↗](https://jobs.ashbyhq.com/langchain/abc123) |
+| 🟢 9/10 | Software Engineer | Stripe | [Apply ↗](https://stripe.com/jobs/1) |
+
+**Strict rendering rules for this table:**
+- Exactly 4 columns: Fit · Role · Company · Apply.
+- Role: trim to 40 chars with "…". Company: trim to 20 chars with "…".
+- Apply: always a markdown link \`[Apply ↗](FULL_URL)\` using the complete untruncated URL from pipeline data.
+- Fit: score badge (🟢/🟡/🔴) + score, blank if unscored.
+- Render at most 25 rows; sort by fitScore descending, unscored last.
 
 ---
 
@@ -295,10 +323,12 @@ Output the following sections in order. Omit a section entirely if its count is 
 ---
 
 Rendering rules:
-- In the Pending table sort by fitScore descending; empty fitScore sorts last.
+- **ALWAYS render as markdown tables.** Never use card/list format, even for large datasets.
+- Pending table: show at most 25 rows, sorted by fitScore descending; no-score entries last.
 - In Applied/Rejected sort by appliedAt descending (most recent first).
 - Fit score badge: 🟢 8–10 · 🟡 5–7 · 🔴 1–4 · (blank if unscored).
-- Agentic Apply column: always \`🔜 Coming soon\`.
+- **Manual Apply**: render as \`[Apply ↗](FULL_URL)\`. The URL must be complete and untruncated — copy it exactly from the pipeline data.
+- **Agentic Apply**: render as \`[Auto-apply ↗](#)\` for ALL entries — the feature is live. Never render "Coming soon".
 - Trim role titles to 40 chars with "…".
 - If notes is empty, show "—".
 
@@ -308,6 +338,7 @@ After rendering, tell the user:
 
 > **To update a status**, say things like:
 > - "I applied to Stripe" → marks that job applied
+> - "Auto-apply to Stripe" or "Apply with agent to Stripe" → launches browser auto-apply
 > - "Mark Airbnb as interviewing"
 > - "Reject the Google role, note: no visa sponsorship"
 > - "Withdraw Figma"
@@ -317,6 +348,20 @@ Then wait for the user's response and handle it:
 
 **"I applied to [Company]" / "mark [Company] as applied"**
 → find the matching entry by company name, call \`pipeline_mark_applied\` with its applyLink, confirm the update, re-render the Pending and Applied sections only.
+
+**"auto-apply to [Company]" / "apply with agent to [Company]" / "submit for [Company]"**
+→ find the entry by company name, then execute these steps inline:
+  1. Call \`profile_read_personal\`. If \`missing\` has any required fields (firstName, lastName, email, resumePath), stop and tell the user to run \`profile_write_personal\` first.
+  2. Call \`apply_inspect_form\` with the entry's \`applyLink\`. Show the user the detected field count and ATS hint.
+  3. **Visually analyze the embedded screenshot** returned by inspect. Identify any open-text essay fields ("Why this company?", "Cover letter", "Tell us about yourself", etc.) not captured in the DOM list. For each, compose a personalized 150–300 word answer using the profile (experience, skills, projects). Short prompts get 1–3 sentences.
+  4. Build fill instructions: standard contact mappings (firstName/lastName→name, email, phone, linkedinUrl→LinkedIn, resumePath→file upload, workAuthorization→radio/select, requiresSponsorship→"Yes"/"No") plus the AI-generated essay answers from step 3.
+  5. Show the user a **pre-submit preview table** (Field | Value) and ask: "Ready to submit to [Company]? Say yes to apply."
+  6. After user confirms: call \`apply_submit_form\` with the mapped fields and **\`dryRun: false\`**. Do NOT change this to true.
+  7. If result \`success: true\`: call \`pipeline_mark_applied\` with the applyLink, tell the user "✅ Applied to [Company]!".
+  8. If result \`success: false\`: show the \`error\` field and tell the user to check the screenshot at the returned path.
+
+**"dry-run apply to [Company]" / "preview apply for [Company]"**
+→ same flow as auto-apply but pass \`dryRun: true\` to \`apply_submit_form\`. Do NOT call \`pipeline_mark_applied\`. Show the screenshot path for review.
 
 **"mark [Company] as [status]"** / **"[Company] is [status]"**
 → call \`pipeline_update_status\` with the resolved applyLink/id and new status, confirm, re-render affected sections.
@@ -334,7 +379,8 @@ Then wait for the user's response and handle it:
 - Always match by company name (case-insensitive) if the user doesn't give an exact apply link.
 - If multiple entries share a company name, list them and ask which one.
 - Never fabricate pipeline entries — only show what's in the TSV.
-- Do not call \`pipeline_upsert_jobs\` from this prompt — that is the fit agent's job.`;
+- Do not call \`pipeline_upsert_jobs\` from this prompt — that is the fit agent's job.
+- For auto-apply: always report the ATS hint and field count after inspect so the user knows what's happening.`;
 };
 
 const ONBOARD_PROFILE = (_args: Record<string, string>): string => {
@@ -371,6 +417,26 @@ From the resume (experience.md / raw-resume.txt), classify the user:
 - **senior** — 6+ yrs industry exp
 
 Carry this into the portals.yml you generate below.
+
+## Step 4c: collect personal contact info for auto-apply
+Ask the user for the following details (present as a single grouped ask, not one question at a time):
+
+> "To enable auto-apply (agent fills job forms for you), I need a few more details:"
+> - **Full name** (first + last)
+> - **Email address**
+> - **Phone number**
+> - **LinkedIn URL**
+> - **GitHub URL** (optional)
+> - **Portfolio / website URL** (optional)
+> - **Work authorization** (e.g., US Citizen, Green Card, OPT, CPT, H1B Visa, TN Visa)
+> - **Require visa sponsorship?** (yes / no)
+> - **Resume file path** — absolute path to your PDF or DOCX resume for file-upload fields (e.g., \`C:/Users/you/resume.pdf\`)
+> - **City, State, Country**
+
+Once the user responds, call \`profile_write_personal\` with all provided fields. If the user skips optional fields, omit them. If the user skips resume path, note that auto-apply file-upload fields will be skipped until it is added.
+
+After saving, confirm:
+> "✅ Personal profile saved — auto-apply is ready. Say 'auto-apply to [Company]' from the pipeline dashboard any time."
 
 ## Step 5: generate portals.yml
 Call \`portals_master_list\` to retrieve the built-in company catalogue, then call \`portals_write\` with a personalized YAML following this exact structure:
@@ -445,7 +511,120 @@ After saving, tell the user:
 > "Your portals.yml has been created at ~/.jobsync/portals.yml — the scrape workflow will use it automatically. Edit it any time to add companies or adjust keywords."
 
 ## Step 6: report
-Summarize what was saved (skills.md, experience.md, projects.md, active role count, portals.yml company count) and tell the user they can edit all files directly at ~/.jobsync/ any time.`;
+Summarize what was saved (skills.md, experience.md, projects.md, active role count, portals.yml company count, personal profile) and tell the user they can edit all files directly at ~/.jobsync/ any time.`;
+};
+
+const AUTO_APPLY_WORKFLOW = (args: Record<string, string>): string => {
+  const applyLink = args.applyLink ?? "";
+  const company = args.company ?? "the company";
+  const dryRun = args.dryRun === "true";
+
+  return `You are the JobSync auto-apply agent. Automate a job application using the user's saved profile and a Playwright-controlled Chromium browser.
+
+**Branding rule:** Begin every user-facing message with the marker line \`🪸 jobsync · Coral Labs\` on its own line, followed by a blank line, then your content.
+
+## Target job
+- Company: ${company}
+- Apply URL: ${applyLink || "<provided via pipeline_dashboard>"}
+- Mode: ${dryRun ? "**DRY RUN** — fill form but do NOT submit" : "**LIVE** — fill and submit"}
+
+## Step 1: load personal profile
+Call \`profile_read_personal\`. Check the \`missing\` array in the result.
+- If \`missing\` includes \`firstName\`, \`lastName\`, \`email\`, or \`resumePath\`, **stop** and tell the user:
+  > "Your personal profile is incomplete. Run \`profile_write_personal\` with your contact info and resume path before auto-applying."
+- Otherwise proceed.
+
+## Step 2: inspect the application form
+Call \`apply_inspect_form\` with \`applyLink\`. The tool returns:
+- A JSON list of detected DOM fields
+- An embedded **screenshot** of the form page
+
+Report to the user:
+> "Opened ${company} application — detected N fields (ATS: [atsHint]). Analyzing form…"
+
+## Step 2b: vision analysis of the screenshot
+Look at the embedded screenshot carefully. Identify ALL visible questions — including ones not captured in the DOM field list:
+- Open-text essay fields: "Why do you want to work here?", "Cover letter", "Tell us about yourself", "Describe a challenge…"
+- Short-answer prompts: "Salary expectations", "Earliest start date", "Years of experience with X"
+- Radio / checkbox groups that appear as images rather than DOM inputs
+
+For each open-text or essay question you can see in the screenshot:
+- Compose a personalized, genuine answer using the profile data:
+  - \`experience.md\` for role-specific context and past achievements
+  - \`skills.md\` for technical depth
+  - \`projects.md\` for concrete examples and impact
+  - Tailor tone to the company's size and culture
+  - **Length**: 150–300 words for cover letters / full essays · 1–3 sentences for short prompts
+- Do NOT copy-paste generic templates — make each answer specific to ${company} and the role
+
+## Step 3: build fill instructions
+Combine two sources into a single \`fields\` array:
+
+**A — Standard contact mappings** (always include, regardless of inspect result):
+
+| Label pattern | Profile field | Fill type |
+|---|---|---|
+| first name / given name | firstName | text |
+| last name / surname | lastName | text |
+| email | email | text |
+| phone / mobile / telephone | phone | text |
+| linkedin | linkedinUrl | text |
+| github | githubUrl | text |
+| website / portfolio | portfolioUrl | text |
+| resume / cv | resumePath | **file** |
+| city / location city | city | text |
+| state / province | state | text |
+| country | country | text |
+| authorized to work / legally authorized | workAuthorization → "Yes" if authorized, "No" otherwise | radio/select |
+| require.*sponsor / visa.*sponsor | requiresSponsorship → "Yes" if true, "No" if false | radio/select |
+
+For select/radio fields: pick the option whose text best matches the stored value (e.g., "OPT" → option containing "OPT").
+Skip any field with an empty profile value.
+
+**B — AI-generated answers** (from Step 2b):
+Add each essay/short-answer as a fill instruction object with selector (best matching CSS selector or label), value (composed answer), and type "text".
+
+## Step 3b: show pre-submit preview
+Before calling \`apply_submit_form\`, display a preview table to the user:
+
+| Field | Value |
+|-------|-------|
+| First Name | [value] |
+| Last Name | [value] |
+| Email | [value] |
+| Resume | [file path] |
+| Cover Letter | [first 80 chars of answer…] |
+| … | … |
+
+Then ask:
+> "Ready to submit to ${company}? Say **yes** to apply, or tell me what to change."
+
+Wait for the user's response before proceeding to Step 4. If they request a change, update the relevant field and show the preview again.
+
+## Step 4: fill and submit (after user confirms)
+Once the user confirms, call \`apply_submit_form\` with:
+- \`applyLink\`: the apply URL (the tool automatically navigates to the correct form page)
+- \`fields\`: the combined array from Step 3
+- \`dryRun\`: ${dryRun}
+
+**Do NOT change \`dryRun\` to true on your own.** Only use \`dryRun: true\` if the user explicitly said "dry run" or "preview". Default is \`dryRun: false\` — submit the form.
+
+## Step 5: handle result
+**If \`dryRun: true\`:**
+> "Form filled (dry run) — screenshot saved at [screenshotPath]. Review it, then say 'submit for ${company}' to apply for real."
+
+**If \`dryRun: false\` and \`success: true\`:**
+- Call \`pipeline_mark_applied\` with the applyLink.
+> "✅ Applied to ${company}! Pipeline updated → status: applied."
+
+**If \`dryRun: false\` and \`success: false\`:**
+> "⚠️ Could not confirm submission for ${company}. Error: [error]. Screenshot at [screenshotPath] — check if the form needs manual action."
+
+## Rules
+- Never invent or guess contact-field values — only use what \`profile_read_personal\` returns.
+- AI-generated essay answers may be composed freely from profile context — they are not "fabricated" data.
+- If a required form field has no matching profile value, pause and ask the user for that specific value.
+- For multi-step forms (wizard pages), call \`apply_inspect_form\` again after each page transition, then repeat Steps 2b–4 for the new page.`;
 };
 
 export function registerPrompts(): PromptDefinition[] {
@@ -514,6 +693,29 @@ export function registerPrompts(): PromptDefinition[] {
         { name: "jobDescription", description: "Full JD text", required: false },
       ],
       render: EXTRACT_JOB_FIELDS,
+    },
+    {
+      name: "auto_apply_workflow",
+      description:
+        "Agentic apply: opens a Chromium browser, inspects the job application form, maps the user's saved personal profile (personal.json) to form fields, fills them, and submits. Call profile_write_personal first if personal.json is missing. Triggered from pipeline_dashboard via 'auto-apply to [Company]'.",
+      arguments: [
+        {
+          name: "applyLink",
+          description: "Direct URL to the job application form.",
+          required: true,
+        },
+        {
+          name: "company",
+          description: "Company name — used in status messages.",
+          required: false,
+        },
+        {
+          name: "dryRun",
+          description: "Set to 'true' to fill but not submit (for review). Default 'false'.",
+          required: false,
+        },
+      ],
+      render: AUTO_APPLY_WORKFLOW,
     },
   ];
 }

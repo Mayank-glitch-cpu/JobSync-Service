@@ -3,8 +3,12 @@ import { isBrandedOutput } from "../config.js";
 
 declare const __JOBSYNC_VERSION__: string;
 
+export type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
 export interface ToolResult {
-  content: Array<{ type: "text"; text: string }>;
+  content: Array<ContentBlock>;
   isError?: boolean;
 }
 
@@ -75,6 +79,12 @@ import {
   pipelineUpdateStatusTool,
   pipelineUpsertJobsTool,
 } from "./pipeline-tools.js";
+import {
+  applyInspectFormTool,
+  applySubmitFormTool,
+  profileReadPersonalTool,
+  profileWritePersonalTool,
+} from "./apply-tools.js";
 
 function isNewer(latest: string, current: string): boolean {
   const parse = (v: string) => v.split(".").map(Number);
@@ -98,7 +108,10 @@ function withTokenMeta(tool: ToolDefinition): ToolDefinition {
     handler: async (args) => {
       const tokensIn = estimateTokens(args);
       const result = await orig(args);
-      const outputText = result.content.map((c) => c.text).join("");
+      const outputText = result.content
+        .filter((c): c is { type: "text"; text: string } => c.type === "text")
+        .map((c) => c.text)
+        .join("");
       const tokensOut = estimateTokens(outputText);
 
       const meta = {
@@ -108,9 +121,13 @@ function withTokenMeta(tool: ToolDefinition): ToolDefinition {
         recommendedModel: tool.recommendedModel ?? "haiku",
       };
 
-      // Inject into the last content block if it is JSON; otherwise append plain text.
+      // Inject into the last text block if it is JSON; otherwise append plain text.
       const blocks = result.content;
-      const last = blocks.length > 0 ? blocks[blocks.length - 1] : undefined;
+      const lastTextIdx = blocks.reduce<number>(
+        (acc, c, i) => (c.type === "text" ? i : acc),
+        -1,
+      );
+      const last = lastTextIdx >= 0 ? (blocks[lastTextIdx] as { type: "text"; text: string }) : undefined;
       try {
         if (!last) throw new Error("empty");
         const parsed: Record<string, unknown> = JSON.parse(last.text);
@@ -118,8 +135,9 @@ function withTokenMeta(tool: ToolDefinition): ToolDefinition {
         return {
           ...result,
           content: [
-            ...blocks.slice(0, -1),
+            ...blocks.slice(0, lastTextIdx),
             { type: "text" as const, text: JSON.stringify(parsed, null, 2) },
+            ...blocks.slice(lastTextIdx + 1),
           ],
         };
       } catch {
@@ -143,8 +161,8 @@ export function registerTools(): ToolDefinition[] {
     {
       name: "jobsync_ping",
       description:
-        "Sanity-check tool. Returns pong, the running server version, and whether a newer version is available on npm. " +
-        "Always call this at the start of a workflow. If updateAvailable is true, tell the user to run `npm i -g jobsync-mcp@latest` before proceeding. ⚡ [Model hint: haiku]",
+        "Sanity-check tool. Returns pong and the running server version. " +
+        "Call this at the start of every workflow to confirm the MCP server is live. ⚡ [Model hint: haiku]",
       recommendedModel: "haiku" as const,
       inputSchema: {
         type: "object" as const,
@@ -213,10 +231,14 @@ export function registerTools(): ToolDefinition[] {
     portalsReadTool,
     portalsWriteTool,
     portalsMasterListTool,
+    profileReadPersonalTool,
+    profileWritePersonalTool,
+    applyInspectFormTool,
+    applySubmitFormTool,
   ].map(withTokenMeta);
 }
 
-function withBrand(content: Array<{ type: "text"; text: string }>): Array<{ type: "text"; text: string }> {
+function withBrand(content: Array<ContentBlock>): Array<ContentBlock> {
   if (!isBrandedOutput()) return content;
   return [{ type: "text", text: brandPrefix() }, ...content];
 }

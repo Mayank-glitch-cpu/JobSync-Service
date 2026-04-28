@@ -17,18 +17,15 @@ Model-agnostic. You bring the LLM; we handle the plumbing.
 ## Quick start
 
 ```bash
-# 1. Install
-npm i -g jobsync-mcp
+# 1. Configure (interactive wizard — uses npx, no global install needed)
+npx -y jobsync-mcp@latest init
 
-# 2. Configure (interactive wizard)
-jobsync-mcp init
+# 2. Parse your resume
+npx -y jobsync-mcp@latest onboard --resume /path/to/resume.pdf
 
-# 3. Parse your resume
-jobsync-mcp onboard --resume /path/to/resume.pdf
+# 3. Register with your MCP client (see below)
 
-# 4. Register with your MCP client (see below)
-
-# 5. In your client, invoke the onboarding prompt, then the scrape workflow
+# 4. In your client, invoke the onboarding prompt, then the scrape workflow
 ```
 
 ---
@@ -78,31 +75,27 @@ Parses your resume (PDF / DOCX / TXT / MD) and saves the raw text to `~/.jobsync
 ### Claude Code (recommended)
 
 ```bash
-claude mcp add --scope user jobsync jobsync-mcp
-claude mcp list        # expect: jobsync: jobsync-mcp  - ✓ Connected
+claude mcp add --scope user jobsync npx -- -y jobsync-mcp@latest server
+claude mcp list        # expect: jobsync: npx  - ✓ Connected
 ```
 
-The `--scope user` flag makes it available in **every** project. Without it, it only registers for the current directory.
-
-**If `jobsync-mcp` isn't on PATH** (fresh shell, or global bin not loaded):
-
-```bash
-# find the full path
-where jobsync-mcp          # Windows PowerShell
-which jobsync-mcp          # macOS / Linux / Git Bash
-
-# register with the absolute path
-claude mcp add --scope user jobsync "C:\Users\you\AppData\Roaming\npm\jobsync-mcp.cmd"
-```
+The `--scope user` flag makes it available in **every** project. No global install needed — npx always pulls the latest published version when Claude Code starts.
 
 ### Claude Desktop / Cursor
 
-Print the snippet:
-```bash
-jobsync-mcp print-client-config
+Add this block to your config file manually:
+
+```json
+{
+  "mcpServers": {
+    "jobsync": {
+      "command": "npx",
+      "args": ["-y", "jobsync-mcp@latest", "server"]
+    }
+  }
+}
 ```
 
-Paste the `mcpServers.jobsync` block into:
 - **Claude Desktop** — `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows)
 - **Cursor** — `~/.cursor/mcp.json`
 

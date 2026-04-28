@@ -20,7 +20,17 @@
       "Bash(npm run *)",
       "Read(//c/Users/vyasm/Downloads/**)",
       "Bash(unzip -l \"Shader wallpapers-handoff.zip\")",
-      "Bash(unzip -o \"Shader wallpapers-handoff.zip\" -d \"/tmp/shader-handoff\")"
+      "Bash(unzip -o \"Shader wallpapers-handoff.zip\" -d \"/tmp/shader-handoff\")",
+      "WebFetch(domain:www.notion.so)",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "mcp__claude_ai_Notion__notion-query-database-view",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "mcp__claude_ai_Notion__notion-create-pages",
+      "Bash(xargs grep *)",
+      "Bash(rm -rf /tmp/career-ops)",
+      "Bash(rm -rf \"c:/Users/vyasm/AppData/Local/Temp/career-ops\")"
     ]
   },
   "enableAllProjectMcpServers": true,
