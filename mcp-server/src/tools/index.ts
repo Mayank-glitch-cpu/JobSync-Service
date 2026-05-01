@@ -81,6 +81,8 @@ import {
 } from "./pipeline-tools.js";
 import {
   applyInspectFormTool,
+  applyLoadStateTool,
+  applySaveDraftTool,
   applySubmitFormTool,
   profileReadPersonalTool,
   profileWritePersonalTool,
@@ -234,6 +236,8 @@ export function registerTools(): ToolDefinition[] {
     profileReadPersonalTool,
     profileWritePersonalTool,
     applyInspectFormTool,
+    applyLoadStateTool,
+    applySaveDraftTool,
     applySubmitFormTool,
   ].map(withTokenMeta);
 }

@@ -1,5 +1,12 @@
 import { readFileSync } from "node:fs";
-import { fillAndSubmit, inspectForm, type FillInstruction } from "../lib/browser-apply.js";
+import {
+  fillAndSubmit,
+  inspectForm,
+  loadFormState,
+  saveApplyDraft,
+  type FillInstruction,
+  type PreviewField,
+} from "../lib/browser-apply.js";
 import { readPersonalProfile, writePersonalProfile, type PersonalProfile } from "../lib/personal-profile.js";
 import { errorResult, textResult, type ContentBlock, type ToolDefinition, type ToolResult } from "./index.js";
 
@@ -67,6 +74,103 @@ export const profileReadPersonalTool: ToolDefinition = {
   },
 };
 
+export const applyLoadStateTool: ToolDefinition = {
+  name: "apply_load_state",
+  description:
+    "Load the saved form state from the last apply_inspect_form call (~/.jobsync/apply-state.json). " +
+    "Use this when the user confirms after previewing — it returns the previously detected fields and URL " +
+    "without re-opening the browser. State expires after 2 hours. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
+  inputSchema: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
+  handler: async (): Promise<ToolResult> => {
+    const state = loadFormState();
+    if (!state) {
+      return errorResult(
+        "No saved form state found (or it has expired). Run apply_inspect_form first.",
+      );
+    }
+    return textResult(state);
+  },
+};
+
+export const applySaveDraftTool: ToolDefinition = {
+  name: "apply_save_draft",
+  description:
+    "Persist mapped fill instructions and preview rows after inspection and AI answer generation. " +
+    "Call this before showing the pre-submit preview table, so a later 'yes' or 'apply' can submit the same saved values. " +
+    "apply_submit_form can then be called without fields to reuse this draft. [Model hint: haiku]",
+  recommendedModel: "haiku",
+  inputSchema: {
+    type: "object",
+    properties: {
+      applyLink: {
+        type: "string",
+        description: "Original apply URL. Used if no inspected form URL is already stored.",
+      },
+      fields: {
+        type: "array",
+        description: "Fill instructions derived from inspect output, personal profile, and AI-generated answers.",
+        items: {
+          type: "object",
+          properties: {
+            selector: { type: "string", description: "CSS selector from inspect output, or a visible field label." },
+            label: { type: "string", description: "Human-readable field label for preview and fallback matching." },
+            frameUrl: { type: "string", description: "Frame URL from inspect output, if present." },
+            value: { type: "string", description: "Value to enter / select / upload." },
+            type: {
+              type: "string",
+              enum: ["text", "file", "select", "radio", "checkbox", "textarea"],
+              description: "How to set the field. Defaults to text.",
+            },
+          },
+          required: ["selector", "value"],
+        },
+      },
+      preview: {
+        type: "array",
+        description: "Rows for the in-chat preview table. If omitted, the tool derives them from fields.",
+        items: {
+          type: "object",
+          properties: {
+            field: { type: "string" },
+            value: { type: "string" },
+            type: { type: "string" },
+          },
+          required: ["field", "value"],
+        },
+      },
+    },
+    required: ["fields"],
+    additionalProperties: false,
+  },
+  handler: async (args): Promise<ToolResult> => {
+    try {
+      const instructions = (args.fields as FillInstruction[]) ?? [];
+      const preview =
+        (args.preview as PreviewField[] | undefined) ??
+        instructions.map((field) => ({
+          field: field.label || field.selector,
+          value: field.type === "file" ? field.value : String(field.value ?? "").slice(0, 300),
+          type: field.type,
+        }));
+      const state = saveApplyDraft(instructions, preview, args.applyLink ? String(args.applyLink) : undefined);
+      return textResult({
+        saved: true,
+        draftFieldCount: instructions.length,
+        preview,
+        url: state.url,
+        atsHint: state.atsHint,
+      });
+    } catch (err) {
+      return errorResult(String(err));
+    }
+  },
+};
+
 export const applyInspectFormTool: ToolDefinition = {
   name: "apply_inspect_form",
   description:
@@ -128,10 +232,12 @@ export const applySubmitFormTool: ToolDefinition = {
           type: "object",
           properties: {
             selector: { type: "string", description: "CSS selector from inspect output." },
+            label: { type: "string", description: "Human-readable label used as a fallback if selector matching fails." },
+            frameUrl: { type: "string", description: "Frame URL from inspect output, if present." },
             value:    { type: "string", description: "Value to enter / select / upload." },
             type: {
               type: "string",
-              enum: ["text", "file", "select", "radio", "checkbox"],
+              enum: ["text", "file", "select", "radio", "checkbox", "textarea"],
               description: "How to set the field. Defaults to 'text'.",
             },
           },
@@ -143,12 +249,12 @@ export const applySubmitFormTool: ToolDefinition = {
         description: "If true, fill the form but do NOT click Submit. Returns a screenshot for review. Default false.",
       },
     },
-    required: ["applyLink", "fields"],
+    required: ["applyLink"],
     additionalProperties: false,
   },
   handler: async (args) => {
     try {
-      const instructions = (args.fields as FillInstruction[]) ?? [];
+      const instructions = (args.fields as FillInstruction[] | undefined) ?? [];
       const dryRun = Boolean(args.dryRun ?? false);
       const result = await fillAndSubmit(String(args.applyLink), instructions, dryRun);
       return textResult(result);
