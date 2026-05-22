@@ -528,89 +528,56 @@ const AUTO_APPLY_WORKFLOW = (args: Record<string, string>): string => {
 - Apply URL: ${applyLink || "<provided via pipeline_dashboard>"}
 - Mode: ${dryRun ? "**DRY RUN** — fill form but do NOT submit" : "**LIVE** — fill and submit"}
 
-## Step 1: load personal profile
+## Step 1: Load personal profile
 Call \`profile_read_personal\` and \`profile_read\`. Check the \`missing\` array in the personal profile result.
 - If \`missing\` includes \`firstName\`, \`lastName\`, \`email\`, or \`resumePath\`, **stop** and tell the user:
   > "Your personal profile is incomplete. Run \`profile_write_personal\` with your contact info and resume path before auto-applying."
 - Otherwise proceed.
 
-## Step 2: field-inspector phase
-Call \`apply_inspect_form\` with \`applyLink\`. The tool returns:
-- A JSON list of detected DOM fields
-- An embedded **screenshot** of the form page
+## Step 2: Navigate and inspect the form
+Call \`apply_inspect_form\` with \`applyLink\`. The tool will:
+- Scroll the full page to trigger lazy-loaded content
+- Detect and click the Apply CTA if the form is not yet visible
+- Extract all form fields (standard DOM + React/shadow inputs + radio groups)
+- Return a JSON field list, ATS hint, and an embedded screenshot
 
 Report to the user:
-> "Opened ${company} application — detected N fields (ATS: [atsHint]). Analyzing form…"
+> "Opened ${company} application — detected N fields (ATS: [atsHint]). Filling fields…"
 
-## Step 2b: answer-writer phase
-Look at the embedded screenshot carefully. Identify ALL visible questions — including ones not captured in the DOM field list:
-- Open-text essay fields: "Why do you want to work here?", "Cover letter", "Tell us about yourself", "Describe a challenge…"
-- Short-answer prompts: "Salary expectations", "Earliest start date", "Years of experience with X"
-- Radio / checkbox groups that appear as images rather than DOM inputs
+## Step 3: Map fields and generate fill instructions
+Call \`apply_fill_fields\` with \`applyLink\`, \`company\`, and \`jobTitle\`. This tool:
+- Maps all standard contact fields from personal.json automatically
+- Identifies essay / open-text fields that need AI-generated answers
+- Saves an initial draft and returns a **Markdown preview table**
 
-For each open-text or essay question you can see in the screenshot:
-- Compose a personalized, genuine answer using the profile data:
-  - \`experience.md\` for role-specific context and past achievements
-  - \`skills.md\` for technical depth
-  - \`projects.md\` for concrete examples and impact
-  - Tailor tone to the company's size and culture
-  - **Length**: 150–300 words for cover letters / full essays · 1–3 sentences for short prompts
-- Do NOT copy-paste generic templates — make each answer specific to ${company} and the role
+The response includes an **essay-generation block** listing any open-text fields. For each:
+- Compose a personalized, genuine answer (150–300 words for essays, 1–3 sentences for short prompts)
+- Use \`experience.md\` for role context, \`skills.md\` for technical depth, \`projects.md\` for concrete examples
+- Tailor to ${company} specifically — no generic templates
+- When a detected field includes \`frameUrl\`, copy it into the fill instruction
 
-## Step 3: build fill instructions
-Combine two sources into a single \`fields\` array:
+## Step 4: Save the complete draft
+Once you have generated all essay answers, call \`apply_save_draft\` with the **complete** \`fields\` array:
+- Standard mappings returned by \`apply_fill_fields\` (already in the draft — include them again)
+- Your AI-generated essay answers added as new entries (selector, label, value, type, frameUrl if present)
 
-**A — Standard contact mappings** (always include, regardless of inspect result):
+The tool response will show the final preview table. **Stop here and wait for the user to confirm.**
 
-| Label pattern | Profile field | Fill type |
-|---|---|---|
-| first name / given name | firstName | text |
-| last name / surname | lastName | text |
-| email | email | text |
-| phone / mobile / telephone | phone | text |
-| linkedin | linkedinUrl | text |
-| github | githubUrl | text |
-| website / portfolio | portfolioUrl | text |
-| resume / cv | resumePath | **file** |
-| city / location city | city | text |
-| state / province | state | text |
-| country | country | text |
-| authorized to work / legally authorized | workAuthorization → "Yes" if authorized, "No" otherwise | radio/select |
-| require.*sponsor / visa.*sponsor | requiresSponsorship → "Yes" if true, "No" if false | radio/select |
-
-For select/radio fields: pick the option whose text best matches the stored value (e.g., "OPT" → option containing "OPT").
-Skip any field with an empty profile value.
-
-**B — AI-generated answers** (from Step 2b):
-Add each essay/short-answer as a fill instruction object with selector (best matching CSS selector or label), value (composed answer), and type "text".
-When a detected field includes \`frameUrl\`, copy it into the fill instruction. Also include a human-readable \`label\` for every instruction so Playwright has a fallback if a CSS selector changes.
-
-## Step 3b: show pre-submit preview
-Before asking the user to confirm, call \`apply_save_draft\` with the full fill instruction array and preview rows. Then display a preview table to the user:
-
-| Field | Value |
-|-------|-------|
-| First Name | [value] |
-| Last Name | [value] |
-| Email | [value] |
-| Resume | [file path] |
-| Cover Letter | [first 80 chars of answer…] |
-| … | … |
-
-Then ask:
 > "Ready to submit to ${company}? Say **yes** to apply, or tell me what to change."
 
-Wait for the user's response before proceeding to Step 4. If they request a change, update the relevant field and show the preview again.
+If they request a change, update the relevant field and call \`apply_save_draft\` again with the revised array.
 
-## Step 4: fill and submit (after user confirms)
-Once the user confirms, call \`apply_submit_form\` with:
-- \`applyLink\`: the apply URL (the tool automatically navigates to the correct form page)
-- \`fields\`: omit this when you already called \`apply_save_draft\`; the saved draft is the source of truth. If you need to override the draft, pass the full combined array from Step 3.
+## Step 5: Submit (after user confirms)
+When the user says "apply", "yes", "submit", or "confirm", call \`apply_submit_form\` with:
+- \`applyLink\`: the apply URL
+- \`fields\`: **omit** — the saved draft from Step 4 is the source of truth
 - \`dryRun\`: ${dryRun}
 
-**Do NOT change \`dryRun\` to true on your own.** Only use \`dryRun: true\` if the user explicitly said "dry run" or "preview". Default is \`dryRun: false\` — submit the form.
+**Do NOT change \`dryRun\` to true on your own.** Only use \`dryRun: true\` if the user explicitly said "dry run". Default is \`dryRun: false\`.
 
-## Step 5: handle result
+If the user says "cancel", "no", or "stop" — do not call \`apply_submit_form\`. Tell the user the application was cancelled.
+
+## Step 6: Handle the result
 **If \`dryRun: true\`:**
 > "Form filled (dry run) — screenshot saved at [screenshotPath]. Review it, then say 'submit for ${company}' to apply for real."
 
@@ -623,9 +590,10 @@ Once the user confirms, call \`apply_submit_form\` with:
 
 ## Rules
 - Never invent or guess contact-field values — only use what \`profile_read_personal\` returns.
-- AI-generated essay answers may be composed freely from profile context — they are not "fabricated" data.
-- If a required form field has no matching profile value, pause and ask the user for that specific value.
-- For multi-step forms (wizard pages), call \`apply_inspect_form\` again after each page transition, then repeat Steps 2b–4 for the new page.`;
+- AI-generated essay answers may be composed freely from profile context.
+- If a required form field has no matching profile value, pause and ask the user for that specific value before proceeding.
+- For multi-step forms (wizard pages), call \`apply_inspect_form\` again after each page transition, then repeat Steps 3–5 for the new page.
+- Always include a human-readable \`label\` in every fill instruction so Playwright has a fallback if a CSS selector changes.`;
 };
 
 export function registerPrompts(): PromptDefinition[] {

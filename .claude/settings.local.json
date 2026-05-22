@@ -31,7 +31,8 @@
       "Bash(xargs grep *)",
       "Bash(rm -rf /tmp/career-ops)",
       "Bash(rm -rf \"c:/Users/vyasm/AppData/Local/Temp/career-ops\")",
-      "Bash(gh issue *)"
+      "Bash(gh issue *)",
+      "Bash(node_modules/.bin/tsc --noEmit)"
     ]
   },
   "enableAllProjectMcpServers": true,
