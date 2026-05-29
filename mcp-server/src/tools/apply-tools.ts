@@ -9,7 +9,7 @@ import {
 } from "../lib/browser-apply.js";
 import { readPersonalProfile, writePersonalProfile, type PersonalProfile } from "../lib/personal-profile.js";
 import { readProfileFile } from "../lib/profile.js";
-import { fillFields } from "../lib/ai-fill.js";
+import { fillFields, ESSAY_PATTERNS } from "../lib/ai-fill.js";
 import { errorResult, textResult, type ContentBlock, type ToolDefinition, type ToolResult } from "./index.js";
 
 function renderPreviewTable(
@@ -191,7 +191,11 @@ export const applySaveDraftTool: ToolDefinition = {
       const state = saveApplyDraft(instructions, preview, args.applyLink ? String(args.applyLink) : undefined);
 
       const resumeInstruction = instructions.find((f) => f.type === "file");
-      const unfilledRequired: string[] = [];
+      // Re-derive missing required fields from the persisted form state: any detected
+      // required field that no instruction targets is still unfilled at save time.
+      const unfilledRequired = state.fields
+        .filter((f) => f.required && !instructions.some((i) => i.selector === f.selector))
+        .map((f) => f.label);
       const markdown = renderPreviewTable(preview, unfilledRequired, resumeInstruction?.value);
 
       return {
@@ -378,7 +382,7 @@ export const applyFillFieldsTool: ToolDefinition = {
             {
               standardFieldCount: instructions.length,
               essayFieldCount: state.fields.filter((f) =>
-                /cover letter|why|tell us|about yourself|motivation|interest|\bfit\b|background/i.test(f.label),
+                ESSAY_PATTERNS.some((p) => p.test(f.label)),
               ).length,
               unfilledRequired,
               url: state.url,

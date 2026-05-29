@@ -45,13 +45,12 @@ const SPONSORSHIP_PATTERNS = [
   /need.*sponsor/i,
 ];
 
-const ESSAY_PATTERNS = [
+export const ESSAY_PATTERNS = [
   /cover letter/i,
   /why.*(?:company|us|this|role|position)/i,
   /tell us about/i,
   /about yourself/i,
   /motivat/i,        // matches "motivation", "motivates", "motivated"
-  /interest/i,
   /\bfit\b/i,
   /background/i,
   /why do you/i,
@@ -97,8 +96,9 @@ export function mapStandardFields(
     if (WORK_AUTH_PATTERNS.some((p) => p.test(labelLower))) {
       if (profile.workAuthorization) {
         const isAuthorized =
-          !/h1b|opt|cpt|tn|visa/i.test(profile.workAuthorization) ||
-          /citizen|green card|permanent/i.test(profile.workAuthorization);
+          /citizen|green\s*card|permanent\s*resident|ead|authorized/i.test(
+            profile.workAuthorization,
+          );
         instructions.push({
           selector: field.selector,
           label: field.label,

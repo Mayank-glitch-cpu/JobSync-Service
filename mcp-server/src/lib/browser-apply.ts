@@ -479,7 +479,7 @@ function orderedContexts(page: BrowserPage, frameUrl?: string): FormContext[] {
     (ctx) =>
       contextUrl(ctx).includes("boards.greenhouse.io") ||
       contextUrl(ctx).includes("app.greenhouse.io") ||
-      contextUrl(ctx).includes("/application"),
+      /\/application(\/|\?|#|$)/.test(contextUrl(ctx)),
   );
   return [...formFrames, ...contexts.filter((c) => !formFrames.includes(c))];
 }
@@ -651,12 +651,18 @@ async function fillOneField(page: BrowserPage, instr: FillInstruction): Promise<
       }
       if (!fileLocator) throw new Error("Could not locate file input for resume upload.");
       await fileLocator.setInputFiles(instr.value);
-      await page.waitForTimeout(1000);
-      const uploadConfirmed = await fileLocator
-        .evaluate((el: any) => (el.files?.length ?? 0) > 0)
-        .catch(() => false);
+      // Poll for the ATS to register the file rather than blocking a fixed second.
+      const uploadDeadline = Date.now() + 2000;
+      let uploadConfirmed = false;
+      while (Date.now() < uploadDeadline) {
+        uploadConfirmed = await fileLocator
+          .evaluate((el: any) => (el.files?.length ?? 0) > 0)
+          .catch(() => false);
+        if (uploadConfirmed) break;
+        await page.waitForTimeout(100);
+      }
       if (!uploadConfirmed) {
-        console.warn("[apply] resume upload could not be confirmed — files.length is 0 after 1 s");
+        console.warn("[apply] resume upload could not be confirmed — files.length is 0 after 2 s");
       }
       return;
     }
@@ -793,7 +799,7 @@ export async function inspectForm(applyLink: string): Promise<InspectResult> {
           const tagName = (await loc.evaluate((el: any) => el.tagName.toLowerCase()).catch(() => "")) as string;
           if (!tagName || !["input", "textarea", "select"].includes(tagName)) continue;
           fields.push({
-            selector: `[data-testid="${testId}"]` || `[aria-label="${ariaLabel}"]`,
+            selector: testId ? `[data-testid="${testId}"]` : `[aria-label="${ariaLabel}"]`,
             label,
             type: tagName === "textarea" ? "textarea" : tagName === "select" ? "select" : "text",
             placeholder,
