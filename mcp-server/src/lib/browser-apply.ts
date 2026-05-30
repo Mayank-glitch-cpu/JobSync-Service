@@ -138,15 +138,20 @@ const APPLY_BUTTON_SELECTORS = [
   'a[href*="apply"]',
   'button:has-text("Apply for this Job")',
   'button:has-text("Apply for this job")',
+  'button:has-text("Apply for this position")',
   'button:has-text("Apply Now")',
+  'button:has-text("Apply now")',
   'button:has-text("Apply")',
   'a:has-text("Apply for this Job")',
   'a:has-text("Apply for this job")',
   'a:has-text("Apply Now")',
+  'a:has-text("Apply now")',
   'a:has-text("Apply")',
+  '[data-testid="apply-button"]',
   '[data-testid*="apply" i]',
   '[aria-label*="apply" i]',
   '[class*="apply-button" i]',
+  '.apply-button',
   '[id*="apply-button" i]',
 ];
 
@@ -463,11 +468,20 @@ async function locatorUsable(locator: BrowserLocator, allowHidden = false): Prom
 
 function orderedContexts(page: BrowserPage, frameUrl?: string): FormContext[] {
   const contexts = allContexts(page);
-  if (!frameUrl) return contexts;
-  return [
-    ...contexts.filter((ctx) => contextUrl(ctx) === frameUrl),
-    ...contexts.filter((ctx) => contextUrl(ctx) !== frameUrl),
-  ];
+  if (frameUrl) {
+    return [
+      ...contexts.filter((ctx) => contextUrl(ctx) === frameUrl),
+      ...contexts.filter((ctx) => contextUrl(ctx) !== frameUrl),
+    ];
+  }
+  // Prioritise known ATS form frames so field lookups hit the right frame first.
+  const formFrames = contexts.filter(
+    (ctx) =>
+      contextUrl(ctx).includes("boards.greenhouse.io") ||
+      contextUrl(ctx).includes("app.greenhouse.io") ||
+      /\/application(\/|\?|#|$)/.test(contextUrl(ctx)),
+  );
+  return [...formFrames, ...contexts.filter((c) => !formFrames.includes(c))];
 }
 
 async function findInstructionLocator(page: BrowserPage, instr: FillInstruction): Promise<BrowserLocator | null> {
@@ -614,9 +628,44 @@ async function fillOneField(page: BrowserPage, instr: FillInstruction): Promise<
   }
 
   switch (type) {
-    case "file":
-      await locator!.setInputFiles(instr.value);
-      break;
+    case "file": {
+      // Try resume-specific selectors first, then fall back to the located input.
+      const RESUME_SELECTORS = [
+        'input[type="file"][name*="resume" i]',
+        'input[type="file"][accept*="pdf"]',
+        'input[type="file"]',
+      ];
+      let fileLocator = locator;
+      if (!fileLocator) {
+        const contexts = orderedContexts(page, instr.frameUrl);
+        for (const sel of RESUME_SELECTORS) {
+          for (const ctx of contexts) {
+            const candidate = ctx.locator(sel).first();
+            if (await locatorUsable(candidate, true)) {
+              fileLocator = candidate;
+              break;
+            }
+          }
+          if (fileLocator) break;
+        }
+      }
+      if (!fileLocator) throw new Error("Could not locate file input for resume upload.");
+      await fileLocator.setInputFiles(instr.value);
+      // Poll for the ATS to register the file rather than blocking a fixed second.
+      const uploadDeadline = Date.now() + 2000;
+      let uploadConfirmed = false;
+      while (Date.now() < uploadDeadline) {
+        uploadConfirmed = await fileLocator
+          .evaluate((el: any) => (el.files?.length ?? 0) > 0)
+          .catch(() => false);
+        if (uploadConfirmed) break;
+        await page.waitForTimeout(100);
+      }
+      if (!uploadConfirmed) {
+        console.warn("[apply] resume upload could not be confirmed — files.length is 0 after 2 s");
+      }
+      return;
+    }
 
     case "select":
       await selectBestOption(locator!, instr.value);
@@ -717,8 +766,52 @@ export async function inspectForm(applyLink: string): Promise<InspectResult> {
   const { browser, page, atsHint } = await newBrowserPage(applyLink);
 
   try {
+    // Two-pass scroll: trigger lazy-loaded content, then return to top for field extraction.
+    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)").catch(() => undefined);
+    await page.waitForTimeout(800);
+    await page.evaluate("window.scrollTo(0, 0)").catch(() => undefined);
+    await page.waitForTimeout(400);
+
     await waitForFormFields(page, 12_000).catch(() => undefined);
-    const fields = await extractAllFields(page);
+
+    // For Ashby (React-rendered), wait for networkidle before extracting fields.
+    if (atsHint === "ashby") {
+      await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => undefined);
+    }
+
+    let fields = await extractAllFields(page);
+
+    // Strategy B: Ashby/React shadow inputs not captured by standard DOM traversal.
+    if (atsHint === "ashby") {
+      const ashbyLocators = page.locator(
+        '[data-testid*="input" i], [data-testid*="field" i], [class*="Input"], [class*="Field"]',
+      );
+      const count = await ashbyLocators.count().catch(() => 0);
+      const labelsSeen = new Set(fields.map((f) => f.label.toLowerCase()));
+      for (let i = 0; i < count; i++) {
+        try {
+          const loc = ashbyLocators.nth(i);
+          const ariaLabel = (await loc.getAttribute("aria-label").catch(() => null)) ?? "";
+          const placeholder = (await loc.getAttribute("placeholder").catch(() => null)) ?? "";
+          const testId = (await loc.getAttribute("data-testid").catch(() => null)) ?? "";
+          const label = ariaLabel || placeholder || testId;
+          if (!label || labelsSeen.has(label.toLowerCase())) continue;
+          const tagName = (await loc.evaluate((el: any) => el.tagName.toLowerCase()).catch(() => "")) as string;
+          if (!tagName || !["input", "textarea", "select"].includes(tagName)) continue;
+          fields.push({
+            selector: testId ? `[data-testid="${testId}"]` : `[aria-label="${ariaLabel}"]`,
+            label,
+            type: tagName === "textarea" ? "textarea" : tagName === "select" ? "select" : "text",
+            placeholder,
+            required: false,
+            options: [],
+          });
+          labelsSeen.add(label.toLowerCase());
+        } catch {
+          // Skip unreadable locators.
+        }
+      }
+    }
 
     const imgPath = screenshotPath("inspect");
     await page.screenshot({ path: imgPath, fullPage: false });

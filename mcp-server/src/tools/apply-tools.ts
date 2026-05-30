@@ -8,7 +8,38 @@ import {
   type PreviewField,
 } from "../lib/browser-apply.js";
 import { readPersonalProfile, writePersonalProfile, type PersonalProfile } from "../lib/personal-profile.js";
+import { readProfileFile } from "../lib/profile.js";
+import { fillFields, ESSAY_PATTERNS } from "../lib/ai-fill.js";
 import { errorResult, textResult, type ContentBlock, type ToolDefinition, type ToolResult } from "./index.js";
+
+function renderPreviewTable(
+  preview: PreviewField[],
+  unfilledRequired: string[],
+  resumePath?: string,
+): string {
+  const rows = preview.map((p) => {
+    const val =
+      p.type === "file"
+        ? p.value
+        : p.value.length > 120
+          ? p.value.slice(0, 120) + "…"
+          : p.value;
+    return `| ${p.field} | ${val} |`;
+  });
+
+  for (const label of unfilledRequired) {
+    rows.push(`| ⚠️ ${label} | needs review |`);
+  }
+
+  const table = ["| Field | Value |", "|-------|-------|", ...rows].join("\n");
+  const resumeLine = resumePath ? `\nResume: \`${resumePath}\` ✓ attached` : "";
+
+  return (
+    `I've filled out the application. Please review and reply **"apply"** to submit, or **"cancel"** to abort.\n\n` +
+    table +
+    resumeLine
+  );
+}
 
 export const profileWritePersonalTool: ToolDefinition = {
   name: "profile_write_personal",
@@ -158,13 +189,21 @@ export const applySaveDraftTool: ToolDefinition = {
           type: field.type,
         }));
       const state = saveApplyDraft(instructions, preview, args.applyLink ? String(args.applyLink) : undefined);
-      return textResult({
-        saved: true,
-        draftFieldCount: instructions.length,
-        preview,
-        url: state.url,
-        atsHint: state.atsHint,
-      });
+
+      const resumeInstruction = instructions.find((f) => f.type === "file");
+      // Re-derive missing required fields from the persisted form state: any detected
+      // required field that no instruction targets is still unfilled at save time.
+      const unfilledRequired = state.fields
+        .filter((f) => f.required && !instructions.some((i) => i.selector === f.selector))
+        .map((f) => f.label);
+      const markdown = renderPreviewTable(preview, unfilledRequired, resumeInstruction?.value);
+
+      return {
+        content: [
+          { type: "text", text: JSON.stringify({ saved: true, draftFieldCount: instructions.length, url: state.url, atsHint: state.atsHint }, null, 2) },
+          { type: "text", text: markdown },
+        ],
+      };
     } catch (err) {
       return errorResult(String(err));
     }
@@ -258,6 +297,109 @@ export const applySubmitFormTool: ToolDefinition = {
       const dryRun = Boolean(args.dryRun ?? false);
       const result = await fillAndSubmit(String(args.applyLink), instructions, dryRun);
       return textResult(result);
+    } catch (err) {
+      return errorResult(String(err));
+    }
+  },
+};
+
+export const applyFillFieldsTool: ToolDefinition = {
+  name: "apply_fill_fields",
+  description:
+    "Map the detected form fields to the user's personal profile and generate AI-fill instructions. " +
+    "Call this after apply_inspect_form. It reads personal.json (contact fields), experience.md, skills.md, " +
+    "and projects.md, maps all standard fields deterministically, identifies essay/open-text fields, and " +
+    "saves the draft via apply_save_draft. Returns a Markdown preview table plus an essay-generation block " +
+    "for any open-text fields that need AI-composed answers. After generating essay answers, call " +
+    "apply_save_draft with the complete fields array (standard + essays) to update the draft, then wait " +
+    "for the user to confirm before calling apply_submit_form. ⚙ [Model hint: sonnet]",
+  recommendedModel: "sonnet",
+  inputSchema: {
+    type: "object",
+    properties: {
+      applyLink: {
+        type: "string",
+        description: "The apply URL used in apply_inspect_form. Used to associate the draft with the right state.",
+      },
+      company: {
+        type: "string",
+        description: "Company name — used to personalise AI-generated essay answers.",
+      },
+      jobTitle: {
+        type: "string",
+        description: "Job title — used to personalise AI-generated essay answers.",
+      },
+    },
+    required: ["applyLink"],
+    additionalProperties: false,
+  },
+  handler: async (args): Promise<ToolResult> => {
+    try {
+      const state = loadFormState();
+      if (!state) {
+        return errorResult(
+          "No saved form state found (or it has expired). Run apply_inspect_form first.",
+        );
+      }
+
+      const profile = readPersonalProfile();
+      const experience = readProfileFile("experience");
+      const skills = readProfileFile("skills");
+      const projects = readProfileFile("projects");
+
+      const company = args.company ? String(args.company) : "the company";
+      const jobTitle = args.jobTitle ? String(args.jobTitle) : "this role";
+
+      const { instructions, unfilledRequired, essayPromptBlock } = fillFields(
+        state.fields,
+        profile,
+        company,
+        jobTitle,
+        experience,
+        skills,
+        projects,
+      );
+
+      // Save the standard-mapped draft so apply_submit_form can load it even if essays are skipped.
+      const preview = instructions.map((instr) => ({
+        field: instr.label || instr.selector,
+        value: instr.type === "file" ? instr.value : String(instr.value ?? "").slice(0, 300),
+        type: instr.type,
+      }));
+      saveApplyDraft(instructions, preview, String(args.applyLink));
+
+      const resumeInstruction = instructions.find((f) => f.type === "file");
+      const previewTable = renderPreviewTable(
+        preview as PreviewField[],
+        unfilledRequired,
+        resumeInstruction?.value,
+      );
+
+      const blocks: ContentBlock[] = [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              standardFieldCount: instructions.length,
+              essayFieldCount: state.fields.filter((f) =>
+                ESSAY_PATTERNS.some((p) => p.test(f.label)),
+              ).length,
+              unfilledRequired,
+              url: state.url,
+              atsHint: state.atsHint,
+            },
+            null,
+            2,
+          ),
+        },
+        { type: "text", text: previewTable },
+      ];
+
+      if (essayPromptBlock) {
+        blocks.push({ type: "text", text: essayPromptBlock });
+      }
+
+      return { content: blocks };
     } catch (err) {
       return errorResult(String(err));
     }
