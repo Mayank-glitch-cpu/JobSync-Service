@@ -12,7 +12,7 @@ importers:
         specifier: ^9.0.0
         version: 9.2.1
 
-  backend:
+  legacy/backend:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.39.0
@@ -52,7 +52,7 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
-  frontend:
+  legacy/frontend:
     dependencies:
       react:
         specifier: ^19.0.0
@@ -94,6 +94,9 @@ importers:
       pdf-parse:
         specifier: ^1.1.1
         version: 1.1.4
+      playwright:
+        specifier: ^1.44.0
+        version: 1.59.1
       zod:
         specifier: ^3.23.8
         version: 3.25.76
