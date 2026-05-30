@@ -2,7 +2,7 @@
   "name": "jobsync-mcp",
   "author": "mayank-glitch-cpu",
   "license": "MIT",
-  "version": "0.8.16",
+  "version": "0.8.17",
   "description": "Agentic MCP server for aggregating jobs into Airtable via any MCP client",
   "type": "module",
   "main": "dist/index.js",
