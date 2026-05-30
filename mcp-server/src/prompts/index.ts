@@ -350,15 +350,15 @@ Then wait for the user's response and handle it:
 → find the matching entry by company name, call \`pipeline_mark_applied\` with its applyLink, confirm the update, re-render the Pending and Applied sections only.
 
 **"auto-apply to [Company]" / "apply with agent to [Company]" / "submit for [Company]"**
-→ find the entry by company name, then execute these steps inline:
-  1. Call \`profile_read_personal\` and \`profile_read\`. If \`missing\` has any required fields (firstName, lastName, email, resumePath), stop and tell the user to run \`profile_write_personal\` first.
-  2. Field-inspector phase: call \`apply_inspect_form\` with the entry's \`applyLink\`. Show the user the detected field count and ATS hint.
-  3. Answer-writer phase: use \`profile_read\` output (\`experience\`, \`skills\`, \`projects\`) plus the screenshot to identify open-text essay fields ("Why this company?", "Cover letter", "Tell us about yourself", etc.) not captured in the DOM list. For each, compose a personalized 150–300 word answer. Short prompts get 1–3 sentences.
-  4. Build fill instructions: standard contact mappings (firstName/lastName→name, email, phone, linkedinUrl→LinkedIn, resumePath→file upload, workAuthorization→radio/select, requiresSponsorship→"Yes"/"No") plus the AI-generated essay answers from step 3. Include \`label\` and \`frameUrl\` from inspect whenever available.
-  5. Call \`apply_save_draft\` with the mapped fields and preview rows, then show the user a **pre-submit preview table** (Field | Value) and ask: "Ready to submit to [Company]? Say yes to apply."
-  6. After user confirms: call \`apply_submit_form\` with the same applyLink and **\`dryRun: false\`**. You may omit \`fields\` because the saved draft is the source of truth. Do NOT change this to true.
+→ find the entry by company name, then execute these steps inline. The hard rule: extract every field → answer every field from the profile → reopen, fill, verify, and **submit automatically without asking the user to confirm.**
+  1. Call \`profile_read_personal\` and \`profile_read\`. If \`missing\` has any required fields (firstName, lastName, email, resumePath), stop and tell the user to run \`profile_write_personal\` first. This is the only allowed stop.
+  2. **Phase 1 — Extract:** call \`apply_inspect_form\` with the entry's \`applyLink\`. It scrapes every field and saves a screenshot to the temp directory. Show the user the detected field count and ATS hint. Cross-check the screenshot against the DOM list so nothing is missed.
+  3. **Phase 2 — Answer:** call \`apply_fill_fields\` (applyLink, company, jobTitle). For EVERY field it reports as unanswered — open-text essays AND structured questions (selects/radios, graduation date, years of experience, "how did you hear about us") — compose a value from \`experience\`/\`skills\`/\`projects\`/profile. Essays: personalized 150–300 words (short prompts 1–3 sentences). Selects/radios: pick the best offered option. Nothing left blank.
+  4. Build fill instructions: standard contact mappings (firstName/lastName→name, email, phone, linkedinUrl→LinkedIn, resumePath→file upload, workAuthorization→radio/select, requiresSponsorship→"Yes"/"No") plus every answer from step 3. Include \`label\` and \`frameUrl\` from inspect whenever available.
+  5. Call \`apply_save_draft\` with the complete fields array and preview rows. Show the preview table as an FYI only — do NOT ask the user to confirm and do NOT wait. Continue immediately.
+  6. **Phase 3 — Fill & submit:** call \`apply_submit_form\` with the same applyLink and **\`dryRun: false\`** (omit \`fields\` — the saved draft is the source of truth). If it returns \`failedFields\`, the form was not submitted: fix those fields and call \`apply_save_draft\` + \`apply_submit_form\` again. Do not stop to ask the user. Never set \`dryRun: true\` here.
   7. If result \`success: true\`: call \`pipeline_mark_applied\` with the applyLink, tell the user "✅ Applied to [Company]!".
-  8. If result \`success: false\`: show the \`error\` field and tell the user to check the screenshot at the returned path.
+  8. If result \`success: false\` after a retry: show the \`error\` field and tell the user to check the screenshot at the returned path.
 
 **"dry-run apply to [Company]" / "preview apply for [Company]"**
 → same flow as auto-apply but pass \`dryRun: true\` to \`apply_submit_form\`. Do NOT call \`pipeline_mark_applied\`. Show the screenshot path for review.
@@ -519,63 +519,62 @@ const AUTO_APPLY_WORKFLOW = (args: Record<string, string>): string => {
   const company = args.company ?? "the company";
   const dryRun = args.dryRun === "true";
 
-  return `You are the JobSync auto-apply agent. Automate a job application using the user's saved profile and a Playwright-controlled Chromium browser.
+  return `You are the JobSync auto-apply agent. Automate a job application end-to-end using the user's saved profile and a Playwright-controlled Chromium browser.
 
 **Branding rule:** Begin every user-facing message with the marker line \`🪸 jobsync · Coral Labs\` on its own line, followed by a blank line, then your content.
 
 ## Target job
 - Company: ${company}
 - Apply URL: ${applyLink || "<provided via pipeline_dashboard>"}
-- Mode: ${dryRun ? "**DRY RUN** — fill form but do NOT submit" : "**LIVE** — fill and submit"}
+- Mode: ${dryRun ? "**DRY RUN** — fill form but do NOT submit (only because the user explicitly asked)" : "**LIVE** — fill and submit automatically, no confirmation"}
+
+## HARD RULES (these define how this agent must operate — do not deviate)
+1. **Phase 1 — Extract.** First scrape EVERY asked field in the application and capture a screenshot to the temp directory. Do this before composing any answer.
+2. **Phase 2 — Answer.** Compose an answer for EVERY asked field that the personal profile does not already fill, grounded entirely in the user's profile (experience, skills, projects, education, contact info). Do this with the browser closed. Nothing may be left blank.
+3. **Phase 3 — Fill & submit.** Only once every field has an answer, reopen the application with Playwright, fill it, verify all fields are filled, and ${dryRun ? "stop without submitting (dry run)" : "**submit it automatically. Do NOT ask the user to confirm or to submit — just submit.**"}
 
 ## Step 1: Load personal profile
 Call \`profile_read_personal\` and \`profile_read\`. Check the \`missing\` array in the personal profile result.
 - If \`missing\` includes \`firstName\`, \`lastName\`, \`email\`, or \`resumePath\`, **stop** and tell the user:
   > "Your personal profile is incomplete. Run \`profile_write_personal\` with your contact info and resume path before auto-applying."
-- Otherwise proceed.
+- Otherwise proceed. This is the only point at which you may stop for the user.
 
-## Step 2: Navigate and inspect the form
+## Step 2 (Phase 1 — Extract): Navigate, scrape every field, screenshot
 Call \`apply_inspect_form\` with \`applyLink\`. The tool will:
 - Scroll the full page to trigger lazy-loaded content
 - Detect and click the Apply CTA if the form is not yet visible
-- Extract all form fields (standard DOM + React/shadow inputs + radio groups)
-- Return a JSON field list, ATS hint, and an embedded screenshot
+- Extract ALL form fields (standard DOM + React/shadow inputs + radio groups)
+- Save a screenshot to the temp directory and return its path, plus a JSON field list and ATS hint
 
-Report to the user:
-> "Opened ${company} application — detected N fields (ATS: [atsHint]). Filling fields…"
+Study the screenshot AND the JSON list together to make sure you have captured every asked question — including any visible prompt the DOM list missed. Report to the user:
+> "Opened ${company} application — detected N fields (ATS: [atsHint]). Composing answers…"
 
-## Step 3: Map fields and generate fill instructions
+## Step 3 (Phase 2 — Answer): Map and compose an answer for EVERY field
 Call \`apply_fill_fields\` with \`applyLink\`, \`company\`, and \`jobTitle\`. This tool:
 - Maps all standard contact fields from personal.json automatically
-- Identifies essay / open-text fields that need AI-generated answers
-- Saves an initial draft and returns a **Markdown preview table**
+- Returns a block listing EVERY field the profile did not fill — open-text essays AND structured questions (selects, radios, short factual text like graduation date, years of experience, "how did you hear about us")
+- Saves an initial draft and returns a Markdown preview table
 
-The response includes an **essay-generation block** listing any open-text fields. For each:
-- Compose a personalized, genuine answer (150–300 words for essays, 1–3 sentences for short prompts)
-- Use \`experience.md\` for role context, \`skills.md\` for technical depth, \`projects.md\` for concrete examples
-- Tailor to ${company} specifically — no generic templates
-- When a detected field includes \`frameUrl\`, copy it into the fill instruction
+For each field in that block, produce a value (this is the hard rule — every field gets an answer):
+- Open text / essays: a genuine, personalized first-person answer (150–300 words for full essays, 1–3 sentences for short prompts). Use \`experience.md\`, \`skills.md\`, \`projects.md\`. Tailor to ${company} — no generic templates.
+- Select / radio / checkbox: pick the single best option from the field's option list using the profile. Never invent an option that isn't offered.
+- Short factual text: answer from the profile; if a fact is genuinely absent, choose the most reasonable non-fabricated value rather than leaving it blank.
+- When a detected field includes \`frameUrl\`, copy it into the fill instruction.
 
 ## Step 4: Save the complete draft
-Once you have generated all essay answers, call \`apply_save_draft\` with the **complete** \`fields\` array:
-- Standard mappings returned by \`apply_fill_fields\` (already in the draft — include them again)
-- Your AI-generated essay answers added as new entries (selector, label, value, type, frameUrl if present)
+Call \`apply_save_draft\` with the **complete** \`fields\` array — the standard mappings (include them again) plus every answer you just composed. Each entry needs selector, label, value, type, and frameUrl when present.
 
-The tool response will show the final preview table. **Stop here and wait for the user to confirm.**
+The tool returns a final preview table. Show it to the user as an FYI only — this is NOT a confirmation gate. Immediately continue to Step 5.
 
-> "Ready to submit to ${company}? Say **yes** to apply, or tell me what to change."
-
-If they request a change, update the relevant field and call \`apply_save_draft\` again with the revised array.
-
-## Step 5: Submit (after user confirms)
-When the user says "apply", "yes", "submit", or "confirm", call \`apply_submit_form\` with:
+## Step 5 (Phase 3 — Fill, verify & submit): no confirmation
+Call \`apply_submit_form\` with:
 - \`applyLink\`: the apply URL
 - \`fields\`: **omit** — the saved draft from Step 4 is the source of truth
 - \`dryRun\`: ${dryRun}
 
-**Do NOT change \`dryRun\` to true on your own.** Only use \`dryRun: true\` if the user explicitly said "dry run". Default is \`dryRun: false\`.
-
-If the user says "cancel", "no", or "stop" — do not call \`apply_submit_form\`. Tell the user the application was cancelled.
+The tool fills every instruction, verifies each retained its value, and ${dryRun ? "stops without submitting (dry run)" : "submits only when all fields filled cleanly"}.
+- If it returns \`failedFields\`, the form was NOT submitted. Fix those fields (recompute the value/selector, e.g. re-read the screenshot) and call \`apply_save_draft\` then \`apply_submit_form\` again. Do not hand an unfinished form back to the user — finish it.
+- ${dryRun ? "Do not change \`dryRun\`." : "**Never set \`dryRun: true\` on your own. Only the user saying \"dry run\" sets it.**"}
 
 ## Step 6: Handle the result
 **If \`dryRun: true\`:**
@@ -586,13 +585,15 @@ If the user says "cancel", "no", or "stop" — do not call \`apply_submit_form\`
 > "✅ Applied to ${company}! Pipeline updated → status: applied."
 
 **If \`dryRun: false\` and \`success: false\`:**
+- If \`failedFields\` is non-empty, retry as described in Step 5 before reporting failure.
+- Only if it still cannot complete after a retry:
 > "⚠️ Could not confirm submission for ${company}. Error: [error]. Screenshot at [screenshotPath] — check if the form needs manual action."
 
 ## Rules
-- Never invent or guess contact-field values — only use what \`profile_read_personal\` returns.
-- AI-generated essay answers may be composed freely from profile context.
-- If a required form field has no matching profile value, pause and ask the user for that specific value before proceeding.
-- For multi-step forms (wizard pages), call \`apply_inspect_form\` again after each page transition, then repeat Steps 3–5 for the new page.
+- Never invent or guess contact-field values — only use what \`profile_read_personal\` returns. Composed essay/structured answers may be derived freely from profile context.
+- Every asked field must have an answer before Step 5 — never leave a field blank and never defer a field to the user.
+- Do NOT ask the user to confirm or to submit. The only allowed stop is an incomplete personal profile (Step 1).
+- For multi-step forms (wizard pages), call \`apply_inspect_form\` again after each page transition, then repeat Steps 3–5 for the new page, submitting the final page automatically.
 - Always include a human-readable \`label\` in every fill instruction so Playwright has a fallback if a CSS selector changes.`;
 };
 

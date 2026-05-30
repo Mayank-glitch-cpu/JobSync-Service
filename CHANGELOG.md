@@ -6,6 +6,22 @@ Format: [Semantic Versioning](https://semver.org). Each release is tagged `v{ver
 
 ---
 
+## [0.8.16] — 2026-05-30
+
+### Added
+- **`apply_fill_fields` tool** — given an inspected form and the user's personal profile, maps standard fields, identifies essay/free-text fields, and saves the draft via `apply_save_draft`. Returns a Markdown preview table plus an essay-generation block so Claude can author tailored answers. Accepts optional `company` and `jobTitle` to personalise AI-generated essay responses.
+- **AI field-fill library** (`src/lib/ai-fill.ts`) — `mapStandardFields`, `identifyEssayFields`, `identifyUnansweredFields`, `buildEssayPromptBlock`, `buildAnswerPromptBlock`, and `fillFields`, plus a canonical exported `ESSAY_PATTERNS` list used across the apply tools.
+- **Preview table with unfilled-required tracking** — `apply_save_draft` now renders a preview table and surfaces required fields that no instruction targets, re-derived from live form state instead of a hardcoded empty list.
+
+### Fixed
+- **Two-pass scroll for form detection** — browser apply now scrolls to the bottom to trigger lazy-loaded content, then returns to the top before extracting fields, so dynamically rendered inputs are detected.
+- **Resume upload confirmation** — replaced the fixed 1 s sleep with a poll (up to 2 s) on `files.length`, and warns when the upload can't be confirmed.
+- **Iframe application detection** — uses a path-boundary match for `/application` so unrelated URLs no longer trigger the iframe path.
+- **Work-authorization handling** — flipped from a leaky denylist to an explicit allowlist; dropped the over-broad `/interest/i` essay pattern.
+- **Selector resolution** — `testid` / `aria-label` selector now uses a ternary instead of an always-left `||`.
+
+---
+
 ## [0.8.2] — 2026-04-23
 
 ### Fixed

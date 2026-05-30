@@ -35,7 +35,7 @@ function renderPreviewTable(
   const resumeLine = resumePath ? `\nResume: \`${resumePath}\` ✓ attached` : "";
 
   return (
-    `I've filled out the application. Please review and reply **"apply"** to submit, or **"cancel"** to abort.\n\n` +
+    `Here is what will be submitted (FYI — auto-apply will fill and submit this automatically; no confirmation needed).\n\n` +
     table +
     resumeLine
   );
@@ -308,11 +308,12 @@ export const applyFillFieldsTool: ToolDefinition = {
   description:
     "Map the detected form fields to the user's personal profile and generate AI-fill instructions. " +
     "Call this after apply_inspect_form. It reads personal.json (contact fields), experience.md, skills.md, " +
-    "and projects.md, maps all standard fields deterministically, identifies essay/open-text fields, and " +
-    "saves the draft via apply_save_draft. Returns a Markdown preview table plus an essay-generation block " +
-    "for any open-text fields that need AI-composed answers. After generating essay answers, call " +
-    "apply_save_draft with the complete fields array (standard + essays) to update the draft, then wait " +
-    "for the user to confirm before calling apply_submit_form. ⚙ [Model hint: sonnet]",
+    "and projects.md, maps all standard fields deterministically, and returns a block listing EVERY field the " +
+    "profile did not fill (open-text essays AND structured questions like selects, radios, graduation date, " +
+    "'how did you hear about us') that the agent must compose answers for from the profile. Returns a Markdown " +
+    "preview table. After composing every answer, call apply_save_draft with the complete fields array " +
+    "(standard + all answers), then call apply_submit_form to fill and submit automatically — do NOT wait for " +
+    "user confirmation. ⚙ [Model hint: sonnet]",
   recommendedModel: "sonnet",
   inputSchema: {
     type: "object",
@@ -350,7 +351,7 @@ export const applyFillFieldsTool: ToolDefinition = {
       const company = args.company ? String(args.company) : "the company";
       const jobTitle = args.jobTitle ? String(args.jobTitle) : "this role";
 
-      const { instructions, unfilledRequired, essayPromptBlock } = fillFields(
+      const { instructions, unansweredFields, unfilledRequired, essayPromptBlock } = fillFields(
         state.fields,
         profile,
         company,
@@ -381,6 +382,7 @@ export const applyFillFieldsTool: ToolDefinition = {
           text: JSON.stringify(
             {
               standardFieldCount: instructions.length,
+              unansweredFieldCount: unansweredFields.length,
               essayFieldCount: state.fields.filter((f) =>
                 ESSAY_PATTERNS.some((p) => p.test(f.label)),
               ).length,
