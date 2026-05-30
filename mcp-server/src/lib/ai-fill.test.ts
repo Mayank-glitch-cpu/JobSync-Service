@@ -4,35 +4,41 @@ import type { DetectedField } from "./browser-apply.js";
 
 // ─── shared fixtures ───────────────────────────────────────────────────────
 
+// DetectedField requires placeholder + options; helper fills the defaults the
+// browser detector would emit so fixtures stay focused on what each test cares about.
+const field = (
+  f: Pick<DetectedField, "selector" | "label" | "type" | "required"> & Partial<DetectedField>,
+): DetectedField => ({ placeholder: "", options: [], ...f });
+
 const basicFields: DetectedField[] = [
-  { selector: "#first",   label: "First Name",    type: "text",     required: true  },
-  { selector: "#last",    label: "Last Name",     type: "text",     required: true  },
-  { selector: "#email",   label: "Email Address", type: "email",    required: true  },
-  { selector: "#phone",   label: "Phone Number",  type: "tel",      required: false },
-  { selector: "#li",      label: "LinkedIn",      type: "text",     required: false },
-  { selector: "#gh",      label: "GitHub URL",    type: "text",     required: false },
-  { selector: "#port",    label: "Portfolio URL", type: "text",     required: false },
-  { selector: "#city",    label: "City",          type: "text",     required: false },
-  { selector: "#state",   label: "State",         type: "text",     required: false },
-  { selector: "#country", label: "Country",       type: "text",     required: false },
+  field({ selector: "#first",   label: "First Name",    type: "text",  required: true  }),
+  field({ selector: "#last",    label: "Last Name",     type: "text",  required: true  }),
+  field({ selector: "#email",   label: "Email Address", type: "email", required: true  }),
+  field({ selector: "#phone",   label: "Phone Number",  type: "tel",   required: false }),
+  field({ selector: "#li",      label: "LinkedIn",      type: "text",  required: false }),
+  field({ selector: "#gh",      label: "GitHub URL",    type: "text",  required: false }),
+  field({ selector: "#port",    label: "Portfolio URL", type: "text",  required: false }),
+  field({ selector: "#city",    label: "City",          type: "text",  required: false }),
+  field({ selector: "#state",   label: "State",         type: "text",  required: false }),
+  field({ selector: "#country", label: "Country",       type: "text",  required: false }),
 ];
 
 const essayFields: DetectedField[] = [
-  { selector: "#cover",  label: "Cover Letter",                    type: "textarea", required: false },
-  { selector: "#why",    label: "Why do you want to work here?",   type: "textarea", required: false },
-  { selector: "#about",  label: "Tell us about yourself",          type: "textarea", required: false },
-  { selector: "#fit",    label: "Why are you a good fit?",         type: "textarea", required: false },
-  { selector: "#mot",    label: "What motivates you?",             type: "textarea", required: false },
-  { selector: "#bg",     label: "Describe your background",        type: "textarea", required: false },
+  field({ selector: "#cover",  label: "Cover Letter",                  type: "textarea", required: false }),
+  field({ selector: "#why",    label: "Why do you want to work here?", type: "textarea", required: false }),
+  field({ selector: "#about",  label: "Tell us about yourself",        type: "textarea", required: false }),
+  field({ selector: "#fit",    label: "Why are you a good fit?",       type: "textarea", required: false }),
+  field({ selector: "#mot",    label: "What motivates you?",           type: "textarea", required: false }),
+  field({ selector: "#bg",     label: "Describe your background",      type: "textarea", required: false }),
 ];
 
 const radioFields: DetectedField[] = [
-  { selector: "#auth",   label: "Are you legally authorized to work in the US?", type: "radio", required: true,  options: ["Yes", "No"] },
-  { selector: "#spon",   label: "Do you require visa sponsorship?",               type: "radio", required: true,  options: ["Yes", "No"] },
+  field({ selector: "#auth", label: "Are you legally authorized to work in the US?", type: "radio", required: true, options: ["Yes", "No"] }),
+  field({ selector: "#spon", label: "Do you require visa sponsorship?",              type: "radio", required: true, options: ["Yes", "No"] }),
 ];
 
 const fileField: DetectedField[] = [
-  { selector: "#resume", label: "Resume / CV",  type: "file", required: true },
+  field({ selector: "#resume", label: "Resume / CV", type: "file", required: true }),
 ];
 
 const profile = {
@@ -113,7 +119,7 @@ describe("mapStandardFields", () => {
 
   it("handles label with asterisk and colon stripping", () => {
     const fields: DetectedField[] = [
-      { selector: "#fn", label: "First Name*:", type: "text", required: true },
+      field({ selector: "#fn", label: "First Name*:", type: "text", required: true }),
     ];
     const result = mapStandardFields(fields, profile);
     expect(result[0]?.value).toBe("Prisha");
@@ -150,7 +156,7 @@ describe("identifyEssayFields", () => {
 
   it("excludes non-textarea/text fields even if label matches", () => {
     const selectEssay: DetectedField[] = [
-      { selector: "#cover-sel", label: "Cover Letter", type: "select", required: false },
+      field({ selector: "#cover-sel", label: "Cover Letter", type: "select", required: false }),
     ];
     const result = identifyEssayFields(selectEssay, new Set());
     expect(result).toHaveLength(0);
@@ -247,7 +253,7 @@ describe("fillFields", () => {
 
   it("returns unfilledRequired for fields not mapped and not essays", () => {
     const unknownRequired: DetectedField[] = [
-      { selector: "#grad", label: "Graduation Date", type: "text", required: true },
+      field({ selector: "#grad", label: "Graduation Date", type: "text", required: true }),
     ];
     const { unfilledRequired } = fillFields(unknownRequired, profile, "Acme", "SWE", "exp", "skills", "projects");
     expect(unfilledRequired).toContain("Graduation Date");
