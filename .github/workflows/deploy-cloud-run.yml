@@ -1,0 +1,61 @@
+name: Deploy Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cloud-run-jobsync-mcp
+  cancel-in-progress: true
+
+env:
+  SERVICE: jobsync-mcp
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+
+jobs:
+  deploy:
+    name: Build And Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate To Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set Up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy To Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --source . \
+            --project "${{ secrets.GCP_PROJECT_ID }}" \
+            --region "$REGION" \
+            --allow-unauthenticated \
+            --port 3000 \
+            --memory 1Gi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 3 \
+            --env-vars-file gcp.env.example.yaml \
+            --set-secrets AIRTABLE_API_KEY=jobsync-airtable-api-key:latest,AIRTABLE_BASE_ID=jobsync-airtable-base-id:latest,JOBSYNC_REMOTE_BEARER_TOKEN=jobsync-remote-bearer-token:latest
+
+      - name: Show Service URL
+        run: |
+          SERVICE_URL="$(gcloud run services describe "$SERVICE" \
+            --project "${{ secrets.GCP_PROJECT_ID }}" \
+            --region "$REGION" \
+            --format 'value(status.url)')"
+          echo "Cloud Run URL: $SERVICE_URL"
+          echo "MCP URL: $SERVICE_URL/mcp"
