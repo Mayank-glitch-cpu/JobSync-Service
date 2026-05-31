@@ -347,6 +347,74 @@ const EXTRACT_FIELDS_SCRIPT = `() => {
   return fields;
 }`;
 
+// ─── Human-like interaction helpers ─────────────────────────────────────────
+// Anti-bot systems (Greenhouse/Ashby fraud scoring, Cloudflare, reCAPTCHA v3)
+// flag applications that fill instantly, never move the mouse, paste full values
+// into inputs, and submit in a few hundred milliseconds. These helpers add the
+// jitter, mouse travel, keystroke cadence, and idle scrolling a real applicant
+// produces so a genuine application is not silently scored as spam/bot traffic.
+
+/** Inclusive random integer in [min, max]. */
+function rand(min: number, max: number): number {
+  return Math.floor(min + Math.random() * (max - min + 1));
+}
+
+/** Sleep a randomised amount — never the same fixed delay twice. */
+async function humanPause(page: BrowserPage, min: number, max: number): Promise<void> {
+  await page.waitForTimeout(rand(min, max)).catch(() => undefined);
+}
+
+/** Glide the cursor to a point inside the element (not always dead-centre) with
+ *  multi-step movement, the way a real pointer travels — never a teleport. */
+async function moveMouseToLocator(page: BrowserPage, locator: BrowserLocator): Promise<void> {
+  const box = await locator.boundingBox().catch(() => null);
+  if (!box) return;
+  const x = box.x + box.width * (0.25 + Math.random() * 0.5);
+  const y = box.y + box.height * (0.25 + Math.random() * 0.5);
+  await page.mouse.move(x, y, { steps: rand(8, 22) }).catch(() => undefined);
+  await humanPause(page, 40, 160);
+}
+
+/** A few short scroll bursts (occasionally upward) to mimic a person reading the
+ *  form between fields, rather than the page staying perfectly still. */
+async function humanScroll(page: BrowserPage): Promise<void> {
+  const bursts = rand(1, 3);
+  for (let i = 0; i < bursts; i++) {
+    const up = Math.random() < 0.15;
+    await page.mouse.wheel(0, (up ? -1 : 1) * rand(120, 460)).catch(() => undefined);
+    await humanPause(page, 150, 520);
+  }
+}
+
+/** Type one character at a time with per-keystroke jitter and the occasional
+ *  longer "thinking" pause. Assumes the target element is already focused. */
+async function typeWithJitter(page: BrowserPage, text: string): Promise<void> {
+  for (const ch of text) {
+    await page.keyboard.type(ch).catch(() => undefined);
+    await humanPause(page, 45, 140);
+    if (Math.random() < 0.07) await humanPause(page, 180, 460);
+  }
+}
+
+/** Fill a text input the way a person would: move the cursor over, click to
+ *  focus, clear any prefill, then type with jitter. Falls back to a plain fill
+ *  if keystroke typing left the field empty (e.g. masked/controlled inputs). */
+async function humanType(page: BrowserPage, locator: BrowserLocator, value: string): Promise<void> {
+  await moveMouseToLocator(page, locator);
+  await locator.click({ timeout: 5000 }).catch(() => locator.focus().catch(() => undefined));
+  await humanPause(page, 60, 200);
+  await locator.fill("").catch(async () => {
+    await locator.press("ControlOrMeta+a").catch(() => undefined);
+    await locator.press("Delete").catch(() => undefined);
+  });
+  await typeWithJitter(page, value);
+
+  const current = (await locator.inputValue().catch(() => "")) || "";
+  if (value.trim() && current.trim() === "") {
+    await locator.fill(value).catch(() => undefined);
+  }
+}
+
 async function scrollPageToLoad(page: BrowserPage): Promise<void> {
   await page
     .evaluate(`(async () => {
@@ -762,16 +830,20 @@ async function fillCombobox(page: BrowserPage, locator: BrowserLocator, instr: F
   const want = instr.value.replace(/\s+/g, " ").trim().toLowerCase();
 
   const openAndType = async (text: string): Promise<void> => {
+    await moveMouseToLocator(page, locator);
     await locator.click().catch(() => undefined);
     // Clear any existing text, then type so the option list filters down.
     await locator.fill("").catch(async () => {
       await locator.press("ControlOrMeta+a").catch(() => undefined);
       await locator.press("Delete").catch(() => undefined);
     });
-    await locator.type(text, { delay: 20 }).catch(async () => {
+    // Type with human jitter so the typeahead filters as a person would trigger
+    // it; fall back to an instant fill if keystrokes did not register.
+    await typeWithJitter(page, text);
+    if (((await locator.inputValue().catch(() => "")) || "").trim() === "" && text.trim()) {
       await locator.fill(text).catch(() => undefined);
-    });
-    await page.waitForTimeout(650);
+    }
+    await page.waitForTimeout(rand(550, 850));
   };
 
   // Click the option that best matches the wanted value (exact text first, then a
@@ -903,7 +975,7 @@ async function fillOneField(page: BrowserPage, instr: FillInstruction): Promise<
         await fillCombobox(page, locator!, instr);
         return;
       }
-      await locator!.fill(instr.value);
+      await humanType(page, locator!, instr.value);
   }
 
   if (locator && !(await verifyFilled(locator, instr))) {
@@ -920,11 +992,16 @@ async function clickSubmit(page: BrowserPage): Promise<boolean> {
     /complete application/i,
   ];
 
+  // A short hesitation before committing, then a real cursor move to the button —
+  // a person does not submit a multi-field form in the same instant they finish typing.
+  await humanPause(page, 500, 1200);
+
   for (const ctx of allContexts(page)) {
     for (const selector of ['button[type="submit"]', 'input[type="submit"]']) {
       const locator = ctx.locator(selector).first();
       if (await locatorUsable(locator)) {
         await locator.scrollIntoViewIfNeeded().catch(() => undefined);
+        await moveMouseToLocator(page, locator);
         await locator.click();
         return true;
       }
@@ -937,6 +1014,7 @@ async function clickSubmit(page: BrowserPage): Promise<boolean> {
       ]) {
         if (await locatorUsable(locator)) {
           await locator.scrollIntoViewIfNeeded().catch(() => undefined);
+          await moveMouseToLocator(page, locator);
           await locator.click();
           return true;
         }
@@ -966,10 +1044,26 @@ async function newBrowserPage(applyLink: string): Promise<{ browser: import("pla
     );
   }
 
-  const browser = await playwright.chromium.launch({ headless: false });
+  const browser = await playwright.chromium.launch({
+    headless: false,
+    // Strip the headless/automation banner and the navigator.webdriver flag that
+    // fraud scoring keys on. --disable-blink-features=AutomationControlled is the
+    // single most effective tell to suppress.
+    args: [
+      "--disable-blink-features=AutomationControlled",
+      "--no-default-browser-check",
+    ],
+  });
   const ctx = await browser.newContext({
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    viewport: { width: 1366, height: 768 },
+    locale: "en-US",
+  });
+  // Belt-and-suspenders: blank out navigator.webdriver before any page script runs,
+  // in case the launch flag is not honoured by the installed Chromium build.
+  await ctx.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
   });
   const startPage = await ctx.newPage();
   const opened = await openApplicationForm(startPage, applyLink);
@@ -1155,7 +1249,10 @@ export async function fillAndSubmit(
       try {
         await fillOneField(page, instr);
         filledCount += 1;
-        await page.waitForTimeout(150);
+        // Pause a varying beat between fields, and occasionally scroll as if
+        // reading ahead — steady 150ms ticks are a classic bot signature.
+        await humanPause(page, 200, 700);
+        if (Math.random() < 0.3) await humanScroll(page);
       } catch (err) {
         failedFields.push({
           selector: instr.selector,

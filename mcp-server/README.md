@@ -206,6 +206,41 @@ jobsync-mcp status                  Show config path + existence
 
 ---
 
+## Remote / cloud deployment
+
+The package also builds a Streamable HTTP transport for remote MCP hosting:
+
+```bash
+pnpm --filter jobsync-mcp build
+cd mcp-server
+PORT=3000 node dist/http.js
+```
+
+Remote endpoint:
+
+```text
+https://YOUR_DOMAIN/mcp
+```
+
+Health check:
+
+```text
+https://YOUR_DOMAIN/healthz
+```
+
+For cloud deploys, configure with environment variables instead of `~/.jobsync/config.json`:
+
+```bash
+AIRTABLE_API_KEY=pat...
+AIRTABLE_BASE_ID=app...
+AIRTABLE_TABLE_NAME=Jobs
+JOBSYNC_SINK=airtable
+```
+
+Set `JOBSYNC_REMOTE_BEARER_TOKEN` for private bearer-token protection. For Claude.ai custom connectors with user sign-in, use OAuth; see `docs/production-mcp.md`.
+
+---
+
 ## Running as a cron job
 
 The server is just a stdio MCP peer — scheduling is the client's job. With Claude Code, drop this in your crontab / Task Scheduler:

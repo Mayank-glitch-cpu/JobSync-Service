@@ -82,9 +82,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.4
         version: 1.29.0(zod@3.25.76)
-      airtable:
-        specifier: ^0.12.2
-        version: 0.12.2
       cheerio:
         specifier: ^1.0.0
         version: 1.2.0

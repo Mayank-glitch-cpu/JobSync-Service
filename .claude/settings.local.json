@@ -76,7 +76,11 @@
       "Bash(git -C \"C:/Users/vyasm/OneDrive/Desktop/JobsList\" log --oneline -1)",
       "Bash(grep -rn \"saveApplyDraft\\\\|loadFormState\\\\|saveFormState\\\\|^name$\\\\|Location\\\\|Full Name\\\\|combineName\\\\|single\" src/lib/ai-fill.test.ts src/lib/browser-apply.test.ts)",
       "Bash(node *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(gh repo *)",
+      "PowerShell(gh issue *)",
+      "PowerShell($out = gh issue list --limit 5 2>&1 | Out-String; Write-Output \"RESULT:`n$out\")",
+      "Bash(echo \"EXIT:$?\")"
     ]
   },
   "enableAllProjectMcpServers": true,
