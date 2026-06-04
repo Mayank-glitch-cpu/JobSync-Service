@@ -2,6 +2,9 @@
   "name": "jobslist",
   "version": "2.0.0",
   "private": true,
+  "onlyBuiltDependencies": [
+    "esbuild"
+  ],
   "description": "Job tracking pipeline with developer dashboard",
   "scripts": {
     "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
