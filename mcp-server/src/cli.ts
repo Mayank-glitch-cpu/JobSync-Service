@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline/promises";
-import { CONFIG_PATH, configExists, loadConfig, saveConfig, type JobSink, type JobSyncConfig } from "./config.js";
+import { CONFIG_PATH, DEFAULT_APPLY_HUMANIZE, configExists, loadConfig, saveConfig, type JobSink, type JobSyncConfig } from "./config.js";
 import { createJobSyncBase, listBases } from "./lib/airtable-meta.js";
 import { parseResume } from "./lib/resume-parser.js";
 import { ensureProfileDir, rawResumePath, writeRawResume } from "./lib/profile.js";
@@ -105,6 +105,7 @@ async function runInit() {
     enableFastPath,
     profileDir: existing.profileDir ?? `${process.env.HOME ?? process.env.USERPROFILE}/.jobsync/profile`,
     brandedOutput,
+    applyHumanize: existing.applyHumanize ?? DEFAULT_APPLY_HUMANIZE,
   };
   saveConfig(cfg);
   console.log(`\nSaved ${CONFIG_PATH}`);

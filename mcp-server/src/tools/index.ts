@@ -80,6 +80,7 @@ import {
   pipelineUpsertJobsTool,
 } from "./pipeline-tools.js";
 import {
+  applyFillFieldsTool,
   applyInspectFormTool,
   applyLoadStateTool,
   applySaveDraftTool,
@@ -240,7 +241,11 @@ export function registerTools(): ToolDefinition[] {
     applyLoadStateTool,
     applySaveDraftTool,
     applySubmitFormTool,
+<<<<<<< HEAD
     scrapeJobDetailsTool,
+=======
+    applyFillFieldsTool,
+>>>>>>> dadc797143e0c3522514385e3fcf2f22b4e1c361
   ].map(withTokenMeta);
 }
 

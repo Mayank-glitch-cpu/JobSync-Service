@@ -1,22 +1,22 @@
 services:
   - type: web
-    name: jobslist
+    name: jobsync-mcp
     runtime: node
-    plan: free
-    buildCommand: npm install -g pnpm && pnpm install && cd frontend && pnpm build && cd ../backend && pnpm build
-    startCommand: cd backend && node dist/index.js
+    plan: starter
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter jobsync-mcp build
+    startCommand: cd mcp-server && node dist/http.js
     envVars:
       - key: NODE_VERSION
-        value: 20.11.0
+        value: 22.11.0
       - key: PORT
-        value: 3001
-      - key: ANTHROPIC_API_KEY
+        value: 3000
+      - key: JOBSYNC_REMOTE_BEARER_TOKEN
         sync: false
+      - key: JOBSYNC_SINK
+        value: airtable
       - key: AIRTABLE_API_KEY
         sync: false
       - key: AIRTABLE_BASE_ID
         sync: false
       - key: AIRTABLE_TABLE_NAME
         value: Jobs
-      - key: RAPIDAPI_KEY
-        sync: false

@@ -2,7 +2,6 @@
 // the MCP tool layer handles the actual Airtable SDK calls.
 // Keep in sync with legacy until retired.
 
-import Airtable from "airtable";
 import type { ProcessedJob, SyncedJob } from "./types.js";
 
 export const INVALID_VALUES = [
@@ -64,9 +63,85 @@ export interface AirtableCredentials {
   tableName: string;
 }
 
-export function getAirtableTable(creds: AirtableCredentials) {
-  const base = new Airtable({ apiKey: creds.pat }).base(creds.baseId);
-  return base(creds.tableName);
+export interface AirtableRecord {
+  id: string;
+  fields: Record<string, unknown>;
+}
+
+function tableUrl(creds: AirtableCredentials): string {
+  return `https://api.airtable.com/v0/${creds.baseId}/${encodeURIComponent(creds.tableName)}`;
+}
+
+async function airtableDataFetch<T>(
+  creds: AirtableCredentials,
+  url: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${creds.pat}`,
+      "content-type": "application/json",
+      ...(init.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Airtable data API ${res.status}: ${body}`);
+  }
+  return (await res.json()) as T;
+}
+
+export async function createAirtableRecords(
+  creds: AirtableCredentials,
+  records: Array<{ fields: Record<string, unknown> }>,
+): Promise<AirtableRecord[]> {
+  const data = await airtableDataFetch<{ records: AirtableRecord[] }>(
+    creds,
+    tableUrl(creds),
+    {
+      method: "POST",
+      body: JSON.stringify({ records, typecast: true }),
+    },
+  );
+  return data.records;
+}
+
+export async function listRecentAirtableJobs(
+  creds: AirtableCredentials,
+  opts: { cutoffDate: string; maxRecords: number },
+): Promise<Array<{ id: string; applyLink: string; company: string; title: string; date: string | null }>> {
+  const rows: Array<{ id: string; applyLink: string; company: string; title: string; date: string | null }> = [];
+  let offset: string | undefined;
+
+  do {
+    const url = new URL(tableUrl(creds));
+    url.searchParams.set("maxRecords", String(opts.maxRecords));
+    url.searchParams.set("filterByFormula", `IS_AFTER({Date}, '${opts.cutoffDate}')`);
+    for (const field of ["Apply Link", "Company", "Position Title", "Date"]) {
+      url.searchParams.append("fields[]", field);
+    }
+    if (offset) url.searchParams.set("offset", offset);
+
+    const data = await airtableDataFetch<{
+      records: AirtableRecord[];
+      offset?: string;
+    }>(creds, url.toString());
+
+    for (const rec of data.records) {
+      rows.push({
+        id: rec.id,
+        applyLink: String(rec.fields["Apply Link"] ?? ""),
+        company: String(rec.fields.Company ?? ""),
+        title: String(rec.fields["Position Title"] ?? ""),
+        date: (rec.fields.Date as string | null | undefined) ?? null,
+      });
+      if (rows.length >= opts.maxRecords) return rows;
+    }
+    offset = data.offset;
+  } while (offset);
+
+  return rows;
 }
 
 export interface UpsertResult {
@@ -81,7 +156,6 @@ export async function upsertJobs(
   creds: AirtableCredentials,
   opts: { batchDelayMs?: number } = {},
 ): Promise<UpsertResult> {
-  const table = getAirtableTable(creds);
   const created: SyncedJob[] = [];
   const failed: UpsertResult["failed"] = [];
   const delay = opts.batchDelayMs ?? 250;
@@ -91,12 +165,7 @@ export async function upsertJobs(
     const records = batch.map((job) => ({ fields: mapToAirtableRecord(job) }));
 
     try {
-      const res = await (table as unknown as {
-        create: (
-          r: typeof records,
-          o: { typecast: boolean },
-        ) => Promise<Array<{ id: string }>>;
-      }).create(records, { typecast: true });
+      const res = await createAirtableRecords(creds, records);
 
       res.forEach((rec, j) => {
         const batchJob = batch[j];

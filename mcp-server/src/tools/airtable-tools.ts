@@ -1,7 +1,6 @@
-import Airtable from "airtable";
 import { loadConfig, saveConfig } from "../config.js";
 import {
-  getAirtableTable,
+  listRecentAirtableJobs,
   mapToAirtableRecord,
   upsertJobs,
   validateJobForSync,
@@ -146,40 +145,9 @@ export const airtableListRecentJobsTool: ToolDefinition = {
         .toISOString()
         .split("T")[0];
 
-      const table = getAirtableTable(credsFromConfig());
-      const rows: Array<{ id: string; applyLink: string; company: string; title: string; date: string | null }> = [];
-
-      const query = (
-        table as unknown as {
-          select: (opts: { maxRecords: number; filterByFormula: string; fields: string[] }) => {
-            eachPage: (
-              cb: (records: Array<{ id: string; get: (f: string) => unknown }>, next: () => void) => void,
-              done: (err?: Error) => void,
-            ) => void;
-          };
-        }
-      ).select({
+      const rows = await listRecentAirtableJobs(credsFromConfig(), {
+        cutoffDate: cutoff ?? new Date().toISOString().split("T")[0]!,
         maxRecords,
-        filterByFormula: `IS_AFTER({Date}, '${cutoff}')`,
-        fields: ["Apply Link", "Company", "Position Title", "Date"],
-      });
-
-      await new Promise<void>((resolve, reject) => {
-        query.eachPage(
-          (records, fetchNext) => {
-            for (const rec of records) {
-              rows.push({
-                id: rec.id,
-                applyLink: String(rec.get("Apply Link") ?? ""),
-                company: String(rec.get("Company") ?? ""),
-                title: String(rec.get("Position Title") ?? ""),
-                date: (rec.get("Date") as string | null) ?? null,
-              });
-            }
-            fetchNext();
-          },
-          (err) => (err ? reject(err) : resolve()),
-        );
       });
 
       return textResult({ count: rows.length, jobs: rows });
@@ -293,6 +261,3 @@ export const airtableCreateBaseTool: ToolDefinition = {
     }
   },
 };
-
-// Suppress unused import warning — Airtable import is needed for side-effect typing
-void Airtable;
