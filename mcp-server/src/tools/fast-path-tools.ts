@@ -48,7 +48,8 @@ const slugsSchema = {
 export const fetchGreenhouseTool: ToolDefinition = {
   name: "fetch_greenhouse_jobs",
   description:
-    "Fast-path: pull all current postings from Greenhouse boards via the public JSON API (boards-api.greenhouse.io). Slug is the company's board identifier, e.g. 'stripe' for boards.greenhouse.io/stripe. Disabled by default — set config.enableFastPath. ⚡ [Model hint: haiku]",
+    "Fast-path: pull all current postings from Greenhouse boards via the public JSON API (boards-api.greenhouse.io). Slug is the company's board identifier, e.g. 'stripe' for boards.greenhouse.io/stripe. Disabled by default — set config.enableFastPath. " +
+    "WORKFLOW: after this call, ALWAYS run scrape_job_details on the returned jobs to fetch jobDescription, salary, and datePosted from each individual job page, then call airtable_upsert_job with the enriched array. ⚡ [Model hint: haiku]",
   recommendedModel: "haiku",
   inputSchema: slugsSchema,
   handler: async (args) => {
@@ -67,7 +68,8 @@ export const fetchGreenhouseTool: ToolDefinition = {
 export const fetchLeverTool: ToolDefinition = {
   name: "fetch_lever_jobs",
   description:
-    "Fast-path: pull all current postings from Lever boards via api.lever.co/v0/postings. Slug is the company's Lever identifier, e.g. 'netflix' for jobs.lever.co/netflix. Disabled by default — set config.enableFastPath. ⚡ [Model hint: haiku]",
+    "Fast-path: pull all current postings from Lever boards via api.lever.co/v0/postings. Slug is the company's Lever identifier, e.g. 'netflix' for jobs.lever.co/netflix. Disabled by default — set config.enableFastPath. " +
+    "WORKFLOW: after this call, ALWAYS run scrape_job_details on the returned jobs to fetch jobDescription, salary, and datePosted from each individual posting, then call airtable_upsert_job with the enriched array. ⚡ [Model hint: haiku]",
   recommendedModel: "haiku",
   inputSchema: slugsSchema,
   handler: async (args) => {
@@ -90,7 +92,8 @@ export const fetchWorkdayTool: ToolDefinition = {
     "Pass the full board URL, e.g. `https://microsoft.wd1.myworkdayjobs.com/en-US/External` " +
     "or `https://meta.wd5.myworkdayjobs.com/en-US/careers`. " +
     "Workday does not expose exact `datePosted` via this API — dates will be null; use `postedOn` (e.g. 'Posted 3 days ago') from rawFields to gauge recency. " +
-    "Disabled by default — set config.enableFastPath. ⚡ [Model hint: haiku]",
+    "Disabled by default — set config.enableFastPath. " +
+    "WORKFLOW: after this call, ALWAYS run scrape_job_details (it will resolve postedOn → YYYY-MM-DD and extract jobDescription/salary from each job page), then call airtable_upsert_job with the enriched array. ⚡ [Model hint: haiku]",
   recommendedModel: "haiku",
   inputSchema: {
     type: "object",
@@ -141,7 +144,9 @@ export const fetchWorkdayTool: ToolDefinition = {
 export const fetchAshbyTool: ToolDefinition = {
   name: "fetch_ashby_jobs",
   description:
-    "Fast-path: pull all current postings from Ashby boards via api.ashbyhq.com/posting-api/job-board. Slug is the company's Ashby identifier, e.g. 'anthropic' for jobs.ashbyhq.com/anthropic. Disabled by default — set config.enableFastPath. ⚡ [Model hint: haiku]",
+    "Fast-path: pull all current postings from Ashby boards via api.ashbyhq.com/posting-api/job-board. Slug is the company's Ashby identifier, e.g. 'anthropic' for jobs.ashbyhq.com/anthropic. Disabled by default — set config.enableFastPath. " +
+    "NOTE: Ashby's list API always returns datePosted=null. " +
+    "WORKFLOW: after this call, ALWAYS run scrape_job_details on the returned jobs — it fetches each job page HTML, extracts the JSON-LD datePosted/baseSalary/description, and falls back to today's date so validation passes — then call airtable_upsert_job with the enriched array. ⚡ [Model hint: haiku]",
   recommendedModel: "haiku",
   inputSchema: slugsSchema,
   handler: async (args) => {

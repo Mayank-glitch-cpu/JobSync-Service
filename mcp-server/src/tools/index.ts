@@ -87,6 +87,7 @@ import {
   profileReadPersonalTool,
   profileWritePersonalTool,
 } from "./apply-tools.js";
+import { scrapeJobDetailsTool } from "./job-detail-tools.js";
 
 function isNewer(latest: string, current: string): boolean {
   const parse = (v: string) => v.split(".").map(Number);
@@ -239,6 +240,7 @@ export function registerTools(): ToolDefinition[] {
     applyLoadStateTool,
     applySaveDraftTool,
     applySubmitFormTool,
+    scrapeJobDetailsTool,
   ].map(withTokenMeta);
 }
 
