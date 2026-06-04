@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN corepack enable
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY mcp-server/package.json ./mcp-server/package.json
 COPY legacy/backend/package.json ./legacy/backend/package.json
 COPY legacy/frontend/package.json ./legacy/frontend/package.json
@@ -31,7 +31,7 @@ RUN apt-get update && \
     chmod -R 755 /ms-playwright && \
     rm -rf /var/lib/apt/lists/*
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY mcp-server/package.json ./mcp-server/package.json
 COPY legacy/backend/package.json ./legacy/backend/package.json
 COPY legacy/frontend/package.json ./legacy/frontend/package.json
