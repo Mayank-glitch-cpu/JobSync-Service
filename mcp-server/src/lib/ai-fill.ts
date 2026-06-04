@@ -45,6 +45,13 @@ const SPONSORSHIP_PATTERNS = [
   /need.*sponsor/i,
 ];
 
+// Voluntary EEO self-identification questions. These show up as selects/radios on
+// most US applications; map them from the profile so the agent does not have to
+// compose an answer (and never guesses a protected characteristic).
+const ETHNICITY_PATTERNS = [/race/i, /ethnicity/i, /ethnic\s+group/i, /hispanic\s+or\s+latino/i];
+const VETERAN_PATTERNS = [/veteran/i, /protected\s+veteran/i, /military\s+service/i];
+const DISABILITY_PATTERNS = [/disabilit/i, /disabled/i];
+
 export const ESSAY_PATTERNS = [
   /cover letter/i,
   /why.*(?:company|us|this|role|position)/i,
@@ -92,10 +99,29 @@ function isYesNoOptions(options: string[]): boolean {
   return options.every((o) => /^(yes|no)$/i.test(o.trim()));
 }
 
+/** Split a string into lowercase alphanumeric tokens for fuzzy comparison. */
+function tokenize(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
 /**
- * When a standard field is a dropdown/select, the raw profile value may not match
- * an option verbatim (e.g. country "USA" vs option "United States +1"). Pick the
- * best matching option so the value can actually be selected; fall back to raw.
+ * When a standard field is a dropdown/select, the raw profile value rarely matches
+ * an option verbatim. The dropdown may abbreviate ("California" → "CA"), append a
+ * dial code ("United States +1"), reorder parts, or list only the city ("San
+ * Francisco" when the profile says "San Francisco, California, United States").
+ *
+ * Resolve the value to the best offered option by reasoning over the choices in
+ * stages rather than insisting on a full-string match:
+ *   1. exact match
+ *   2. US aliases → "United States" option
+ *   3. substring either direction (whole value inside an option, or vice-versa)
+ *   4. token overlap — pick the option that shares the most words with the value
+ *      (handles "San Francisco, California, US" ↔ option "San Francisco, CA")
+ * Falls back to the raw value (typed as free text) only when nothing overlaps.
  */
 function bestOptionMatch(value: string, options: string[]): string {
   if (!options.length) return value;
@@ -107,10 +133,50 @@ function bestOptionMatch(value: string, options: string[]): string {
     if (us) return us;
   }
   const sub = options.find((o) => {
-    const ol = o.toLowerCase();
+    const ol = o.toLowerCase().trim();
     return ol.includes(v) || v.includes(ol);
   });
-  return sub ?? value;
+  if (sub) return sub;
+
+  // Token-overlap scoring: the option that shares the most words with the value
+  // wins (e.g. profile "San Francisco, California, United States" → option "San
+  // Francisco, CA, USA" share "san"+"francisco"). Tie-break toward the option
+  // whose words are most fully covered by the value, so a tight "San Francisco"
+  // beats a broad "San Francisco Bay Area, Greater Region".
+  const valueTokens = new Set(tokenize(value));
+  if (valueTokens.size === 0) return value;
+  let best: { option: string; shared: number; coverage: number } | null = null;
+  for (const o of options) {
+    const optTokens = tokenize(o);
+    if (!optTokens.length) continue;
+    const shared = optTokens.filter((t) => valueTokens.has(t)).length;
+    if (shared === 0) continue;
+    const coverage = shared / optTokens.length;
+    if (
+      !best ||
+      shared > best.shared ||
+      (shared === best.shared && coverage > best.coverage)
+    ) {
+      best = { option: o, shared, coverage };
+    }
+  }
+  return best ? best.option : value;
+}
+
+/**
+ * Fallback contact-field resolver for labels that don't match a STANDARD_MAP key
+ * verbatim (e.g. "Mobile phone number", "Your e-mail", "LinkedIn profile link").
+ * Kept conservative — only fires on an unambiguous contact keyword so it never
+ * hijacks an essay or custom question. This is why phone fields with verbose
+ * labels were previously skipped and left blank.
+ */
+function fuzzyStandardKey(label: string): keyof PersonalProfile | undefined {
+  if (/\b(phone|mobile|telephone|cell)\b/.test(label)) return "phone";
+  if (/\be-?mail\b/.test(label)) return "email";
+  if (/linkedin/.test(label)) return "linkedinUrl";
+  if (/github/.test(label)) return "githubUrl";
+  if (/\bportfolio\b|personal\s+website|^website$/.test(label)) return "portfolioUrl";
+  return undefined;
 }
 
 export function mapStandardFields(
@@ -161,6 +227,27 @@ export function mapStandardFields(
       }
       continue;
     }
+    // Voluntary EEO self-identification — fill from the profile when provided.
+    // pushInstr resolves the stored value to the closest offered option (e.g.
+    // "Asian" → "Asian (Not Hispanic or Latino)"), so verbose EEO labels still match.
+    if (ETHNICITY_PATTERNS.some((p) => p.test(labelLower))) {
+      if (profile.ethnicity && String(profile.ethnicity).trim()) {
+        pushInstr(field, String(profile.ethnicity));
+      }
+      continue;
+    }
+    if (VETERAN_PATTERNS.some((p) => p.test(labelLower))) {
+      if (profile.veteranStatus && String(profile.veteranStatus).trim()) {
+        pushInstr(field, String(profile.veteranStatus));
+      }
+      continue;
+    }
+    if (DISABILITY_PATTERNS.some((p) => p.test(labelLower))) {
+      if (profile.disabilityStatus && String(profile.disabilityStatus).trim()) {
+        pushInstr(field, String(profile.disabilityStatus));
+      }
+      continue;
+    }
     // Single full-name field (common on Ashby): combine first + last.
     if (/^(full |legal |your )?name$/.test(labelLower)) {
       const full = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
@@ -168,14 +255,21 @@ export function mapStandardFields(
       continue;
     }
 
-    // Single "Location" field: combine city/state/country.
-    if (/^(current )?location$/.test(labelLower)) {
+    // Single "Location" field (incl. "Current/Primary location", "Location (City)",
+    // "Where are you based/located"): combine city/state/country. When the field is
+    // a dropdown/combobox, pushInstr resolves the combined value (or its city head)
+    // to the closest offered option via bestOptionMatch — so "San Francisco, CA, US"
+    // selects the "San Francisco" choice instead of being left blank.
+    if (
+      /^(current\s+|primary\s+|your\s+)?location\b/.test(labelLower) ||
+      /where.*(?:are you\s+)?(?:located|based)/.test(labelLower)
+    ) {
       const loc = [profile.city, profile.state, profile.country].filter(Boolean).join(", ").trim();
       if (loc) pushInstr(field, loc);
       continue;
     }
 
-    const profileKey = STANDARD_MAP[labelLower];
+    const profileKey = STANDARD_MAP[labelLower] ?? fuzzyStandardKey(labelLower);
     if (profileKey) {
       const value = profile[profileKey];
       if (value !== undefined && value !== null && String(value).trim() !== "") {

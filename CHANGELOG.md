@@ -6,6 +6,35 @@ Format: [Semantic Versioning](https://semver.org). Each release is tagged `v{ver
 
 ---
 
+## [0.8.21] — 2026-06-01
+
+### Changed
+- **Persistent apply browser session** — `apply_inspect_form` and `apply_submit_form` now share ONE live Chromium session (held in `browser-apply.ts`) instead of each call launching and closing its own browser. The page opened by inspect is the page filled by submit; on a validation-error retry the browser stays open (`sessionOpen: true`), the form is corrected in place, and only the changed fields are re-entered — no relaunch, no re-navigation, no re-typing the whole form. The session closes automatically on a confirmed submit (or via the new `apply_close_session` tool). This removes the close/reopen/refill-everything cycle that burned tokens on every retry.
+  - `fillAndSubmit` tracks `filledKeys` per session and skips any field that still holds its value, so retries touch only the corrected fields.
+
+### Added
+- **`apply_submit_code` tool** — when a form is gated behind a verification code emailed/texted to the applicant, `apply_submit_form` now returns `needsEmailCode: true` (and keeps the session open). The agent asks the user for the code and calls `apply_submit_code`, which types it into the same live page and clicks verify/continue — no relaunch.
+- **`apply_close_session` tool** — tears down an abandoned live apply session on demand.
+- **Voluntary EEO self-identification fields** — the personal profile gained `ethnicity`, `veteranStatus`, `disabilityStatus`, and `disabilityDetails`. Onboarding (`onboard_profile`) now asks for them as an explicitly-optional block (with "Decline to self-identify" presented as a valid answer), `profile_write_personal` accepts them, and `mapStandardFields` fills race/ethnicity, protected-veteran, and disability questions on application forms from the profile — resolving the stored value to the closest offered option so verbose EEO labels still match.
+
+### Fixed
+- **Single-option dropdowns select directly** — both native `<select>` (`selectBestOption`) and react-select/ARIA comboboxes (`fillCombobox`) now detect when only one real choice is offered and select it outright instead of typing the value out and reasoning over a list of one.
+
+---
+
+## [0.8.19] — 2026-05-31
+
+### Fixed
+- **Dropdowns/location filled by reasoning, not verbatim match** — `bestOptionMatch` now resolves a value to the closest offered option in stages (exact → US alias → substring → token-overlap scoring). A profile location like `"San Francisco, California, United States"` now selects the option `"San Francisco, CA, USA"` instead of being left blank. The react-select/combobox option picker (`fillCombobox`) gained the same token-overlap fallback so location typeaheads commit the right suggestion.
+- **Phone & other contact fields with verbose labels** — new `fuzzyStandardKey` fallback maps labels that don't match a standard key verbatim (e.g. `"Mobile phone number"`, `"Your e-mail"`, `"LinkedIn profile link"`). Previously these were skipped and left empty.
+- **Broader location detection** — the single-location mapper now also matches `"Current/Primary location"`, `"Location (City)"`, and `"Where are you located/based?"`.
+
+### Added
+- **Post-submit validation detection** — after a submit click that does not confirm, `fillAndSubmit` scrapes inline error/alert messages plus every required field still empty or flagged `aria-invalid`, returning them as `validationErrors` (`label`, `selector`, `message`) on the result. This lets the agent reason about exactly which field the form rejected (usually phone or an uncommitted dropdown), recompose only those values, and call `apply_submit_form` again — which closes the Playwright browser and reopens a fresh session for the retry.
+- **Self-correcting submit loop** in the `auto_apply_workflow` and `pipeline_dashboard` prompts and the `apply_submit_form` tool description — treat a submit click as unverified, fix the offending field from `validationErrors` + screenshot, and retry up to 2× before handing back.
+
+---
+
 ## [0.8.16] — 2026-05-30
 
 ### Added

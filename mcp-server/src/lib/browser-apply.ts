@@ -5,6 +5,7 @@ import { homedir, tmpdir } from "node:os";
 type BrowserPage = import("playwright").Page;
 type BrowserFrame = import("playwright").Frame;
 type BrowserLocator = import("playwright").Locator;
+type Browser = import("playwright").Browser;
 type FormContext = BrowserPage | BrowserFrame;
 
 export interface DetectedField {
@@ -50,6 +51,18 @@ export interface SubmitResult {
   filledCount?: number;
   failedFields?: Array<{ selector: string; label?: string; error: string }>;
   submitted?: boolean;
+  /** Fields the page rejected after a submit attempt — inline validation errors or
+   *  required fields left empty/flagged. The agent reads these to know which fields
+   *  to fix before reopening the form and submitting again. */
+  validationErrors?: Array<{ label: string; selector: string; message: string }>;
+  /** The browser session is still open and waiting (e.g. after a recoverable
+   *  validation error). The agent can call apply_submit_form again with only the
+   *  corrected fields — they fill into the SAME live page, not a fresh reload. */
+  sessionOpen?: boolean;
+  /** The form is gated behind a verification code emailed to the applicant. The
+   *  agent must ask the user for that code and call apply_submit_code with it —
+   *  the code is entered in the same live browser session. */
+  needsEmailCode?: boolean;
 }
 
 export interface FormState {
@@ -780,6 +793,21 @@ async function clickChoice(page: BrowserPage, instr: FillInstruction, choiceType
 }
 
 async function selectBestOption(locator: BrowserLocator, value: string): Promise<void> {
+  // If the dropdown offers exactly one real choice, select it outright — don't try
+  // to reason a value against a single option.
+  const lone = await locator
+    .evaluate((el: any) => {
+      const opts = Array.from(el.options || []).filter(
+        (o: any) => o.value !== "" && !o.disabled && !/select|choose|^\s*$/i.test(o.text || ""),
+      ) as Array<{ value: string }>;
+      return opts.length === 1 ? opts[0]!.value : null;
+    })
+    .catch(() => null);
+  if (lone !== null) {
+    await locator.selectOption({ value: lone }).catch(() => undefined);
+    return;
+  }
+
   await locator.selectOption({ label: value }).catch(async () => {
     await locator.selectOption({ value }).catch(async () => {
       const match = await locator.evaluate((el: any, wanted) => {
@@ -829,6 +857,39 @@ async function fillCombobox(page: BrowserPage, locator: BrowserLocator, instr: F
   const contexts = orderedContexts(page, instr.frameUrl);
   const want = instr.value.replace(/\s+/g, " ").trim().toLowerCase();
 
+  // Resolve the option list THIS combobox controls (via aria-controls/aria-owns),
+  // falling back to the single open listbox so we never grab an unrelated popup.
+  const optionsLocator = async (ctx: FormContext): Promise<BrowserLocator | null> => {
+    const listboxId =
+      (await locator.getAttribute("aria-controls").catch(() => null)) ||
+      (await locator.getAttribute("aria-owns").catch(() => null));
+    if (listboxId) return ctx.locator(`[id="${listboxId}"] [role="option"]`);
+    const listboxes = ctx.locator('[role="listbox"]');
+    return (await listboxes.count().catch(() => 0)) === 1
+      ? listboxes.first().locator('[role="option"]')
+      : null;
+  };
+
+  // Single-option shortcut: open the dropdown and, if it offers exactly one choice,
+  // click it directly instead of typing the whole value out.
+  await moveMouseToLocator(page, locator);
+  await locator.click().catch(() => undefined);
+  await page.waitForTimeout(rand(300, 550));
+  for (const ctx of contexts) {
+    const opts = await optionsLocator(ctx);
+    if (!opts) continue;
+    const n = await opts.count().catch(() => 0);
+    if (n === 1) {
+      await opts.first().click().catch(() => undefined);
+      return;
+    }
+    if (n > 0) {
+      // Several options — close the probe menu so the typing path starts clean.
+      await locator.press("Escape").catch(() => undefined);
+      break;
+    }
+  }
+
   const openAndType = async (text: string): Promise<void> => {
     await moveMouseToLocator(page, locator);
     await locator.click().catch(() => undefined);
@@ -846,9 +907,11 @@ async function fillCombobox(page: BrowserPage, locator: BrowserLocator, instr: F
     await page.waitForTimeout(rand(550, 850));
   };
 
-  // Click the option that best matches the wanted value (exact text first, then a
-  // containment match). Selecting the option is what commits a react-select value;
-  // typing alone leaves it unselected.
+  // Click the option that best matches the wanted value. Reason over the rendered
+  // suggestions in stages instead of demanding a full-string match: exact text →
+  // substring either direction → highest token overlap (so typing "San Francisco,
+  // California, United States" still picks the "San Francisco, CA" suggestion).
+  const wantTokens = new Set(want.replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean));
   const clickBestOption = async (): Promise<boolean> => {
     for (const ctx of contexts) {
       const options = ctx.locator('[role="option"]');
@@ -860,6 +923,22 @@ async function fillCombobox(page: BrowserPage, locator: BrowserLocator, instr: F
       }
       let idx = texts.findIndex((t) => t === want);
       if (idx < 0) idx = texts.findIndex((t) => t && (t.includes(want) || want.includes(t)));
+      if (idx < 0 && wantTokens.size) {
+        // Token-overlap fallback: score each option by how many words it shares
+        // with the wanted value and take the best (must share at least one).
+        let bestIdx = -1;
+        let bestShared = 0;
+        texts.forEach((t, i) => {
+          if (!t) return;
+          const tokens = t.replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean);
+          const shared = tokens.filter((tok) => wantTokens.has(tok)).length;
+          if (shared > bestShared) {
+            bestShared = shared;
+            bestIdx = i;
+          }
+        });
+        idx = bestIdx;
+      }
       if (idx >= 0) {
         await options.nth(idx).click().catch(() => undefined);
         return true;
@@ -1034,6 +1113,80 @@ async function allBodyText(page: BrowserPage): Promise<string> {
   return parts.join("\n");
 }
 
+// After a submit attempt that did NOT confirm, work out WHY the form bounced:
+// read the inline validation messages the ATS rendered, plus any required field
+// still empty or flagged aria-invalid. This is the signal the agent uses to reason
+// about which field it missed (commonly phone or a dropdown that never committed)
+// and to recompose just those values before reopening the form to submit again.
+async function detectValidationErrors(
+  page: BrowserPage,
+): Promise<Array<{ label: string; selector: string; message: string }>> {
+  const results: Array<{ label: string; selector: string; message: string }> = [];
+
+  for (const ctx of allContexts(page)) {
+    const found = await ctx
+      .evaluate(`(() => {
+        const clean = (t) => (t || '').replace(/\\s+/g, ' ').trim();
+        const out = [];
+
+        // 1. Explicit inline error / alert messages rendered next to a field.
+        const errorNodes = Array.from(document.querySelectorAll(
+          '[role="alert"], [aria-live="assertive"], .error, .error-message, [class*="error" i], [class*="invalid" i], [data-testid*="error" i]'
+        ));
+        for (const node of errorNodes) {
+          if (node.offsetParent === null) continue; // skip hidden nodes
+          const msg = clean(node.innerText || node.textContent);
+          if (msg && msg.length < 200 && /required|invalid|must|please|enter|select|valid|empty|missing|provide/i.test(msg)) {
+            out.push({ label: msg, selector: '', message: msg });
+          }
+        }
+
+        // 2. Required fields still empty or explicitly flagged invalid.
+        const fields = Array.from(document.querySelectorAll(
+          'input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=reset]):not([type=image]), textarea, select'
+        ));
+        for (const el of fields) {
+          const invalid = el.getAttribute('aria-invalid') === 'true';
+          const required = el.required || el.getAttribute('aria-required') === 'true';
+          const value = el.value;
+          const empty = !(value && String(value).trim());
+          if (!invalid && !(required && empty)) continue;
+
+          const id = el.getAttribute('id');
+          let labelText = '';
+          if (id) {
+            const lbl = document.querySelector('label[for="' + CSS.escape(id) + '"]');
+            if (lbl) labelText = clean(lbl.innerText || lbl.textContent);
+          }
+          if (!labelText) labelText = clean(el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || '');
+          const selector = id ? '#' + id
+            : el.getAttribute('name') ? el.tagName.toLowerCase() + '[name="' + el.getAttribute('name') + '"]'
+            : '';
+          out.push({
+            label: labelText || '(unlabeled field)',
+            selector,
+            message: invalid ? 'flagged invalid by the form' : 'required but empty',
+          });
+        }
+        return out;
+      })()`)
+      .catch(() => []);
+    if (Array.isArray(found)) {
+      results.push(...(found as Array<{ label: string; selector: string; message: string }>));
+    }
+  }
+
+  const seen = new Set<string>();
+  return results
+    .filter((r) => {
+      const key = `${r.label}|${r.selector}|${r.message}`.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 30);
+}
+
 async function newBrowserPage(applyLink: string): Promise<{ browser: import("playwright").Browser; page: BrowserPage; atsHint: string }> {
   let playwright;
   try {
@@ -1045,13 +1198,16 @@ async function newBrowserPage(applyLink: string): Promise<{ browser: import("pla
   }
 
   const browser = await playwright.chromium.launch({
-    headless: false,
+    headless: process.env.JOBSYNC_HEADLESS === "true" || process.env.NODE_ENV === "production",
     // Strip the headless/automation banner and the navigator.webdriver flag that
     // fraud scoring keys on. --disable-blink-features=AutomationControlled is the
     // single most effective tell to suppress.
     args: [
       "--disable-blink-features=AutomationControlled",
       "--no-default-browser-check",
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
     ],
   });
   const ctx = await browser.newContext({
@@ -1128,8 +1284,198 @@ async function harvestComboboxOptions(page: BrowserPage, fields: DetectedField[]
   }
 }
 
-export async function inspectForm(applyLink: string): Promise<InspectResult> {
+// ─── Persistent apply session ────────────────────────────────────────────────
+// The whole point: keep ONE browser/page alive across inspect → fill → retry →
+// code-entry, instead of closing and relaunching (which re-navigates the form and
+// re-fills every field from scratch, burning tokens and tripping anti-bot scoring).
+// The session is closed only on a confirmed submit or an explicit teardown.
+
+interface ApplySession {
+  browser: Browser;
+  page: BrowserPage;
+  atsHint: string;
+  /** Original apply URL this session was opened for (used to decide reuse). */
+  applyLink: string;
+  /** Keys of instructions already filled successfully in THIS live page, so a
+   *  retry only fills the corrected fields instead of re-typing the whole form. */
+  filledKeys: Set<string>;
+}
+
+let activeSession: ApplySession | null = null;
+
+function instrKey(instr: FillInstruction): string {
+  return `${instr.frameUrl ?? "main"}|${instr.selector}|${(instr.label ?? "").replace(/\s+/g, " ").trim().toLowerCase()}`;
+}
+
+/** Two URLs point at the same application (ignoring the /application suffix and
+ *  trailing slashes) so an inspect session can be reused by the submit call. */
+function sameJob(a: string, b: string): boolean {
+  const norm = (u: string) => u.replace(/\/application\/?$/, "").replace(/\/+$/, "").toLowerCase();
+  return norm(a) === norm(b);
+}
+
+function sessionAlive(s: ApplySession | null): s is ApplySession {
+  try {
+    return !!s && s.browser.isConnected() && !s.page.isClosed();
+  } catch {
+    return false;
+  }
+}
+
+export async function closeApplySession(): Promise<void> {
+  const s = activeSession;
+  activeSession = null;
+  if (s) await s.browser.close().catch(() => undefined);
+}
+
+/** Reuse the live session if it is for the same job; otherwise tear down any stale
+ *  one and open a fresh browser at the form. The returned page is already on the
+ *  application form. */
+async function getOrOpenSession(applyLink: string): Promise<ApplySession> {
+  if (sessionAlive(activeSession) && sameJob(activeSession.applyLink, applyLink)) {
+    return activeSession;
+  }
+  await closeApplySession();
   const { browser, page, atsHint } = await newBrowserPage(applyLink);
+  activeSession = { browser, page, atsHint, applyLink, filledKeys: new Set() };
+  return activeSession;
+}
+
+/** True when the instruction's target still holds a value on the live page (so a
+ *  retry can skip re-typing it). Errs toward false so a genuinely cleared field
+ *  gets refilled. */
+async function instrStillFilled(page: BrowserPage, instr: FillInstruction): Promise<boolean> {
+  if (instr.type === "radio" || instr.type === "checkbox") return false; // cheap to re-assert
+  const locator = await findInstructionLocator(page, instr).catch(() => null);
+  if (!locator) return false;
+  return verifyFilled(locator, instr).catch(() => false);
+}
+
+// ─── Email verification code (e.g. "enter the code we emailed you") ──────────
+const EMAIL_CODE_TEXT =
+  /(verification|confirmation|security|one[\s-]*time|access|login|sign[\s-]*in)\s+code|code\s+(we\s+)?(sent|e-?mailed|texted)|enter\s+the\s+code|check\s+your\s+e-?mail|\b6[\s-]*digit\b|\bone[\s-]*time\s+password\b|\bOTP\b/i;
+
+async function findEmailCodeField(page: BrowserPage): Promise<{ selector: string; frameUrl?: string } | null> {
+  for (const ctx of allContexts(page)) {
+    const hit = await ctx
+      .evaluate(`(() => {
+        const clean = (t) => (t || '').replace(/\\s+/g, ' ').trim();
+        const inputs = Array.from(document.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button])'));
+        for (const el of inputs) {
+          if (el.offsetParent === null) continue;
+          const hay = ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')+' '+(el.getAttribute('autocomplete')||'')).toLowerCase();
+          if (/code|otp|one[-\\s]?time|verif|2fa|mfa/.test(hay)) {
+            const id = el.getAttribute('id');
+            const sel = id ? '#'+id : el.getAttribute('name') ? el.tagName.toLowerCase()+'[name="'+el.getAttribute('name')+'"]' : '';
+            if (sel) return sel;
+          }
+        }
+        return null;
+      })()`)
+      .catch(() => null);
+    if (hit) {
+      const frameUrl = ctx === page ? undefined : contextUrl(ctx);
+      return { selector: String(hit), ...(frameUrl ? { frameUrl } : {}) };
+    }
+  }
+  return null;
+}
+
+/** Does the current page show a "we emailed you a code" gate AND have a field to
+ *  type it into? Only then do we ask the user — we must not stall on every form. */
+async function detectEmailCodeRequest(page: BrowserPage): Promise<{ selector: string; frameUrl?: string } | null> {
+  const body = await allBodyText(page);
+  if (!EMAIL_CODE_TEXT.test(body)) return null;
+  return findEmailCodeField(page);
+}
+
+/** Enter a user-supplied verification code into the live session and try to
+ *  confirm/submit it — no browser relaunch, the same page the user was waiting on. */
+export async function submitEmailCode(code: string): Promise<SubmitResult> {
+  if (!sessionAlive(activeSession)) {
+    return {
+      success: false,
+      screenshotPath: "",
+      pageTitle: "",
+      confirmedText: "",
+      error: "No live application session is open. Re-run the apply flow before entering a code.",
+    };
+  }
+  const page = activeSession.page;
+  const target = await findEmailCodeField(page);
+  if (!target) {
+    const imgPath = screenshotPath("nocodefield");
+    await page.screenshot({ path: imgPath, fullPage: false }).catch(() => undefined);
+    return {
+      success: false,
+      screenshotPath: imgPath,
+      pageTitle: await page.title().catch(() => ""),
+      confirmedText: "",
+      error: "Could not find a code input on the current page.",
+      sessionOpen: true,
+    };
+  }
+
+  try {
+    await fillOneField(page, { selector: target.selector, value: code.trim(), type: "text", ...(target.frameUrl ? { frameUrl: target.frameUrl } : {}) });
+  } catch (err) {
+    return {
+      success: false,
+      screenshotPath: "",
+      pageTitle: await page.title().catch(() => ""),
+      confirmedText: "",
+      error: `Could not enter the code: ${err instanceof Error ? err.message : String(err)}`,
+      sessionOpen: true,
+    };
+  }
+
+  // Most code gates auto-advance; if not, click the verify/continue/submit button.
+  const codeSubmitted = await clickVerifyOrSubmit(page);
+  await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => page.waitForTimeout(2500));
+
+  const afterPath = screenshotPath("postcode");
+  await page.screenshot({ path: afterPath, fullPage: false }).catch(() => undefined);
+  const bodyText = await allBodyText(page);
+  const confirmed = /thank|submitted|received|success|application\s+complete|verified|we have received/i.test(bodyText);
+  if (confirmed) await closeApplySession();
+
+  return {
+    success: confirmed,
+    screenshotPath: afterPath,
+    pageTitle: await page.title().catch(() => ""),
+    confirmedText: bodyText.slice(0, 600),
+    submitted: codeSubmitted,
+    ...(confirmed ? {} : { sessionOpen: true, error: "Code entered, but no confirmation detected yet." }),
+  };
+}
+
+async function clickVerifyOrSubmit(page: BrowserPage): Promise<boolean> {
+  const names = [/verify/i, /confirm/i, /continue/i, /submit/i, /next/i, /done/i];
+  for (const ctx of allContexts(page)) {
+    for (const name of names) {
+      for (const locator of [
+        ctx.getByRole("button", { name }).first(),
+        ctx.getByRole("link", { name }).first(),
+      ]) {
+        if (await locatorUsable(locator)) {
+          await moveMouseToLocator(page, locator);
+          await locator.click().catch(() => undefined);
+          return true;
+        }
+      }
+    }
+  }
+  // Fall back to pressing Enter in case the code field auto-submits.
+  await page.keyboard.press("Enter").catch(() => undefined);
+  return false;
+}
+
+export async function inspectForm(applyLink: string): Promise<InspectResult> {
+  // Open (or reuse) the persistent session and KEEP it open — the submit call will
+  // fill into this same live page instead of relaunching and re-navigating.
+  const session = await getOrOpenSession(applyLink);
+  const { page, atsHint } = session;
+  session.filledKeys.clear(); // a fresh inspect means nothing is filled yet
 
   try {
     // Two-pass scroll: trigger lazy-loaded content, then return to top for field extraction.
@@ -1201,8 +1547,10 @@ export async function inspectForm(applyLink: string): Promise<InspectResult> {
     });
 
     return result;
-  } finally {
-    await browser.close();
+  } catch (err) {
+    // A failed inspect should not leave a zombie browser around.
+    await closeApplySession();
+    throw err;
   }
 }
 
@@ -1239,21 +1587,35 @@ export async function fillAndSubmit(
     requiredKeys.has(instr.selector) ||
     requiredKeys.has((instr.label ?? "").replace(/\s+/g, " ").trim().toLowerCase());
 
-  const { browser, page } = await newBrowserPage(targetUrl);
+  // Reuse the live session opened by inspect (or a prior retry). The page is
+  // already on the form, prior fields keep their values, and we only fill what is
+  // still missing — no relaunch, no re-navigation, no re-typing the whole form.
+  const session = await getOrOpenSession(targetUrl);
+  const { page } = session;
 
   try {
     const failedFields: NonNullable<SubmitResult["failedFields"]> = [];
     let filledCount = 0;
 
     for (const instr of effectiveInstructions) {
+      const key = instrKey(instr);
+      // On a retry the page still holds everything filled last pass — skip those
+      // and only (re)fill the corrected/missing fields. This is the core token
+      // saving: a validation-error retry touches one field, not the whole form.
+      if (session.filledKeys.has(key) && (await instrStillFilled(page, instr))) {
+        filledCount += 1;
+        continue;
+      }
       try {
         await fillOneField(page, instr);
+        session.filledKeys.add(key);
         filledCount += 1;
         // Pause a varying beat between fields, and occasionally scroll as if
         // reading ahead — steady 150ms ticks are a classic bot signature.
         await humanPause(page, 200, 700);
         if (Math.random() < 0.3) await humanScroll(page);
       } catch (err) {
+        session.filledKeys.delete(key);
         failedFields.push({
           selector: instr.selector,
           label: instr.label,
@@ -1273,19 +1635,24 @@ export async function fillAndSubmit(
       isRequiredInstr({ selector: f.selector, value: "", label: f.label }),
     );
     if (requiredFailures.length > 0) {
+      // Keep the session open: the agent can recompose the offending fields and
+      // call again — they fill into this same page rather than a fresh reload.
       return {
         success: false,
         screenshotPath: beforePath,
         pageTitle: await page.title(),
         confirmedText: `Filled ${filledCount} fields, but ${requiredFailures.length} required field(s) could not be filled.`,
-        error: "Required fields could not be filled. Review failedFields before submitting.",
+        error: "Required fields could not be filled. Review failedFields, recompose only those, and call apply_submit_form again — the same live session stays open.",
         filledCount,
         failedFields,
         submitted: false,
+        sessionOpen: true,
       };
     }
 
     if (dryRun) {
+      // Dry run leaves the filled form on screen for review; the session stays open
+      // so a follow-up live submit reuses it instead of refilling from scratch.
       return {
         success: false,
         screenshotPath: beforePath,
@@ -1294,6 +1661,7 @@ export async function fillAndSubmit(
         filledCount,
         failedFields,
         submitted: false,
+        sessionOpen: true,
       };
     }
 
@@ -1310,6 +1678,7 @@ export async function fillAndSubmit(
         filledCount,
         failedFields,
         submitted: false,
+        sessionOpen: true,
       };
     }
 
@@ -1324,18 +1693,64 @@ export async function fillAndSubmit(
     const confirmed =
       /thank|submitted|received|success|application\s+complete|we.ll be in touch|we have received/i.test(bodyText);
 
+    if (confirmed) {
+      // Done — tear the session down so the next application starts clean.
+      await page.waitForTimeout(1500).catch(() => undefined);
+      await closeApplySession();
+      return {
+        success: true,
+        screenshotPath: afterPath,
+        pageTitle: "",
+        confirmedText: bodyText.slice(0, 600),
+        filledCount,
+        failedFields,
+        submitted: true,
+      };
+    }
+
+    // Unconfirmed: the form may be gated behind an emailed verification code. If so,
+    // surface needsEmailCode so the agent asks the user, then enters it via
+    // apply_submit_code in this same live session.
+    const codeField = await detectEmailCodeRequest(page);
+    if (codeField) {
+      return {
+        success: false,
+        screenshotPath: afterPath,
+        pageTitle: await page.title(),
+        confirmedText: bodyText.slice(0, 600),
+        filledCount,
+        failedFields,
+        submitted: true,
+        sessionOpen: true,
+        needsEmailCode: true,
+        error: "The form is asking for a verification code sent to your email. Ask the user for that code and call apply_submit_code — the browser stays open.",
+      };
+    }
+
+    // Clicking submit does not mean the form went through — the ATS may have
+    // re-rendered the same page with validation errors (a missed phone number, a
+    // dropdown that never committed). When unconfirmed, gather those errors so the
+    // agent can reason about which field it missed and refill it on the next pass —
+    // in the SAME open session.
+    const validationErrors = await detectValidationErrors(page);
+
     return {
-      success: confirmed,
+      success: false,
       screenshotPath: afterPath,
       pageTitle: await page.title(),
       confirmedText: bodyText.slice(0, 600),
       filledCount,
       failedFields,
       submitted: true,
-      ...(confirmed ? {} : { error: "Submitted, but no confirmation text was detected." }),
+      sessionOpen: true,
+      ...(validationErrors.length ? { validationErrors } : {}),
+      error: validationErrors.length
+        ? `Not submitted — the form reported ${validationErrors.length} validation issue(s). Recompose ONLY those fields and call apply_submit_form again; the same live session stays open and only the corrected fields are re-entered.`
+        : "Submitted, but no confirmation text was detected. The session stays open if you need to correct a field.",
     };
-  } finally {
-    await page.waitForTimeout(2000).catch(() => undefined);
-    await browser.close();
+  } catch (err) {
+    // Unexpected failure — close the session so we don't leak a browser.
+    await closeApplySession();
+    throw err;
   }
 }

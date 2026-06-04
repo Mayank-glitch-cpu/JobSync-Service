@@ -151,6 +151,38 @@ describe("mapStandardFields", () => {
     expect(result.find((r) => r.selector === "#country")?.value).toBe("United States +1");
   });
 
+  it("resolves a location dropdown to the closest option by token overlap", () => {
+    // Profile location ("San Francisco, California, United States") does not match
+    // any option verbatim, but shares tokens with "San Francisco, CA, USA".
+    const locSelect: DetectedField[] = [
+      {
+        selector: "#loc",
+        label: "Location",
+        type: "select",
+        options: ["New York, NY, USA", "San Francisco, CA, USA", "Austin, TX, USA"],
+      },
+    ].map(field);
+    const sfProfile = { city: "San Francisco", state: "California", country: "United States" };
+    const result = mapStandardFields(locSelect, sfProfile);
+    expect(result.find((r) => r.selector === "#loc")?.value).toBe("San Francisco, CA, USA");
+  });
+
+  it("maps a phone field with a verbose label via the fuzzy fallback", () => {
+    const fields: DetectedField[] = [
+      { selector: "#ph", label: "Mobile phone number", type: "tel", required: true },
+    ].map(field);
+    const result = mapStandardFields(fields, profile);
+    expect(result.find((r) => r.selector === "#ph")?.value).toBe("555-867-5309");
+  });
+
+  it("maps a 'Where are you located?' field as a combined location", () => {
+    const fields: DetectedField[] = [
+      { selector: "#loc", label: "Where are you located?", type: "text", required: false },
+    ].map(field);
+    const result = mapStandardFields(fields, profile);
+    expect(result.find((r) => r.selector === "#loc")?.value).toBe("Tempe, AZ, United States");
+  });
+
   it("does NOT force Yes/No work-auth onto a dropdown with richer options", () => {
     const workAuthSelect: DetectedField[] = [
       {

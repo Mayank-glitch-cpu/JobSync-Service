@@ -17,9 +17,19 @@ RUN pnpm --filter jobsync-mcp build
 FROM node:22-slim AS runtime
 
 ENV NODE_ENV=production
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 WORKDIR /app
 
 RUN corepack enable
+
+# Install system dependencies for Playwright and Chromium
+# We use pnpm dlx to run the exact playwright version installer with system dependencies
+RUN apt-get update && \
+    apt-get install -y wget gnupg && \
+    mkdir -p /ms-playwright && \
+    pnpm dlx playwright@1.44.0 install --with-deps chromium && \
+    chmod -R 755 /ms-playwright && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY mcp-server/package.json ./mcp-server/package.json

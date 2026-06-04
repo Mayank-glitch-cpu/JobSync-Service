@@ -354,11 +354,17 @@ Then wait for the user's response and handle it:
   1. Call \`profile_read_personal\` and \`profile_read\`. If \`missing\` has any required fields (firstName, lastName, email, resumePath), stop and tell the user to run \`profile_write_personal\` first. This is the only allowed stop.
   2. **Phase 1 — Extract:** call \`apply_inspect_form\` with the entry's \`applyLink\`. It scrapes every field and saves a screenshot to the temp directory. Show the user the detected field count and ATS hint. Cross-check the screenshot against the DOM list so nothing is missed.
   3. **Phase 2 — Answer:** call \`apply_fill_fields\` (applyLink, company, jobTitle). For EVERY field it reports as unanswered — open-text essays AND structured questions (selects/radios, graduation date, years of experience, "how did you hear about us") — compose a value from \`experience\`/\`skills\`/\`projects\`/profile. Essays: personalized 150–300 words (short prompts 1–3 sentences). Selects/radios: pick the best offered option. Nothing left blank.
-  4. Build fill instructions: standard contact mappings (firstName/lastName→name, email, phone, linkedinUrl→LinkedIn, resumePath→file upload, workAuthorization→radio/select, requiresSponsorship→"Yes"/"No") plus every answer from step 3. Include \`label\` and \`frameUrl\` from inspect whenever available.
+     **Dropdown / location reasoning:** when a field is a \`select\` or combobox with an \`options\` list, do NOT require the profile value to equal an option verbatim — choose the option that shares the key tokens. If the profile location is "San Francisco, California, United States" and the dropdown offers "San Francisco, CA, USA" (or just "San Francisco"), pick that option. For a location/city typeahead, use the city as the value so the suggestion list filters to it, then select the matching suggestion. Never leave a dropdown blank because the full string didn't match.
+  4. Build fill instructions: standard contact mappings (firstName/lastName→name, email, phone, linkedinUrl→LinkedIn, resumePath→file upload, workAuthorization→radio/select, requiresSponsorship→"Yes"/"No") plus every answer from step 3. Include \`label\` and \`frameUrl\` from inspect whenever available. Double-check that **phone** and **location** got an instruction — these are the two most-often-missed fields.
   5. Call \`apply_save_draft\` with the complete fields array and preview rows. Show the preview table as an FYI only — do NOT ask the user to confirm and do NOT wait. Continue immediately.
-  6. **Phase 3 — Fill & submit:** call \`apply_submit_form\` with the same applyLink and **\`dryRun: false\`** (omit \`fields\` — the saved draft is the source of truth). If it returns \`failedFields\`, the form was not submitted: fix those fields and call \`apply_save_draft\` + \`apply_submit_form\` again. Do not stop to ask the user. Never set \`dryRun: true\` here.
-  7. If result \`success: true\`: call \`pipeline_mark_applied\` with the applyLink, tell the user "✅ Applied to [Company]!".
-  8. If result \`success: false\` after a retry: show the \`error\` field and tell the user to check the screenshot at the returned path.
+  6. **Phase 3 — Fill & submit:** call \`apply_submit_form\` with the same applyLink and **\`dryRun: false\`** (omit \`fields\` — the saved draft is the source of truth). Never set \`dryRun: true\` here.
+  7. **Verify it actually submitted, then self-correct.** The submit click is not proof of success. The form failed to submit if the result has \`success: false\`, OR \`submitted: true\` with no confirmation, OR a non-empty \`failedFields\` / \`validationErrors\`. When that happens:
+     - Open the returned \`screenshotPath\` and read \`validationErrors\` (each has \`label\`, \`selector\`, \`message\` like "required but empty" / "flagged invalid"). Reason about which specific field is wrong — typically phone or a dropdown/location that never committed.
+     - Compose corrected values ONLY for those fields (re-pick the right dropdown option, reformat the phone, select the location suggestion), merge them into the full fields array, call \`apply_save_draft\` again, then call \`apply_submit_form\` again. The browser stays OPEN between calls (\`sessionOpen: true\`): the same live page is corrected in place and only the changed fields are re-entered — it does NOT relaunch or refill the whole form.
+     - If the result has \`needsEmailCode: true\`, the form wants a verification code emailed to the user. Ask the user for the code, then call \`apply_submit_code\` with it — the code is entered in the same open session. Do not relaunch.
+     - Retry up to 2 times. Do not stop to ask the user between retries (except to request an email code).
+  8. If result \`success: true\`: call \`pipeline_mark_applied\` with the applyLink, tell the user "✅ Applied to [Company]!".
+  9. If still \`success: false\` after the retries: show the \`error\` field, the remaining \`validationErrors\`, and the screenshot path so the user can finish the one field that resisted automation.
 
 **"dry-run apply to [Company]" / "preview apply for [Company]"**
 → same flow as auto-apply but pass \`dryRun: true\` to \`apply_submit_form\`. Do NOT call \`pipeline_mark_applied\`. Show the screenshot path for review.
@@ -432,6 +438,13 @@ Ask the user for the following details (present as a single grouped ask, not one
 > - **Require visa sponsorship?** (yes / no)
 > - **Resume file path** — absolute path to your PDF or DOCX resume for file-upload fields (e.g., \`C:/Users/you/resume.pdf\`)
 > - **City, State, Country**
+>
+> **Voluntary self-identification (optional — many US applications ask these for EEO; you may decline any):**
+> - **Race / ethnicity** (e.g., Asian, White, Black or African American, Hispanic or Latino, Native American, Two or More Races, or "Decline to self-identify")
+> - **Are you a protected veteran?** (yes / no / decline)
+> - **Do you have a disability?** (yes / no / decline) — if yes, you may optionally note what
+
+Frame the self-identification block explicitly as optional and that "Decline to self-identify" is a valid answer the agent will select on forms. Map their answers to \`ethnicity\`, \`veteranStatus\` ("Yes"/"No"/"Decline to self-identify"), \`disabilityStatus\` ("Yes"/"No"/"Decline to self-identify"), and \`disabilityDetails\` (only if they said yes and chose to share).
 
 Once the user responds, call \`profile_write_personal\` with all provided fields. If the user skips optional fields, omit them. If the user skips resume path, note that auto-apply file-upload fields will be skipped until it is added.
 
@@ -557,8 +570,10 @@ Call \`apply_fill_fields\` with \`applyLink\`, \`company\`, and \`jobTitle\`. Th
 
 For each field in that block, produce a value (this is the hard rule — every field gets an answer):
 - Open text / essays: a genuine, personalized first-person answer (150–300 words for full essays, 1–3 sentences for short prompts). Use \`experience.md\`, \`skills.md\`, \`projects.md\`. Tailor to ${company} — no generic templates.
-- Select / radio / checkbox: pick the single best option from the field's option list using the profile. Never invent an option that isn't offered.
+- Select / radio / checkbox: pick the single best option from the field's option list using the profile. **Reason over the options — do not require a verbatim match.** Choose the option that shares the key tokens with the profile value. Never invent an option that isn't offered, and never skip a dropdown because the full string didn't match.
+- Location / city typeahead or dropdown: use the city (e.g. "San Francisco") as the value so the suggestion list filters down, then select the matching suggestion ("San Francisco, CA, USA"). Do not rely on the entire "City, State, Country" string matching an option.
 - Short factual text: answer from the profile; if a fact is genuinely absent, choose the most reasonable non-fabricated value rather than leaving it blank.
+- **Phone and location are the two most-often-missed fields** — explicitly confirm each has an instruction before moving on.
 - When a detected field includes \`frameUrl\`, copy it into the fill instruction.
 
 ## Step 4: Save the complete draft
@@ -573,7 +588,12 @@ Call \`apply_submit_form\` with:
 - \`dryRun\`: ${dryRun}
 
 The tool fills every instruction, verifies each retained its value, and ${dryRun ? "stops without submitting (dry run)" : "submits only when all fields filled cleanly"}.
-- If it returns \`failedFields\`, the form was NOT submitted. Fix those fields (recompute the value/selector, e.g. re-read the screenshot) and call \`apply_save_draft\` then \`apply_submit_form\` again. Do not hand an unfinished form back to the user — finish it.
+
+**A submit click is not proof of success — verify, then self-correct.** Treat the application as NOT submitted if the result has \`success: false\`, OR \`submitted: true\` with no confirmation text, OR a non-empty \`failedFields\` / \`validationErrors\`. When that happens:
+- Open the returned \`screenshotPath\` and read \`validationErrors\` — each entry has \`label\`, \`selector\`, and a \`message\` ("required but empty" or "flagged invalid by the form"). Reason about exactly which field the form rejected; it is most often a missed phone number or a location/dropdown that never committed its value.
+- Recompose values ONLY for the offending fields (reformat the phone, re-pick the right dropdown option, select the location suggestion), merge them into the complete fields array, call \`apply_save_draft\`, then call \`apply_submit_form\` again. The browser stays OPEN between calls (\`sessionOpen: true\`): the same live page is corrected in place and only the changed fields are re-typed — no relaunch, no refilling the whole form, far fewer tokens.
+- If the result has \`needsEmailCode: true\`, the form is gated behind a code emailed to the user. Ask the user for the code, then call \`apply_submit_code\` with it — the code is entered in the same open session.
+- Retry up to 2 times before reporting failure. Do not hand an unfinished form back to the user — finish it.
 - ${dryRun ? "Do not change \`dryRun\`." : "**Never set \`dryRun: true\` on your own. Only the user saying \"dry run\" sets it.**"}
 
 ## Step 6: Handle the result

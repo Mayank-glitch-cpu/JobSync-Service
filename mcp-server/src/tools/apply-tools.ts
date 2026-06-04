@@ -4,6 +4,8 @@ import {
   inspectForm,
   loadFormState,
   saveApplyDraft,
+  submitEmailCode,
+  closeApplySession,
   type FillInstruction,
   type PreviewField,
 } from "../lib/browser-apply.js";
@@ -49,7 +51,10 @@ export const profileWritePersonalTool: ToolDefinition = {
     "Fields: firstName, lastName, email, phone, linkedinUrl, githubUrl, portfolioUrl, " +
     "workAuthorization (e.g. 'OPT' | 'CPT' | 'H1B Visa' | 'Green Card' | 'US Citizen'), " +
     "requiresSponsorship (bool), resumePath (absolute path to PDF/DOCX resume), " +
-    "city, state, country. ⚡ [Model hint: haiku]",
+    "city, state, country, and voluntary EEO self-identification: ethnicity (e.g. 'Asian'), " +
+    "veteranStatus ('Yes' | 'No' | 'Decline to self-identify'), " +
+    "disabilityStatus ('Yes' | 'No' | 'Decline to self-identify'), disabilityDetails (if disabilityStatus is 'Yes'). " +
+    "⚡ [Model hint: haiku]",
   recommendedModel: "haiku",
   inputSchema: {
     type: "object",
@@ -67,6 +72,10 @@ export const profileWritePersonalTool: ToolDefinition = {
       city:                 { type: "string" },
       state:                { type: "string" },
       country:              { type: "string" },
+      ethnicity:            { type: "string", description: "Voluntary race/ethnicity self-ID, e.g. 'Asian', 'White', 'Hispanic or Latino', 'Decline to self-identify'." },
+      veteranStatus:        { type: "string", description: "Protected-veteran self-ID: 'Yes' | 'No' | 'Decline to self-identify'." },
+      disabilityStatus:     { type: "string", description: "Disability self-ID: 'Yes' | 'No' | 'Decline to self-identify'." },
+      disabilityDetails:    { type: "string", description: "Optional description of the disability when disabilityStatus is 'Yes'." },
     },
     additionalProperties: false,
   },
@@ -255,7 +264,16 @@ export const applySubmitFormTool: ToolDefinition = {
     "'select' (value is the option label text), 'radio' (value is partial label text to match), " +
     "'checkbox' (value is 'true' or 'false'). " +
     "Set dryRun=true to fill but NOT submit (returns a screenshot for review). " +
-    "On success, call pipeline_mark_applied with the applyLink. ⚙ [Model hint: sonnet]",
+    "This REUSES the same live browser session opened by apply_inspect_form — it does NOT relaunch or " +
+    "re-navigate, and fields already filled keep their values. " +
+    "If the result is not success (success:false, or submitted:true with no confirmation, or a non-empty " +
+    "validationErrors/failedFields), the form did NOT go through but sessionOpen stays true: read validationErrors " +
+    "(label, selector, message) and the screenshot to see which field was missed (often phone or a location/dropdown), " +
+    "recompose ONLY those fields, call apply_save_draft, and call apply_submit_form again — the same open page is " +
+    "corrected in place (only the changed fields are re-entered), saving tokens. " +
+    "If the result has needsEmailCode:true, the form wants a verification code emailed to the user — ask the user for " +
+    "the code and call apply_submit_code with it (do NOT relaunch). " +
+    "On success the session closes automatically; call pipeline_mark_applied with the applyLink. ⚙ [Model hint: sonnet]",
   recommendedModel: "sonnet",
   inputSchema: {
     type: "object",
@@ -402,6 +420,58 @@ export const applyFillFieldsTool: ToolDefinition = {
       }
 
       return { content: blocks };
+    } catch (err) {
+      return errorResult(String(err));
+    }
+  },
+};
+
+export const applySubmitCodeTool: ToolDefinition = {
+  name: "apply_submit_code",
+  description:
+    "Enter an email/SMS verification code into the SAME live application browser session (the one left open " +
+    "when apply_submit_form returned needsEmailCode:true). Ask the user for the code first, then call this with it. " +
+    "The code is typed into the open page and the verify/continue button is clicked — no relaunch, no refilling. " +
+    "If success:true, the application completed (call pipeline_mark_applied). If success:false with sessionOpen:true, " +
+    "the code was wrong or more steps remain — show the screenshot and ask the user again. ⚙ [Model hint: sonnet]",
+  recommendedModel: "sonnet",
+  inputSchema: {
+    type: "object",
+    properties: {
+      code: {
+        type: "string",
+        description: "The verification code the user received by email or SMS.",
+      },
+    },
+    required: ["code"],
+    additionalProperties: false,
+  },
+  handler: async (args): Promise<ToolResult> => {
+    try {
+      const result = await submitEmailCode(String(args.code ?? "").trim());
+      return textResult(result);
+    } catch (err) {
+      return errorResult(String(err));
+    }
+  },
+};
+
+export const applyCloseSessionTool: ToolDefinition = {
+  name: "apply_close_session",
+  description:
+    "Close the live application browser session and free its resources. Call this if the user abandons an " +
+    "auto-apply that left a session open (e.g. after repeated failures, or when they say to stop). On a confirmed " +
+    "submission the session closes itself, so you normally do NOT need this. ⚡ [Model hint: haiku]",
+  recommendedModel: "haiku",
+  inputSchema: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
+  handler: async (): Promise<ToolResult> => {
+    try {
+      await closeApplySession();
+      return textResult({ closed: true });
     } catch (err) {
       return errorResult(String(err));
     }

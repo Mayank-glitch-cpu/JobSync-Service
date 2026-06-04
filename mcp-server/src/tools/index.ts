@@ -85,6 +85,8 @@ import {
   applyLoadStateTool,
   applySaveDraftTool,
   applySubmitFormTool,
+  applySubmitCodeTool,
+  applyCloseSessionTool,
   profileReadPersonalTool,
   profileWritePersonalTool,
 } from "./apply-tools.js";
@@ -241,11 +243,10 @@ export function registerTools(): ToolDefinition[] {
     applyLoadStateTool,
     applySaveDraftTool,
     applySubmitFormTool,
-<<<<<<< HEAD
     scrapeJobDetailsTool,
-=======
+    applySubmitCodeTool,
+    applyCloseSessionTool,
     applyFillFieldsTool,
->>>>>>> dadc797143e0c3522514385e3fcf2f22b4e1c361
   ].map(withTokenMeta);
 }
 

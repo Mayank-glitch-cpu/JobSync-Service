@@ -18,6 +18,17 @@ export interface PersonalProfile {
   city: string;
   state: string;
   country: string;
+  // Voluntary EEO / self-identification answers used to fill demographic questions
+  // on application forms. All optional — the user may decline any of them.
+  // e.g. "Asian" | "White" | "Black or African American" | "Hispanic or Latino" |
+  //      "Native American" | "Two or More Races" | "Decline to self-identify"
+  ethnicity: string;
+  // "Yes" | "No" | "Decline to self-identify" (protected-veteran status)
+  veteranStatus: string;
+  // "Yes" | "No" | "Decline to self-identify"
+  disabilityStatus: string;
+  // If disabilityStatus is "Yes", an optional description of the disability.
+  disabilityDetails: string;
 }
 
 function personalPath(): string {
