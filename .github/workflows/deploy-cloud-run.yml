@@ -36,20 +36,11 @@ jobs:
       - name: Set Up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Provision Firestore (cache + app-state datastore)
-        run: |
-          PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
-          FIRESTORE_LOCATION="${{ vars.FIRESTORE_LOCATION || 'nam5' }}"
-          gcloud services enable firestore.googleapis.com --project "$PROJECT_ID"
-          if ! gcloud firestore databases describe --database='(default)' --project "$PROJECT_ID" >/dev/null 2>&1; then
-            gcloud firestore databases create --location="$FIRESTORE_LOCATION" --project "$PROJECT_ID"
-          fi
-          gcloud firestore fields ttls update expiresAt \
-            --collection-group=mcp_cache --enable-ttl --project "$PROJECT_ID" --async || true
-          RUNTIME_SA="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')-compute@developer.gserviceaccount.com"
-          gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-            --member="serviceAccount:$RUNTIME_SA" \
-            --role="roles/datastore.user" >/dev/null
+      # NOTE: Firestore provisioning (enable API, create database, set the
+      # mcp_cache TTL policy, grant roles/datastore.user to the runtime SA) is a
+      # one-time admin task — see gcp-deploy.sh or the README. It is intentionally
+      # NOT done here: the deploy service account is least-privilege and cannot
+      # enable services or edit project IAM.
 
       - name: Deploy To Cloud Run
         run: |
