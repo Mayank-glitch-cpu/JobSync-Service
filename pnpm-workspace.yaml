@@ -2,3 +2,6 @@ packages:
   - 'mcp-server'
   - 'legacy/backend'
   - 'legacy/frontend'
+
+onlyBuiltDependencies:
+  - esbuild
