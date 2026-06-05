@@ -1,26 +1,23 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_DIR } from "../config.js";
+import { getStore } from "./store/index.js";
 
+const NS = "portals";
+const ID = "default";
+
+/** Logical location label (the local file path) — for display/diagnostics only. */
 export function getPortalsPath(): string {
   return join(CONFIG_DIR, "portals.yml");
 }
 
-function ensureDir(): void {
-  if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true });
+export async function readPortals(): Promise<{ exists: boolean; raw: string; path: string }> {
+  const raw = await (await getStore()).docs.readDoc(NS, ID);
+  return { exists: raw !== null, raw: raw ?? "", path: getPortalsPath() };
 }
 
-export function readPortals(): { exists: boolean; raw: string; path: string } {
-  const path = getPortalsPath();
-  if (!existsSync(path)) return { exists: false, raw: "", path };
-  return { exists: true, raw: readFileSync(path, "utf-8"), path };
-}
-
-export function writePortals(content: string): { path: string } {
-  ensureDir();
-  const path = getPortalsPath();
-  writeFileSync(path, content, "utf-8");
-  return { path };
+export async function writePortals(content: string): Promise<{ path: string }> {
+  await (await getStore()).docs.writeDoc(NS, ID, content);
+  return { path: getPortalsPath() };
 }
 
 // Embedded master company list — used by the onboard prompt as a reference.

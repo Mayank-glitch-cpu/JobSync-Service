@@ -122,12 +122,44 @@ This deployment is production-capable for a private, single-tenant service. To l
 
 Until that layer exists, do not run this as an open public connector with shared Airtable credentials.
 
+## Storage Backend (Cache + App State)
+
+jobsync persists three things: the dedup cache (seen job URLs), a TTL cache of
+expensive MCP tool responses (`fetch_*`, link checks), and app state
+(pipeline/profile/portals). Two backends are available, selected by
+`JOBSYNC_STORAGE_BACKEND`:
+
+| Backend | Storage | When to use |
+| --- | --- | --- |
+| `local` (default) | SQLite + files under `~/.jobsync` | stdio installs on a persistent machine |
+| `firestore` | GCP Firestore | Cloud Run / any ephemeral, scale-to-zero host |
+
+**Why this matters in the cloud:** Cloud Run's filesystem is ephemeral and
+scales to zero, so a `local` backend loses all cache and pipeline state on every
+cold start. Set `JOBSYNC_STORAGE_BACKEND=firestore` (auto-enabled when the
+`K_SERVICE` env var is present) so state persists.
+
+Firestore options:
+
+- `GOOGLE_CLOUD_PROJECT` — project id (auto-detected from ADC on Cloud Run).
+- `FIRESTORE_DATABASE_ID` — only if not using the `(default)` database.
+- `JOBSYNC_RESPONSE_CACHE_TTL_HOURS` — response-cache TTL (default 6).
+
+Collections used: `seen_jobs`, `mcp_cache` (with an `expiresAt` TTL policy), and
+`jobsync_docs`. The runtime service account needs `roles/datastore.user`.
+
 ## Google Cloud Run
 
-For GCP, use Cloud Run with the included root `Dockerfile`.
+For GCP, use Cloud Run with the included root `Dockerfile`. The `gcp-deploy.sh`
+script provisions Firestore (enables the API, creates the `(default)` database,
+sets the `mcp_cache` TTL policy, and grants `roles/datastore.user`) before
+deploying.
 
 ```bash
-gcloud run deploy jobsync-mcp --source . --region us-central1 --allow-unauthenticated --port 3000
+./gcp-deploy.sh
+# or, manually:
+gcloud run deploy jobsync-mcp --source . --region us-central1 --allow-unauthenticated --port 3000 \
+  --set-env-vars JOBSYNC_STORAGE_BACKEND=firestore
 ```
 
 See `docs/gcp-cloud-run.md` for the full secret-backed deployment flow.

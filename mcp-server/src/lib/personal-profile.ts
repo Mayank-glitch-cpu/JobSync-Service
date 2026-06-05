@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { loadConfig } from "../config.js";
+import { getStore } from "./store/index.js";
+
+const NS = "profile";
+const ID = "personal.json";
 
 export interface PersonalProfile {
   firstName: string;
@@ -31,29 +32,19 @@ export interface PersonalProfile {
   disabilityDetails: string;
 }
 
-function personalPath(): string {
-  return join(loadConfig().profileDir, "personal.json");
-}
-
-function ensureDir(): void {
-  const dir = loadConfig().profileDir;
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-}
-
-export function readPersonalProfile(): Partial<PersonalProfile> {
-  const p = personalPath();
-  if (!existsSync(p)) return {};
+export async function readPersonalProfile(): Promise<Partial<PersonalProfile>> {
+  const raw = await (await getStore()).docs.readDoc(NS, ID);
+  if (!raw) return {};
   try {
-    return JSON.parse(readFileSync(p, "utf-8")) as Partial<PersonalProfile>;
+    return JSON.parse(raw) as Partial<PersonalProfile>;
   } catch {
     return {};
   }
 }
 
-export function writePersonalProfile(patch: Partial<PersonalProfile>): PersonalProfile {
-  ensureDir();
-  const existing = readPersonalProfile();
+export async function writePersonalProfile(patch: Partial<PersonalProfile>): Promise<PersonalProfile> {
+  const existing = await readPersonalProfile();
   const merged = { ...existing, ...patch } as PersonalProfile;
-  writeFileSync(personalPath(), JSON.stringify(merged, null, 2), "utf-8");
+  await (await getStore()).docs.writeDoc(NS, ID, JSON.stringify(merged, null, 2));
   return merged;
 }

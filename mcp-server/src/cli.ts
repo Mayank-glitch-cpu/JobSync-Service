@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline/promises";
-import { CONFIG_PATH, DEFAULT_APPLY_HUMANIZE, configExists, loadConfig, saveConfig, type JobSink, type JobSyncConfig } from "./config.js";
+import { CONFIG_PATH, DEFAULT_APPLY_HUMANIZE, DEFAULT_STORAGE, configExists, loadConfig, saveConfig, type JobSink, type JobSyncConfig, type StorageBackend } from "./config.js";
 import { createJobSyncBase, listBases } from "./lib/airtable-meta.js";
 import { parseResume } from "./lib/resume-parser.js";
 import { ensureProfileDir, rawResumePath, writeRawResume } from "./lib/profile.js";
@@ -94,6 +94,20 @@ async function runInit() {
   const enableFastPath = (await ask("Enable ATS fast-path fetchers? (y/n)", existing.enableFastPath ? "y" : "n")).toLowerCase().startsWith("y");
   const brandedOutput = (await ask("Show Coral Labs brand marker on each tool response? (y/n)", existing.brandedOutput === false ? "n" : "y")).toLowerCase().startsWith("y");
 
+  console.log(`\nStorage backend for cache + app state:`);
+  console.log(`  1) local      — SQLite + files under ~/.jobsync (default; best for local installs)`);
+  console.log(`  2) firestore  — GCP Firestore (use this when deploying to Cloud Run so state survives cold starts)\n`);
+  const storageAns = (await ask("Storage (1/2)", existing.storage?.backend === "firestore" ? "2" : "1")).trim();
+  const storageBackend: StorageBackend = storageAns === "2" ? "firestore" : "local";
+
+  let firestoreProjectId = existing.storage?.projectId;
+  let firestoreDatabaseId = existing.storage?.databaseId;
+  if (storageBackend === "firestore") {
+    console.log(`\nFirestore uses Application Default Credentials (run \`gcloud auth application-default login\`).`);
+    firestoreProjectId = (await ask("GCP project id", firestoreProjectId ?? process.env.GOOGLE_CLOUD_PROJECT ?? "")) || undefined;
+    firestoreDatabaseId = (await ask("Firestore database id", firestoreDatabaseId ?? "(default)")) || undefined;
+  }
+
   rl.close();
 
   const cfg: JobSyncConfig = {
@@ -106,6 +120,13 @@ async function runInit() {
     profileDir: existing.profileDir ?? `${process.env.HOME ?? process.env.USERPROFILE}/.jobsync/profile`,
     brandedOutput,
     applyHumanize: existing.applyHumanize ?? DEFAULT_APPLY_HUMANIZE,
+    storage: {
+      ...DEFAULT_STORAGE,
+      ...existing.storage,
+      backend: storageBackend,
+      projectId: firestoreProjectId,
+      databaseId: firestoreDatabaseId,
+    },
   };
   saveConfig(cfg);
   console.log(`\nSaved ${CONFIG_PATH}`);
@@ -175,7 +196,7 @@ async function main() {
       const path = args[resumeIdx + 1]!;
       ensureProfileDir();
       const text = await parseResume(path);
-      writeRawResume(text);
+      await writeRawResume(text);
       console.log(`Parsed resume: ${text.length} chars extracted.`);
       console.log(`Saved to: ${rawResumePath()}`);
       console.log(`\nNext step: open your MCP client (Claude Desktop, Claude Code, Cursor) and invoke the`);

@@ -50,7 +50,7 @@ export const pipelineUpsertJobsTool: ToolDefinition = {
         applyLink: string;
         [key: string]: string | undefined;
       }>;
-      const result = upsertPipelineEntries(jobs);
+      const result = await upsertPipelineEntries(jobs);
       return textResult({ success: true, ...result, pipelinePath: getPipelinePath() });
     } catch (err) {
       return errorResult(String(err));
@@ -79,7 +79,7 @@ export const pipelineMarkAppliedTool: ToolDefinition = {
   },
   handler: async (args) => {
     try {
-      const result = markApplied(args.applyLinks as string[]);
+      const result = await markApplied(args.applyLinks as string[]);
       return textResult({ success: true, ...result });
     } catch (err) {
       return errorResult(String(err));
@@ -126,7 +126,7 @@ export const pipelineUpdateStatusTool: ToolDefinition = {
         status: ApplicationStatus;
         notes?: string;
       }>;
-      const result = updateStatuses(updates);
+      const result = await updateStatuses(updates);
       return textResult({ success: true, ...result });
     } catch (err) {
       return errorResult(String(err));
@@ -159,7 +159,7 @@ export const pipelineGetStatusTool: ToolDefinition = {
   handler: async (args) => {
     try {
       const filter = args.statusFilter as ApplicationStatus[] | undefined;
-      const result = getPipelineGrouped(filter);
+      const result = await getPipelineGrouped(filter);
       return textResult(result);
     } catch (err) {
       return errorResult(String(err));

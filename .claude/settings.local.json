@@ -32,9 +32,7 @@
       "Bash(rm -rf /tmp/career-ops)",
       "Bash(rm -rf \"c:/Users/vyasm/AppData/Local/Temp/career-ops\")",
       "Bash(gh issue *)",
-<<<<<<< HEAD
-      "Bash(npm install *)"
-=======
+      "Bash(npm install *)",
       "Bash(node_modules/.bin/tsc --noEmit)",
       "Bash(gh pr *)",
       "Bash(gh run *)",
@@ -83,8 +81,15 @@
       "Bash(gh repo *)",
       "PowerShell(gh issue *)",
       "PowerShell($out = gh issue list --limit 5 2>&1 | Out-String; Write-Output \"RESULT:`n$out\")",
-      "Bash(echo \"EXIT:$?\")"
->>>>>>> dadc797143e0c3522514385e3fcf2f22b4e1c361
+      "Bash(echo \"EXIT:$?\")",
+      "Read(//c/Users/vyasm/.claude/projects/c--Users-vyasm-OneDrive-Desktop-JobsList/memory/**)",
+      "Bash(cat pnpm-workspace.yaml)",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).packageManager\\)\")",
+      "Bash(pnpm --filter jobsync-mcp install)",
+      "Bash(pnpm test *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory"
     ]
   },
   "enableAllProjectMcpServers": true,

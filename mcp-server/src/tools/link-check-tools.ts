@@ -8,6 +8,7 @@
  *   Generic     → GET with a browser UA; detects 404/410 or soft-delete phrases in body
  */
 
+import { cacheKey, withCache } from "../lib/response-cache.js";
 import { textResult, errorResult, type ToolDefinition } from "./index.js";
 
 const BROWSER_UA =
@@ -264,6 +265,29 @@ async function checkGeneric(url: string): Promise<LinkStatus> {
   }
 }
 
+// ── Shared dispatch (cached) ─────────────────────────────────────────────────
+
+/** Route a (valid) URL to the right board-specific verifier. */
+async function verifyDispatch(url: string): Promise<LinkStatus> {
+  const gh = parseGreenhouseUrl(url);
+  if (gh) return checkGreenhouse(gh.slug, gh.jobId);
+  const lever = parseLeverUrl(url);
+  if (lever) return checkLever(lever.slug, lever.postingId);
+  const ashby = parseAshbyUrl(url);
+  if (ashby) return checkAshby(ashby.postingId);
+  const workday = parseWorkdayUrl(url);
+  if (workday) return checkWorkday(workday.apiBase, workday.externalPath);
+  return checkGeneric(url);
+}
+
+// Link liveness can change within a day, so cache it for a shorter window than
+// the default response-cache TTL — long enough to dedupe a single scrape pass.
+const LINK_CHECK_TTL_SECONDS = 3600;
+
+function verifyCached(url: string): Promise<LinkStatus> {
+  return withCache(cacheKey("verify_job_link", url), () => verifyDispatch(url), LINK_CHECK_TTL_SECONDS);
+}
+
 // ── Tool definitions ─────────────────────────────────────────────────────────
 
 export const verifyJobLinkTool: ToolDefinition = {
@@ -296,31 +320,7 @@ export const verifyJobLinkTool: ToolDefinition = {
       return errorResult(`Invalid URL: ${url}`);
     }
 
-    let result: LinkStatus;
-
-    // Board-specific fast paths
-    const gh = parseGreenhouseUrl(url);
-    if (gh) {
-      result = await checkGreenhouse(gh.slug, gh.jobId);
-    } else {
-      const lever = parseLeverUrl(url);
-      if (lever) {
-        result = await checkLever(lever.slug, lever.postingId);
-      } else {
-        const ashby = parseAshbyUrl(url);
-        if (ashby) {
-          result = await checkAshby(ashby.postingId);
-        } else {
-          const workday = parseWorkdayUrl(url);
-          if (workday) {
-            result = await checkWorkday(workday.apiBase, workday.externalPath);
-          } else {
-            result = await checkGeneric(url);
-          }
-        }
-      }
-    }
-
+    const result = await verifyCached(url);
     return textResult({ url, ...result });
   },
 };
@@ -362,28 +362,7 @@ export const verifyJobLinkBatchTool: ToolDefinition = {
           return { url, active: false, statusCode: null, reason: "Invalid URL." };
         }
 
-        let result: LinkStatus;
-        const gh = parseGreenhouseUrl(url);
-        if (gh) {
-          result = await checkGreenhouse(gh.slug, gh.jobId);
-        } else {
-          const lever = parseLeverUrl(url);
-          if (lever) {
-            result = await checkLever(lever.slug, lever.postingId);
-          } else {
-            const ashby = parseAshbyUrl(url);
-            if (ashby) {
-              result = await checkAshby(ashby.postingId);
-            } else {
-              const workday = parseWorkdayUrl(url);
-              if (workday) {
-                result = await checkWorkday(workday.apiBase, workday.externalPath);
-              } else {
-                result = await checkGeneric(url);
-              }
-            }
-          }
-        }
+        const result = await verifyCached(url);
         return { url, ...result };
       }),
     );

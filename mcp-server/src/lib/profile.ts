@@ -1,10 +1,12 @@
-// User profile: skills.md, experience.md, projects.md, roles.json stored
-// under ~/.jobsync/profile/ and editable by hand. The agent reads these at
-// the start of every scrape run so role targeting reflects the real user.
+// User profile: skills.md, experience.md, projects.md, roles.json. Stored via
+// the StorageAdapter (locally under ~/.jobsync/profile/, in the cloud via
+// Firestore). The agent reads these at the start of every scrape run so role
+// targeting reflects the real user.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig } from "../config.js";
+import { getStorageConfig, loadConfig } from "../config.js";
+import { getStore } from "./store/index.js";
 
 export type ProfileFile = "skills" | "experience" | "projects";
 
@@ -15,40 +17,37 @@ export interface Roles {
 }
 
 const EMPTY_ROLES: Roles = { detected: [], custom: [], excluded: [] };
+const NS = "profile";
 
 function profileDir(): string {
   return loadConfig().profileDir;
 }
 
+/**
+ * Ensure the local profile directory exists. No-op when using a cloud backend
+ * (Firestore needs no directory). Returns the logical profile dir path.
+ */
 export function ensureProfileDir(): string {
   const dir = profileDir();
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  if (getStorageConfig().backend === "local" && !existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
   return dir;
 }
 
-function mdPath(name: ProfileFile): string {
-  return join(profileDir(), `${name}.md`);
+export async function readProfileFile(name: ProfileFile): Promise<string> {
+  return (await (await getStore()).docs.readDoc(NS, `${name}.md`)) ?? "";
 }
 
-function rolesPath(): string {
-  return join(profileDir(), "roles.json");
+export async function writeProfileFile(name: ProfileFile, content: string): Promise<void> {
+  await (await getStore()).docs.writeDoc(NS, `${name}.md`, content);
 }
 
-export function readProfileFile(name: ProfileFile): string {
-  const p = mdPath(name);
-  return existsSync(p) ? readFileSync(p, "utf-8") : "";
-}
-
-export function writeProfileFile(name: ProfileFile, content: string): void {
-  ensureProfileDir();
-  writeFileSync(mdPath(name), content);
-}
-
-export function readRoles(): Roles {
-  const p = rolesPath();
-  if (!existsSync(p)) return { ...EMPTY_ROLES };
+export async function readRoles(): Promise<Roles> {
+  const raw = await (await getStore()).docs.readDoc(NS, "roles.json");
+  if (!raw) return { ...EMPTY_ROLES };
   try {
-    const parsed = JSON.parse(readFileSync(p, "utf-8")) as Partial<Roles>;
+    const parsed = JSON.parse(raw) as Partial<Roles>;
     return {
       detected: parsed.detected ?? [],
       custom: parsed.custom ?? [],
@@ -59,9 +58,8 @@ export function readRoles(): Roles {
   }
 }
 
-export function writeRoles(roles: Roles): void {
-  ensureProfileDir();
-  writeFileSync(rolesPath(), JSON.stringify(roles, null, 2));
+export async function writeRoles(roles: Roles): Promise<void> {
+  await (await getStore()).docs.writeDoc(NS, "roles.json", JSON.stringify(roles, null, 2));
 }
 
 export function activeRoles(roles: Roles): string[] {
@@ -73,15 +71,15 @@ export function activeRoles(roles: Roles): string[] {
   return Array.from(union.values());
 }
 
+/** Logical location label (the local file path) — for display/diagnostics only. */
 export function rawResumePath(): string {
   return join(profileDir(), "raw-resume.txt");
 }
 
-export function writeRawResume(text: string): void {
-  ensureProfileDir();
-  writeFileSync(rawResumePath(), text);
+export async function writeRawResume(text: string): Promise<void> {
+  await (await getStore()).docs.writeDoc(NS, "raw-resume.txt", text);
 }
 
-export function readRawResume(): string {
-  return existsSync(rawResumePath()) ? readFileSync(rawResumePath(), "utf-8") : "";
+export async function readRawResume(): Promise<string> {
+  return (await (await getStore()).docs.readDoc(NS, "raw-resume.txt")) ?? "";
 }

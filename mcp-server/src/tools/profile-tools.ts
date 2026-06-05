@@ -26,14 +26,20 @@ export const profileReadTool: ToolDefinition = {
   },
   handler: async () => {
     try {
-      const roles = readRoles();
+      const [roles, skills, experience, projects, rawResume] = await Promise.all([
+        readRoles(),
+        readProfileFile("skills"),
+        readProfileFile("experience"),
+        readProfileFile("projects"),
+        readRawResume(),
+      ]);
       return textResult({
-        skills: readProfileFile("skills"),
-        experience: readProfileFile("experience"),
-        projects: readProfileFile("projects"),
+        skills,
+        experience,
+        projects,
         roles,
         activeRoles: activeRoles(roles),
-        rawResume: readRawResume(),
+        rawResume,
       });
     } catch (err) {
       return errorResult(err instanceof Error ? err.message : String(err));
@@ -65,7 +71,7 @@ export const profileWriteFileTool: ToolDefinition = {
       if (!PROFILE_FILES.includes(file)) {
         return errorResult(`Invalid file: ${file}. Must be one of ${PROFILE_FILES.join(", ")}.`);
       }
-      writeProfileFile(file, String(args.content ?? ""));
+      await writeProfileFile(file, String(args.content ?? ""));
       return textResult({ file, written: true });
     } catch (err) {
       return errorResult(err instanceof Error ? err.message : String(err));
@@ -93,7 +99,7 @@ export const profileUpdateRolesTool: ToolDefinition = {
   },
   handler: async (args) => {
     try {
-      const roles: Roles = readRoles();
+      const roles: Roles = await readRoles();
       if (Array.isArray(args.detected)) roles.detected = args.detected as string[];
       if (Array.isArray(args.custom)) roles.custom = args.custom as string[];
       if (Array.isArray(args.excluded)) roles.excluded = args.excluded as string[];
@@ -117,7 +123,7 @@ export const profileUpdateRolesTool: ToolDefinition = {
       if (Array.isArray(args.removeCustom)) roles.custom = removeFrom(roles.custom, args.removeCustom as string[]);
       if (Array.isArray(args.removeExcluded)) roles.excluded = removeFrom(roles.excluded, args.removeExcluded as string[]);
 
-      writeRoles(roles);
+      await writeRoles(roles);
       return textResult({ roles, activeRoles: activeRoles(roles) });
     } catch (err) {
       return errorResult(err instanceof Error ? err.message : String(err));
@@ -142,7 +148,7 @@ export const profileParseResumeTool: ToolDefinition = {
     try {
       const path = String(args.path);
       const text = await parseResume(path);
-      writeRawResume(text);
+      await writeRawResume(text);
       return textResult({ path, chars: text.length, preview: text.slice(0, 500) });
     } catch (err) {
       return errorResult(err instanceof Error ? err.message : String(err));

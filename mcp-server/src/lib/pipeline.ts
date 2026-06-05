@@ -1,6 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_DIR } from "../config.js";
+import { getStore } from "./store/index.js";
+
+const NS = "pipeline";
+const ID = "default";
 
 export type ApplicationStatus =
   | "pending"
@@ -36,23 +39,20 @@ const VALID_STATUSES = new Set<string>([
   "pending", "applied", "interviewing", "offer", "rejected", "withdrawn",
 ]);
 
+/** Logical location label (the local file path) — for display/diagnostics only. */
 export function getPipelinePath(): string {
   return join(CONFIG_DIR, "pipeline.tsv");
-}
-
-function ensureDir(): void {
-  if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true });
 }
 
 function escape(value: string): string {
   return (value ?? "").replace(/[\t\n\r]/g, " ");
 }
 
-export function readPipeline(): PipelineEntry[] {
-  const filePath = getPipelinePath();
-  if (!existsSync(filePath)) return [];
+export async function readPipeline(): Promise<PipelineEntry[]> {
+  const raw = await (await getStore()).docs.readDoc(NS, ID);
+  if (!raw) return [];
 
-  const lines = readFileSync(filePath, "utf-8").split("\n").filter(Boolean);
+  const lines = raw.split("\n").filter(Boolean);
   if (lines.length <= 1) return [];
 
   return lines.slice(1).map((line) => {
@@ -63,19 +63,19 @@ export function readPipeline(): PipelineEntry[] {
   });
 }
 
-export function writePipeline(entries: PipelineEntry[]): void {
-  ensureDir();
+export async function writePipeline(entries: PipelineEntry[]): Promise<void> {
   const header = HEADERS.join("\t");
   const rows = entries.map((e) =>
     HEADERS.map((k) => escape((e as unknown as Record<string, string>)[k] ?? "")).join("\t")
   );
-  writeFileSync(getPipelinePath(), [header, ...rows].join("\n") + "\n", "utf-8");
+  const body = [header, ...rows].join("\n") + "\n";
+  await (await getStore()).docs.writeDoc(NS, ID, body);
 }
 
-export function upsertPipelineEntries(
+export async function upsertPipelineEntries(
   incoming: Array<Partial<PipelineEntry> & { positionTitle: string; company: string; applyLink: string }>
-): { added: number; updated: number } {
-  const existing = readPipeline();
+): Promise<{ added: number; updated: number }> {
+  const existing = await readPipeline();
   const byId = new Map(existing.map((e) => [e.id, e]));
   const byLink = new Map(existing.map((e) => [e.applyLink, e]));
 
@@ -122,12 +122,12 @@ export function upsertPipelineEntries(
     }
   }
 
-  writePipeline(Array.from(byId.values()));
+  await writePipeline(Array.from(byId.values()));
   return { added, updated };
 }
 
-export function markApplied(applyLinks: string[]): { matched: number; notFound: string[] } {
-  const entries = readPipeline();
+export async function markApplied(applyLinks: string[]): Promise<{ matched: number; notFound: string[] }> {
+  const entries = await readPipeline();
   const linkSet = new Set(applyLinks.map((l) => l.trim()));
   const now = new Date().toISOString().slice(0, 10);
   let matched = 0;
@@ -141,15 +141,15 @@ export function markApplied(applyLinks: string[]): { matched: number; notFound: 
     }
   }
 
-  writePipeline(entries);
+  await writePipeline(entries);
   const notFound = applyLinks.filter((l) => !entries.some((e) => e.applyLink === l));
   return { matched, notFound };
 }
 
-export function updateStatuses(
+export async function updateStatuses(
   updates: Array<{ applyLink?: string; id?: string; status: ApplicationStatus; notes?: string }>
-): { matched: number; invalid: string[] } {
-  const entries = readPipeline();
+): Promise<{ matched: number; invalid: string[] }> {
+  const entries = await readPipeline();
   const now = new Date().toISOString().slice(0, 10);
   let matched = 0;
   const invalid: string[] = [];
@@ -173,14 +173,14 @@ export function updateStatuses(
     matched++;
   }
 
-  writePipeline(entries);
+  await writePipeline(entries);
   return { matched, invalid };
 }
 
-export function getPipelineGrouped(
+export async function getPipelineGrouped(
   statusFilter?: ApplicationStatus[]
-): { summary: Record<string, number>; byStatus: Record<string, PipelineEntry[]> } {
-  const all = readPipeline();
+): Promise<{ summary: Record<string, number>; byStatus: Record<string, PipelineEntry[]> }> {
+  const all = await readPipeline();
   const entries = statusFilter
     ? all.filter((e) => statusFilter.includes(e.status))
     : all;

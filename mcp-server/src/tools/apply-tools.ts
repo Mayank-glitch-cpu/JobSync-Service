@@ -81,7 +81,7 @@ export const profileWritePersonalTool: ToolDefinition = {
   },
   handler: async (args) => {
     try {
-      const updated = writePersonalProfile(args as Partial<PersonalProfile>);
+      const updated = await writePersonalProfile(args as Partial<PersonalProfile>);
       return textResult({ saved: true, profile: updated });
     } catch (err) {
       return errorResult(String(err));
@@ -102,7 +102,7 @@ export const profileReadPersonalTool: ToolDefinition = {
   },
   handler: async () => {
     try {
-      const profile = readPersonalProfile();
+      const profile = await readPersonalProfile();
       const missing: string[] = [];
       for (const key of ["firstName", "lastName", "email", "resumePath"] as const) {
         if (!profile[key]) missing.push(key);
@@ -361,10 +361,12 @@ export const applyFillFieldsTool: ToolDefinition = {
         );
       }
 
-      const profile = readPersonalProfile();
-      const experience = readProfileFile("experience");
-      const skills = readProfileFile("skills");
-      const projects = readProfileFile("projects");
+      const [profile, experience, skills, projects] = await Promise.all([
+        readPersonalProfile(),
+        readProfileFile("experience"),
+        readProfileFile("skills"),
+        readProfileFile("projects"),
+      ]);
 
       const company = args.company ? String(args.company) : "the company";
       const jobTitle = args.jobTitle ? String(args.jobTitle) : "this role";

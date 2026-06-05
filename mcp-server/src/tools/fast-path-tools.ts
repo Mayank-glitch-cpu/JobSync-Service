@@ -1,5 +1,6 @@
 import { loadConfig } from "../config.js";
 import { fetchAshby, fetchGreenhouse, fetchLever, fetchWorkday } from "../lib/fast-path.js";
+import { cacheKey, withCache } from "../lib/response-cache.js";
 import { errorResult, textResult, type ToolDefinition } from "./index.js";
 
 function ensureEnabled(): string | null {
@@ -15,11 +16,11 @@ function ensureEnabled(): string | null {
 
 type Fetcher = (slug: string) => Promise<Array<{ id: string; positionTitle: string }>>;
 
-async function runBatch(fetcher: Fetcher, slugs: string[]) {
+async function runBatch(tool: string, fetcher: Fetcher, slugs: string[]) {
   const results = await Promise.all(
     slugs.map(async (slug) => {
       try {
-        const jobs = await fetcher(slug);
+        const jobs = await withCache(cacheKey(tool, slug), () => fetcher(slug));
         return { slug, count: jobs.length, jobs };
       } catch (err) {
         return { slug, count: 0, error: err instanceof Error ? err.message : String(err) };
@@ -58,7 +59,7 @@ export const fetchGreenhouseTool: ToolDefinition = {
     const slugs = slugsArg(args);
     if (slugs.length === 0) return errorResult("Provide `slug` or `slugs`.");
     try {
-      return textResult(await runBatch(fetchGreenhouse, slugs));
+      return textResult(await runBatch("fetch_greenhouse_jobs", fetchGreenhouse, slugs));
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }
@@ -78,7 +79,7 @@ export const fetchLeverTool: ToolDefinition = {
     const slugs = slugsArg(args);
     if (slugs.length === 0) return errorResult("Provide `slug` or `slugs`.");
     try {
-      return textResult(await runBatch(fetchLever, slugs));
+      return textResult(await runBatch("fetch_lever_jobs", fetchLever, slugs));
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }
@@ -126,7 +127,9 @@ export const fetchWorkdayTool: ToolDefinition = {
       const results = await Promise.all(
         urls.map(async (url) => {
           try {
-            const jobs = await fetchWorkday(url);
+            const jobs = await withCache(cacheKey("fetch_workday_jobs", url), () =>
+              fetchWorkday(url),
+            );
             return { boardUrl: url, count: jobs.length, jobs };
           } catch (e) {
             return { boardUrl: url, count: 0, error: e instanceof Error ? e.message : String(e) };
@@ -155,7 +158,7 @@ export const fetchAshbyTool: ToolDefinition = {
     const slugs = slugsArg(args);
     if (slugs.length === 0) return errorResult("Provide `slug` or `slugs`.");
     try {
-      return textResult(await runBatch(fetchAshby, slugs));
+      return textResult(await runBatch("fetch_ashby_jobs", fetchAshby, slugs));
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }

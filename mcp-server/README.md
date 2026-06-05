@@ -59,6 +59,7 @@ The wizard then asks:
 - **US-only filter** (default yes)
 - **Enable ATS fast-path fetchers** — direct job-board API calls for high-volume reliable pulls (default off; the agentic path is the default)
 - **Branded tool output** — prefix every jobsync tool response with the Coral Labs marker (`🪸 jobsync · Coral Labs`). Default on; set `brandedOutput: false` in `~/.jobsync/config.json` to silence it.
+- **Storage backend** — `local` (SQLite + files under `~/.jobsync`, the default) or `firestore` (GCP Firestore). Use `firestore` when running on Cloud Run or any ephemeral host so the cache and pipeline/profile state survive restarts. Firestore needs a GCP project id and Application Default Credentials.
 
 Config is written to `~/.jobsync/config.json`.
 
@@ -137,16 +138,23 @@ The agent runs: `profile_read` → `web_search` → `web_fetch` → `classify_jo
 
 ## `~/.jobsync/` layout
 
+This is the `local` storage backend. With the `firestore` backend the same data
+lives in Firestore collections (`seen_jobs`, `mcp_cache`, `jobsync_docs`) instead
+of these files — only `config.json` stays local.
+
 ```
 ~/.jobsync/
 ├── config.json
-├── cache.db             # SQLite dedup cache
+├── cache.db             # SQLite dedup cache + MCP response cache
+├── pipeline.tsv         # application pipeline
+├── portals.yml          # portal scanner config
 ├── jobs.md              # markdown sink (if enabled)
 └── profile/
     ├── skills.md        # editable
     ├── experience.md    # editable
     ├── projects.md      # editable
     ├── roles.json       # { detected, custom, excluded }
+    ├── personal.json    # contact info for auto-apply
     └── raw-resume.txt
 ```
 
@@ -235,6 +243,14 @@ AIRTABLE_API_KEY=pat...
 AIRTABLE_BASE_ID=app...
 AIRTABLE_TABLE_NAME=Jobs
 JOBSYNC_SINK=airtable
+
+# Persist cache + app state in Firestore (recommended on ephemeral hosts like
+# Cloud Run — auto-enabled when K_SERVICE is set). Otherwise state is lost on
+# every cold start.
+JOBSYNC_STORAGE_BACKEND=firestore
+GOOGLE_CLOUD_PROJECT=your-gcp-project       # auto-detected from ADC on Cloud Run
+# FIRESTORE_DATABASE_ID=                     # only for a non-default database
+JOBSYNC_RESPONSE_CACHE_TTL_HOURS=6
 ```
 
 Set `JOBSYNC_REMOTE_BEARER_TOKEN` for private bearer-token protection. For Claude.ai custom connectors with user sign-in, use OAuth; see `docs/production-mcp.md`.

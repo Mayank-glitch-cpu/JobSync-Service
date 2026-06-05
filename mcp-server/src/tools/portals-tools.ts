@@ -21,7 +21,7 @@ export const portalsReadTool: ToolDefinition = {
   },
   handler: async () => {
     try {
-      const result = readPortals();
+      const result = await readPortals();
       return textResult({ ...result });
     } catch (err) {
       return errorResult(String(err));
@@ -53,7 +53,7 @@ export const portalsWriteTool: ToolDefinition = {
     try {
       const content = String(args.content ?? "");
       if (!content.trim()) return errorResult("content must not be empty.");
-      const result = writePortals(content);
+      const result = await writePortals(content);
       return textResult({ success: true, path: result.path, bytes: content.length });
     } catch (err) {
       return errorResult(String(err));

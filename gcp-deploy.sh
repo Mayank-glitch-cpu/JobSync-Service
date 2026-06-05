@@ -4,6 +4,8 @@ set -e
 # Configuration variables
 SERVICE_NAME="jobsync-mcp"
 REGION="us-central1"
+# Firestore location (multi-region or region). Defaults to nam5 (US multi-region).
+FIRESTORE_LOCATION="${FIRESTORE_LOCATION:-nam5}"
 
 # Check if project ID is configured in gcloud
 PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
@@ -19,6 +21,31 @@ echo "Deploying $SERVICE_NAME to GCP Project: $PROJECT_ID"
 echo "Region: $REGION"
 echo "=========================================================="
 
+# Step 0: Provision Firestore (cache + app-state datastore).
+# jobsync persists its dedup cache, MCP response cache, and pipeline/profile
+# state in Firestore so they survive Cloud Run's ephemeral, scale-to-zero
+# filesystem.
+echo "Step 0: Ensuring Firestore is provisioned..."
+gcloud services enable firestore.googleapis.com --project "$PROJECT_ID"
+
+if ! gcloud firestore databases describe --database='(default)' --project "$PROJECT_ID" >/dev/null 2>&1; then
+  echo "  Creating native-mode Firestore database in $FIRESTORE_LOCATION..."
+  gcloud firestore databases create --location="$FIRESTORE_LOCATION" --project "$PROJECT_ID"
+else
+  echo "  Firestore (default) database already exists."
+fi
+
+# TTL policy so expired response-cache docs are auto-deleted by Firestore.
+gcloud firestore fields ttls update expiresAt \
+  --collection-group=mcp_cache --enable-ttl --project "$PROJECT_ID" \
+  --async >/dev/null 2>&1 || echo "  (TTL policy already configured or pending.)"
+
+# The Cloud Run runtime service account needs Firestore (Datastore) access.
+RUNTIME_SA="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')-compute@developer.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:$RUNTIME_SA" \
+  --role="roles/datastore.user" >/dev/null
+
 # Step 1: Build the docker image using Google Cloud Build
 echo "Step 1: Building container image via GCP Cloud Build..."
 gcloud builds submit --tag "gcr.io/$PROJECT_ID/$SERVICE_NAME"
@@ -30,7 +57,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --platform managed \
   --region "$REGION" \
   --allow-unauthenticated \
-  --set-env-vars="JOBSYNC_HEADLESS=true,NODE_ENV=production"
+  --set-env-vars="JOBSYNC_HEADLESS=true,NODE_ENV=production,JOBSYNC_STORAGE_BACKEND=firestore,GOOGLE_CLOUD_PROJECT=$PROJECT_ID"
 
 echo "=========================================================="
 echo "🎉 Deployment Successful!"
