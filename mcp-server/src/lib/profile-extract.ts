@@ -44,9 +44,9 @@ export async function structureResume(rawText: string): Promise<StructuredProfil
         content: `Structure this resume into the required JSON profile:\n\n${rawText.slice(0, 40000)}`,
       },
     ],
-  } as Anthropic.Messages.MessageCreateParamsNonStreaming);
+  });
 
-  const text = (resp.content as Anthropic.Messages.ContentBlock[])
+  const text = resp.content
     .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("");

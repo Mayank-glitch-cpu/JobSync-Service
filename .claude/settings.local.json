@@ -99,7 +99,11 @@
       "Skill(claude-api:*)",
       "Bash(node -e \"console.log\\(require\\('./mcp-server/node_modules/@anthropic-ai/sdk/package.json'\\).version\\)\")",
       "Bash(node -e \"console.log\\(require\\('@anthropic-ai/sdk/package.json'\\).version\\)\")",
-      "Bash(pnpm --filter jobsync-dashboard build)"
+      "Bash(pnpm --filter jobsync-dashboard build)",
+      "Bash(cd /tmp/sdk-check && echo \"=== request-side container param \\(in MessageCreateParamsBase\\) ===\"; grep -n \"container\" package/resources/messages/messages.d.ts | grep -iv \"upload\\\\|expire\\\\|identifier\\\\|response model\\\\|content block\\\\|Information\\\\|files\\\\|input directory\\\\|execution tool\")",
+      "Read(//tmp/**)",
+      "Bash(cd /c/Users/vyasm/OneDrive/Desktop/JobsList && grep -rn \"@anthropic-ai/sdk\" pnpm-lock.yaml | head -5)",
+      "Read(//c/c/Users/vyasm/OneDrive/Desktop/JobsList/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory"
