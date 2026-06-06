@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { apiFetch, type PipelineEntry, type PipelineResponse } from "../api";
+import { useNavigate } from "react-router-dom";
+import { apiFetch, type PipelineEntry, type PipelineResponse, type Run } from "../api";
 
 const COLUMNS = ["pending", "applied", "interviewing", "offer", "rejected", "withdrawn"] as const;
 const STATUS_OPTIONS = COLUMNS;
@@ -7,12 +8,40 @@ const STATUS_OPTIONS = COLUMNS;
 export default function Pipeline() {
   const [data, setData] = useState<PipelineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [applying, setApplying] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   async function refresh() {
     try {
       setData(await apiFetch<PipelineResponse>("/api/pipeline"));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  // Start an Auto-Apply preview run for one job, then jump to the Agents page
+  // where the live log + filled-form preview render and the approve gate lives.
+  async function autoApply(entry: PipelineEntry) {
+    setError(null);
+    setApplying(entry.id);
+    try {
+      const res = await apiFetch<{ run: Run }>("/api/runs", {
+        method: "POST",
+        body: JSON.stringify({
+          agent: "auto-apply",
+          params: {
+            jobId: entry.id,
+            applyLink: entry.applyLink,
+            company: entry.company,
+            jobTitle: entry.positionTitle,
+          },
+        }),
+      });
+      navigate(`/agents?run=${encodeURIComponent(res.run.id)}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setApplying(null);
     }
   }
 
@@ -74,6 +103,15 @@ export default function Pipeline() {
                       ))}
                     </select>
                   </div>
+                  {col === "pending" && entry.applyLink && (
+                    <button
+                      className="apply-btn"
+                      onClick={() => autoApply(entry)}
+                      disabled={applying === entry.id}
+                    >
+                      {applying === entry.id ? "Starting…" : "Auto-Apply"}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { apiFetch, type Agent, type Run } from "../api";
+import { useSearchParams } from "react-router-dom";
+import { apiFetch, previewSrc, type Agent, type Run } from "../api";
 
 const AGENT_LABEL: Record<string, string> = {
   search: "Search",
@@ -10,12 +11,17 @@ function agentLabel(id: string): string {
   return AGENT_LABEL[id] ?? id;
 }
 
+// Statuses where the run is finished and polling should stop.
+const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
+
 export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [active, setActive] = useState<Run | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const pollRef = useRef<number | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   async function refresh() {
     try {
@@ -30,13 +36,6 @@ export default function Agents() {
     }
   }
 
-  useEffect(() => {
-    refresh();
-    return () => {
-      if (pollRef.current) window.clearInterval(pollRef.current);
-    };
-  }, []);
-
   function stopPolling() {
     if (pollRef.current) window.clearInterval(pollRef.current);
     pollRef.current = null;
@@ -47,9 +46,9 @@ export default function Agents() {
     pollRef.current = window.setInterval(async () => {
       try {
         const run = await apiFetch<Run>(`/api/runs/${encodeURIComponent(id)}`);
-        // Only update the panel if this run is still the selected one.
         setActive((cur) => (cur && cur.id === id ? run : cur));
-        if (run.status === "succeeded" || run.status === "failed") {
+        // Stop on terminal OR awaiting_approval (now it's the user's move).
+        if (TERMINAL.has(run.status) || run.status === "awaiting_approval") {
           stopPolling();
           await refresh();
         }
@@ -59,7 +58,6 @@ export default function Agents() {
     }, 2000);
   }
 
-  // Select a run from the recent-runs list and show its full log on the right.
   async function selectRun(r: Run) {
     setActive(r);
     stopPolling();
@@ -68,9 +66,25 @@ export default function Agents() {
       setActive(full);
       if (full.status === "running" || full.status === "queued") pollRun(full.id);
     } catch {
-      /* the list row data is enough to show something */
+      /* row data is enough to show something */
     }
   }
+
+  useEffect(() => {
+    refresh();
+    return stopPolling;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Deep link from the Pipeline "Auto-Apply" button: ?run=<id> selects + follows it.
+  useEffect(() => {
+    const id = searchParams.get("run");
+    if (id && active?.id !== id) {
+      void selectRun({ id } as Run);
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   async function run(agentId: string) {
     setError(null);
@@ -79,7 +93,6 @@ export default function Agents() {
         method: "POST",
         body: JSON.stringify({ agent: agentId, params: { lookbackHours: 48 } }),
       });
-      // Surface a server message (e.g. Auto-Apply "coming soon") in the log panel.
       const seeded =
         res.message && (!res.run.progress || res.run.progress.length === 0)
           ? { ...res.run, progress: [res.message] }
@@ -92,11 +105,29 @@ export default function Agents() {
     }
   }
 
+  async function decide(id: string, action: "approve" | "discard") {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch<{ run: Run }>(`/api/runs/${encodeURIComponent(id)}/${action}`, {
+        method: "POST",
+      });
+      setActive(res.run);
+      if (res.run.status === "running") pollRun(res.run.id);
+      else await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section>
       <h1>Agents</h1>
       <p className="muted">
-        Run an agent and watch its live log on the right. Click any recent run to replay its log.
+        Run an agent and watch its live log on the right. Auto-Apply fills a job from your Pipeline and
+        shows a preview — nothing is submitted until you approve it.
       </p>
 
       {error && <p className="error">{error}</p>}
@@ -111,9 +142,13 @@ export default function Agents() {
                   {a.status !== "available" && <span className="badge">{a.status}</span>}
                 </div>
                 <p className="muted">{a.description}</p>
-                <button onClick={() => run(a.id)} disabled={a.status === "unavailable"}>
-                  Run {a.name}
-                </button>
+                {a.id === "auto-apply" ? (
+                  <span className="muted small">Start from a job in your Pipeline →</span>
+                ) : (
+                  <button onClick={() => run(a.id)} disabled={a.status === "unavailable"}>
+                    Run {a.name}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -140,7 +175,7 @@ export default function Agents() {
                   >
                     <td>{agentLabel(r.agent)}</td>
                     <td>
-                      <span className={`badge status-${r.status}`}>{r.status}</span>
+                      <span className={`badge status-${r.status}`}>{r.status.replace("_", " ")}</span>
                     </td>
                     <td className="muted">
                       {r.result ? `+${r.result.added}` : r.error ? "error" : "—"}
@@ -153,17 +188,26 @@ export default function Agents() {
           )}
         </div>
 
-        <LogPanel run={active} onClose={() => setActive(null)} />
+        <LogPanel run={active} busy={busy} onDecide={decide} onClose={() => setActive(null)} />
       </div>
     </section>
   );
 }
 
-function LogPanel({ run, onClose }: { run: Run | null; onClose: () => void }) {
+function LogPanel({
+  run,
+  busy,
+  onDecide,
+  onClose,
+}: {
+  run: Run | null;
+  busy: boolean;
+  onDecide: (id: string, action: "approve" | "discard") => void;
+  onClose: () => void;
+}) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const live = run?.status === "running" || run?.status === "queued";
 
-  // Auto-scroll to the newest line as the log grows.
   useEffect(() => {
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -172,12 +216,15 @@ function LogPanel({ run, onClose }: { run: Run | null; onClose: () => void }) {
   if (!run) {
     return (
       <aside className="log-panel empty">
-        <p className="muted small">Select a run, or start an agent, to see its log here.</p>
+        <p className="muted small">Select a run, or start an agent, to see its log and preview here.</p>
       </aside>
     );
   }
 
   const lines = run.progress ?? [];
+  const latestPreview = run.previews?.[run.previews.length - 1];
+  const previewImg = latestPreview ? previewSrc(latestPreview) : undefined;
+  const awaiting = run.status === "awaiting_approval";
 
   return (
     <aside className="log-panel">
@@ -186,7 +233,7 @@ function LogPanel({ run, onClose }: { run: Run | null; onClose: () => void }) {
           <span className={`status-dot status-${run.status}`} />
           {agentLabel(run.agent)} run
           <span className={`badge status-${run.status}`}>
-            {run.status}
+            {run.status.replace("_", " ")}
             {live && <span className="live-pulse" />}
           </span>
         </div>
@@ -196,9 +243,45 @@ function LogPanel({ run, onClose }: { run: Run | null; onClose: () => void }) {
       </div>
 
       <div className="log-meta muted small">
+        {run.jobTitle ? `${run.jobTitle}${run.company ? ` · ${run.company}` : ""} · ` : ""}
         Started {new Date(run.createdAt).toLocaleString()}
-        {run.finishedAt && ` · Finished ${new Date(run.finishedAt).toLocaleString()}`}
       </div>
+
+      {previewImg && (
+        <figure className="preview-shot">
+          <img src={previewImg} alt={latestPreview?.caption ?? "preview"} />
+          <figcaption className="muted small">{latestPreview?.caption}</figcaption>
+        </figure>
+      )}
+
+      {awaiting && run.proposed && (
+        <div className="approve-box">
+          {run.proposed.unfilledRequired.length > 0 && (
+            <p className="error small">
+              {run.proposed.unfilledRequired.length} required field(s) couldn't be filled:{" "}
+              {run.proposed.unfilledRequired.join(", ")}. Review before submitting.
+            </p>
+          )}
+          <details className="proposed">
+            <summary className="small">{run.proposed.filled.length} field(s) filled — review</summary>
+            <ul className="proposed-list">
+              {run.proposed.filled.map((f, i) => (
+                <li key={i} className="small">
+                  <span className="muted">{f.label}:</span> {f.value}
+                </li>
+              ))}
+            </ul>
+          </details>
+          <div className="approve-actions">
+            <button onClick={() => onDecide(run.id, "approve")} disabled={busy}>
+              {busy ? "Submitting…" : "Approve & submit"}
+            </button>
+            <button className="ghost" onClick={() => onDecide(run.id, "discard")} disabled={busy}>
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="log-body" ref={bodyRef}>
         {lines.length === 0 ? (
@@ -216,9 +299,10 @@ function LogPanel({ run, onClose }: { run: Run | null; onClose: () => void }) {
         <div className="log-foot">
           {run.status === "succeeded" && (
             <p className="notice small">
-              Added {run.result?.added ?? 0} job{run.result?.added === 1 ? "" : "s"}
-              {run.result?.updated ? `, updated ${run.result.updated}` : ""}.
-              {run.summary ? ` ${run.summary}` : ""}
+              {run.summary ??
+                `Added ${run.result?.added ?? 0} job${run.result?.added === 1 ? "" : "s"}${
+                  run.result?.updated ? `, updated ${run.result.updated}` : ""
+                }.`}
             </p>
           )}
           {run.status === "failed" && <p className="error small">{run.error}</p>}
