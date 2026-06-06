@@ -8,7 +8,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createJobSyncServer } from "./server.js";
 import { inspectForm, fillAndSubmit, saveApplyDraft, saveFormState } from "./lib/browser-apply.js";
 import { fillFields } from "./lib/ai-fill.js";
-import { uploadScreenshotToGcs } from "./lib/gcs.js";
+import { screenshotToData } from "./lib/gcs.js";
 import { handleDashboardApi } from "./api/dashboard.js";
 
 // Static dashboard build (the SPA). In the Docker image the dashboard's dist is
@@ -99,19 +99,7 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
   });
 }
 
-async function getScreenshotData(localFilePath: string): Promise<{ url?: string; base64?: string }> {
-  if (!localFilePath || !existsSync(localFilePath)) return {};
-  const gcsUrl = await uploadScreenshotToGcs(localFilePath);
-  if (gcsUrl) {
-    return { url: gcsUrl };
-  }
-  try {
-    const base64 = readFileSync(localFilePath).toString("base64");
-    return { base64 };
-  } catch {
-    return {};
-  }
-}
+const getScreenshotData = screenshotToData;
 
 export const httpServer = createServer(async (req, res) => {
   if (!req.url) {

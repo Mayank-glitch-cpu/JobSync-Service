@@ -24,6 +24,14 @@ import { parseResume } from "../lib/resume-parser.js";
 import { structureResume } from "../lib/profile-extract.js";
 import { isAgentConfigured } from "../lib/agent/anthropic.js";
 import { runSearchAgent, type SearchParams } from "../lib/agent/search-agent.js";
+import {
+  prepareApplication,
+  submitPreparedApplication,
+  discardPreparedApplication,
+  type ApplyParams,
+  type PreviewFrame,
+  type ProposedField,
+} from "../lib/agent/auto-apply-agent.js";
 import { getStore } from "../lib/store/index.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -75,8 +83,9 @@ function agentCatalog() {
     {
       id: "auto-apply",
       name: "Auto-Apply",
-      description: "Automatically fill and submit applications for jobs in your pipeline.",
-      status: "coming-soon",
+      description:
+        "Fill a pipeline job's application from your profile and show a preview. You approve before anything is submitted. Start one from a job in your Pipeline.",
+      status: searchReady ? "available" : "unavailable",
     },
   ];
 }
@@ -87,7 +96,12 @@ function agentCatalog() {
 // show the full trace of a run (live and after the fact), not just a tail.
 const MAX_LOG_LINES = 300;
 
-type RunStatus = "queued" | "running" | "succeeded" | "failed";
+// "awaiting_approval": an Auto-Apply preview is filled and the browser session is
+// held open until the user approves (submit) or discards it. "cancelled": discarded.
+type RunStatus = "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled";
+
+// Max preview screenshots kept per run (in memory, live). Older frames are dropped.
+const MAX_PREVIEWS = 6;
 
 /** Append a timestamped line to a run's log, trimming to the retention cap. */
 function appendLog(run: RunRecord, msg: string): void {
@@ -107,6 +121,19 @@ interface RunRecord {
   result?: { added: number; updated: number };
   summary?: string;
   error?: string;
+  // Auto-Apply: live screenshot previews + the proposed answers awaiting approval.
+  previews?: PreviewFrame[];
+  proposed?: { filled: ProposedField[]; unfilledRequired: string[] };
+  applyLink?: string;
+  jobId?: string;
+  company?: string;
+  jobTitle?: string;
+}
+
+/** Attach a preview frame to a run, capping the in-memory history. */
+function addPreview(run: RunRecord, p: PreviewFrame): void {
+  (run.previews ??= []).push(p);
+  if (run.previews.length > MAX_PREVIEWS) run.previews.shift();
 }
 
 // Live, in-memory view of in-flight runs (updated as the agent streams progress);
@@ -119,11 +146,25 @@ async function readRuns(uid: string): Promise<RunRecord[]> {
   return raw ? (JSON.parse(raw) as RunRecord[]) : [];
 }
 
+// Persisting base64 screenshots would blow past the docs store's per-document size
+// limit (Firestore caps at ~1MB). Keep durable GCS URLs, drop inline base64 — the
+// live in-memory run still carries the full frames for the active preview/approve flow.
+function sanitizeForPersist(run: RunRecord): RunRecord {
+  if (!run.previews?.length) return run;
+  return {
+    ...run,
+    previews: run.previews
+      .filter((p) => p.url)
+      .map(({ stage, caption, url, at }) => ({ stage, caption, url, at })),
+  };
+}
+
 async function persistRun(uid: string, run: RunRecord): Promise<void> {
   const runs = await readRuns(uid);
+  const clean = sanitizeForPersist(run);
   const i = runs.findIndex((r) => r.id === run.id);
-  if (i >= 0) runs[i] = run;
-  else runs.unshift(run);
+  if (i >= 0) runs[i] = clean;
+  else runs.unshift(clean);
   await (await getStore()).docs.writeDoc("runs", uid, JSON.stringify(runs.slice(0, 100)));
 }
 
@@ -162,6 +203,98 @@ function startSearchRun(uid: string, params: SearchParams): RunRecord {
       setTimeout(() => liveRuns.delete(run.id), 5 * 60 * 1000).unref?.();
     });
 
+  return run;
+}
+
+// ── Auto-Apply (preview → approve) ──────────────────────────────────────────────
+// The browser session in browser-apply.ts is a process-wide singleton, so only one
+// application can be prepared / awaiting approval at a time. We track that run here.
+let applyRun: { uid: string; id: string } | null = null;
+
+/** Kick off an Auto-Apply preview run in the background. Returns the initial record. */
+function startApplyRun(uid: string, params: ApplyParams): RunRecord {
+  const run: RunRecord = {
+    id: randomUUID(),
+    agent: "auto-apply",
+    params: params as unknown as Record<string, unknown>,
+    status: "running",
+    createdAt: new Date().toISOString(),
+    progress: [],
+    previews: [],
+    applyLink: params.applyLink,
+    jobId: params.jobId,
+    company: params.company,
+    jobTitle: params.jobTitle,
+  };
+  appendLog(run, "Auto-Apply started — preparing a preview (nothing is submitted yet).");
+  liveRuns.set(run.id, run);
+  applyRun = { uid, id: run.id };
+  void persistRun(uid, run).catch(() => {});
+
+  prepareApplication(
+    uid,
+    params,
+    (msg) => appendLog(run, msg),
+    (frame) => addPreview(run, frame),
+  )
+    .then((prepared) => {
+      run.status = "awaiting_approval";
+      run.proposed = { filled: prepared.filled, unfilledRequired: prepared.unfilledRequired };
+      appendLog(run, "Preview ready — review the filled form, then Approve to submit or Discard.");
+      void persistRun(uid, run).catch(() => {});
+    })
+    .catch((err: unknown) => {
+      run.status = "failed";
+      run.error = err instanceof Error ? err.message : String(err);
+      run.finishedAt = new Date().toISOString();
+      appendLog(run, `Failed: ${run.error}`);
+      applyRun = null;
+      void discardPreparedApplication().catch(() => {});
+      void persistRun(uid, run).catch(() => {});
+      setTimeout(() => liveRuns.delete(run.id), 5 * 60 * 1000).unref?.();
+    });
+
+  return run;
+}
+
+/** Approve a prepared application: submit it on the open session, mark applied. */
+async function approveApplyRun(uid: string, run: RunRecord): Promise<RunRecord> {
+  run.status = "running";
+  appendLog(run, "Approved — submitting.");
+  try {
+    const outcome = await submitPreparedApplication(
+      uid,
+      run.applyLink ?? "",
+      (msg) => appendLog(run, msg),
+      (frame) => addPreview(run, frame),
+    );
+    run.status = outcome.success ? "succeeded" : "failed";
+    run.summary = outcome.success
+      ? `Applied to ${run.jobTitle ?? "the role"}${run.company ? ` at ${run.company}` : ""}.`
+      : undefined;
+    if (!outcome.success) run.error = outcome.error ?? "Submit did not confirm.";
+  } catch (err) {
+    run.status = "failed";
+    run.error = err instanceof Error ? err.message : String(err);
+    appendLog(run, `Failed: ${run.error}`);
+    await discardPreparedApplication().catch(() => {});
+  } finally {
+    run.finishedAt = new Date().toISOString();
+    applyRun = null;
+    await persistRun(uid, run).catch(() => {});
+    setTimeout(() => liveRuns.delete(run.id), 5 * 60 * 1000).unref?.();
+  }
+  return run;
+}
+
+/** Discard a prepared application: close the browser without submitting. */
+async function discardApplyRun(uid: string, run: RunRecord): Promise<RunRecord> {
+  await discardPreparedApplication((msg) => appendLog(run, msg)).catch(() => {});
+  run.status = "cancelled";
+  run.finishedAt = new Date().toISOString();
+  applyRun = null;
+  await persistRun(uid, run).catch(() => {});
+  setTimeout(() => liveRuns.delete(run.id), 5 * 60 * 1000).unref?.();
   return run;
 }
 
@@ -331,6 +464,32 @@ export async function handleDashboardApi(
       return true;
     }
 
+    // POST /api/runs/:id/approve | /discard — Auto-Apply approval gate.
+    if (pathname.startsWith("/api/runs/") && method === "POST") {
+      const rest = pathname.slice("/api/runs/".length);
+      const slash = rest.lastIndexOf("/");
+      const action = slash >= 0 ? rest.slice(slash + 1) : "";
+      const id = decodeURIComponent(slash >= 0 ? rest.slice(0, slash) : rest);
+      if (action === "approve" || action === "discard") {
+        const run = liveRuns.get(id);
+        if (!run || run.agent !== "auto-apply") {
+          sendJson(res, 404, { error: "No live application found for this run." });
+          return true;
+        }
+        if (!applyRun || applyRun.id !== id || applyRun.uid !== uid) {
+          sendJson(res, 409, { error: "This application is no longer awaiting approval." });
+          return true;
+        }
+        if (run.status !== "awaiting_approval") {
+          sendJson(res, 409, { error: `Run is ${run.status}, not awaiting approval.` });
+          return true;
+        }
+        const updated = action === "approve" ? await approveApplyRun(uid, run) : await discardApplyRun(uid, run);
+        sendJson(res, 200, { run: updated });
+        return true;
+      }
+    }
+
     if (pathname === "/api/runs" && method === "POST") {
       const body = await readJsonBody(req);
       const agent = String(body.agent ?? "");
@@ -355,17 +514,24 @@ export async function handleDashboardApi(
       }
 
       if (agent === "auto-apply") {
-        const run: RunRecord = {
-          id: randomUUID(),
-          agent,
-          params,
-          status: "queued",
-          createdAt: new Date().toISOString(),
-          progress: [],
-        };
-        appendLog(run, "Auto-Apply requested — queued for the next release.");
-        await persistRun(uid, run);
-        sendJson(res, 202, { run, message: "Auto-Apply ships in the next release — your request is saved." });
+        const applyLink = typeof params.applyLink === "string" ? params.applyLink.trim() : "";
+        if (!applyLink) {
+          sendJson(res, 400, { error: "applyLink is required to auto-apply." });
+          return true;
+        }
+        if (applyRun) {
+          sendJson(res, 409, {
+            error: "An application is already being prepared. Approve or discard it before starting another.",
+          });
+          return true;
+        }
+        const run = startApplyRun(uid, {
+          applyLink,
+          jobId: typeof params.jobId === "string" ? params.jobId : undefined,
+          company: typeof params.company === "string" ? params.company : undefined,
+          jobTitle: typeof params.jobTitle === "string" ? params.jobTitle : undefined,
+        });
+        sendJson(res, 202, { run });
         return true;
       }
 

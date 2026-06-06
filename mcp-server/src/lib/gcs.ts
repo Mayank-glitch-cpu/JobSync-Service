@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 
 /**
@@ -33,5 +33,23 @@ export async function uploadScreenshotToGcs(localFilePath: string): Promise<stri
   } catch (error) {
     console.error("Failed to upload screenshot to GCS:", error);
     return null;
+  }
+}
+
+/**
+ * Resolve a local screenshot file to something a browser can render: a durable GCS
+ * URL when a bucket is configured (preferred — small, persistable), otherwise an
+ * inline base64 data URL fallback for local dev. Returns {} if the file is gone.
+ */
+export async function screenshotToData(
+  localFilePath: string,
+): Promise<{ url?: string; base64?: string }> {
+  if (!localFilePath || !existsSync(localFilePath)) return {};
+  const gcsUrl = await uploadScreenshotToGcs(localFilePath);
+  if (gcsUrl) return { url: gcsUrl };
+  try {
+    return { base64: readFileSync(localFilePath).toString("base64") };
+  } catch {
+    return {};
   }
 }

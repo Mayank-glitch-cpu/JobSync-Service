@@ -51,6 +51,14 @@ export interface Agent {
   status: string;
 }
 
+export interface PreviewFrame {
+  stage: "inspect" | "filled" | "submitted" | "error";
+  caption: string;
+  url?: string;
+  base64?: string;
+  at: string;
+}
+
 export interface Run {
   id: string;
   agent: string;
@@ -61,6 +69,20 @@ export interface Run {
   result?: { added: number; updated: number };
   summary?: string;
   error?: string;
+  // Auto-Apply
+  previews?: PreviewFrame[];
+  proposed?: { filled: Array<{ label: string; value: string; type: string }>; unfilledRequired: string[] };
+  applyLink?: string;
+  jobId?: string;
+  company?: string;
+  jobTitle?: string;
+}
+
+/** Render a preview frame to an <img>-ready src (GCS url or inline base64). */
+export function previewSrc(p: PreviewFrame): string | undefined {
+  if (p.url) return p.url;
+  if (p.base64) return `data:image/png;base64,${p.base64}`;
+  return undefined;
 }
 
 export interface Roles {
