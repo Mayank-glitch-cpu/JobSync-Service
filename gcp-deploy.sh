@@ -58,6 +58,8 @@ gcloud run deploy "$SERVICE_NAME" \
   --region "$REGION" \
   --allow-unauthenticated \
   --memory 2Gi \
+  --no-cpu-throttling \
+  --timeout 900 \
   --set-env-vars="JOBSYNC_HEADLESS=true,NODE_ENV=production,JOBSYNC_STORAGE_BACKEND=firestore,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,JOBSYNC_SINK=elasticsearch,JOBSYNC_ES_URL=https://job-hunt-elasticsearch-274835708611.us-east1.run.app,JOBSYNC_ES_INDEX=jobs_v2,JOBSYNC_ES_EMBEDDINGS=true"
 
 echo "=========================================================="
@@ -69,4 +71,6 @@ echo "  - JOBSYNC_REMOTE_BEARER_TOKEN : The bearer token to authorize API reques
 echo "  - GCS_BUCKET_NAME             : (Optional) The GCS bucket name to store screenshots"
 echo "  - AIRTABLE_API_KEY            : Your Airtable API Key"
 echo "  - AIRTABLE_BASE_ID            : Your Airtable Base ID"
+echo "  - ANTHROPIC_API_KEY          : Anthropic key for the server-side Search agent"
+echo "  - FIREBASE_API_KEY           : Firebase web apiKey for the dashboard"
 echo "=========================================================="

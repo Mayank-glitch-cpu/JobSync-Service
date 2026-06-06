@@ -1,7 +1,17 @@
 import { getStore } from "./store/index.js";
+import { currentScope } from "./run-context.js";
 
 const NS = "profile";
-const ID = "personal.json";
+const FILE = "personal.json";
+
+function scopeDefault(): string {
+  return currentScope() ?? "default";
+}
+
+/** Per-user doc id; "default" keeps the historical bare name. */
+function docId(scope: string): string {
+  return scope === "default" ? FILE : `${scope}__${FILE}`;
+}
 
 export interface PersonalProfile {
   firstName: string;
@@ -32,8 +42,10 @@ export interface PersonalProfile {
   disabilityDetails: string;
 }
 
-export async function readPersonalProfile(): Promise<Partial<PersonalProfile>> {
-  const raw = await (await getStore()).docs.readDoc(NS, ID);
+export async function readPersonalProfile(
+  scope: string = scopeDefault(),
+): Promise<Partial<PersonalProfile>> {
+  const raw = await (await getStore()).docs.readDoc(NS, docId(scope));
   if (!raw) return {};
   try {
     return JSON.parse(raw) as Partial<PersonalProfile>;
@@ -42,9 +54,12 @@ export async function readPersonalProfile(): Promise<Partial<PersonalProfile>> {
   }
 }
 
-export async function writePersonalProfile(patch: Partial<PersonalProfile>): Promise<PersonalProfile> {
-  const existing = await readPersonalProfile();
+export async function writePersonalProfile(
+  patch: Partial<PersonalProfile>,
+  scope: string = scopeDefault(),
+): Promise<PersonalProfile> {
+  const existing = await readPersonalProfile(scope);
   const merged = { ...existing, ...patch } as PersonalProfile;
-  await (await getStore()).docs.writeDoc(NS, ID, JSON.stringify(merged, null, 2));
+  await (await getStore()).docs.writeDoc(NS, docId(scope), JSON.stringify(merged, null, 2));
   return merged;
 }

@@ -94,7 +94,12 @@
       "Bash(grep -vE \"dtype|onnx|warn|Some|^$\")",
       "Bash(grep -vE \"dtype|onnx|warn|Some weights|^\\\\s*$\")",
       "Bash(rm es-smoke.mjs)",
-      "Bash(git -C \"c:\\\\Users\\\\vyasm\\\\OneDrive\\\\Desktop\\\\JobsList\" status --short mcp-server/)"
+      "Bash(git -C \"c:\\\\Users\\\\vyasm\\\\OneDrive\\\\Desktop\\\\JobsList\" status --short mcp-server/)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(node -e \"console.log\\(require\\('./mcp-server/node_modules/@anthropic-ai/sdk/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('@anthropic-ai/sdk/package.json'\\).version\\)\")",
+      "Bash(pnpm --filter jobsync-dashboard build)"
     ],
     "additionalDirectories": [
       "c:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory"

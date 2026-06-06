@@ -54,8 +54,10 @@ jobs:
             --cpu 1 \
             --min-instances 0 \
             --max-instances 3 \
+            --no-cpu-throttling \
+            --timeout 900 \
             --env-vars-file gcp.env.example.yaml \
-            --set-secrets AIRTABLE_API_KEY=jobsync-airtable-api-key:latest,AIRTABLE_BASE_ID=jobsync-airtable-base-id:latest,JOBSYNC_REMOTE_BEARER_TOKEN=jobsync-remote-bearer-token:latest
+            --set-secrets AIRTABLE_API_KEY=jobsync-airtable-api-key:latest,AIRTABLE_BASE_ID=jobsync-airtable-base-id:latest,JOBSYNC_REMOTE_BEARER_TOKEN=jobsync-remote-bearer-token:latest,ANTHROPIC_API_KEY=jobsync-anthropic-api-key:latest
 
       - name: Show Service URL
         run: |

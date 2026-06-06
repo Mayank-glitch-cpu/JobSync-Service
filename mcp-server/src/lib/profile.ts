@@ -7,6 +7,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { getStorageConfig, loadConfig } from "../config.js";
 import { getStore } from "./store/index.js";
+import { currentScope } from "./run-context.js";
 
 export type ProfileFile = "skills" | "experience" | "projects";
 
@@ -18,6 +19,18 @@ export interface Roles {
 
 const EMPTY_ROLES: Roles = { detected: [], custom: [], excluded: [] };
 const NS = "profile";
+
+function scopeDefault(): string {
+  return currentScope() ?? "default";
+}
+
+/**
+ * Per-user doc id. "default" (single-user/stdio) keeps the historical bare file
+ * name; multi-user callers get a `<uid>__<name>` id so profiles are isolated.
+ */
+function docId(scope: string, name: string): string {
+  return scope === "default" ? name : `${scope}__${name}`;
+}
 
 function profileDir(): string {
   return loadConfig().profileDir;
@@ -35,16 +48,20 @@ export function ensureProfileDir(): string {
   return dir;
 }
 
-export async function readProfileFile(name: ProfileFile): Promise<string> {
-  return (await (await getStore()).docs.readDoc(NS, `${name}.md`)) ?? "";
+export async function readProfileFile(name: ProfileFile, scope: string = scopeDefault()): Promise<string> {
+  return (await (await getStore()).docs.readDoc(NS, docId(scope, `${name}.md`))) ?? "";
 }
 
-export async function writeProfileFile(name: ProfileFile, content: string): Promise<void> {
-  await (await getStore()).docs.writeDoc(NS, `${name}.md`, content);
+export async function writeProfileFile(
+  name: ProfileFile,
+  content: string,
+  scope: string = scopeDefault(),
+): Promise<void> {
+  await (await getStore()).docs.writeDoc(NS, docId(scope, `${name}.md`), content);
 }
 
-export async function readRoles(): Promise<Roles> {
-  const raw = await (await getStore()).docs.readDoc(NS, "roles.json");
+export async function readRoles(scope: string = scopeDefault()): Promise<Roles> {
+  const raw = await (await getStore()).docs.readDoc(NS, docId(scope, "roles.json"));
   if (!raw) return { ...EMPTY_ROLES };
   try {
     const parsed = JSON.parse(raw) as Partial<Roles>;
@@ -58,8 +75,8 @@ export async function readRoles(): Promise<Roles> {
   }
 }
 
-export async function writeRoles(roles: Roles): Promise<void> {
-  await (await getStore()).docs.writeDoc(NS, "roles.json", JSON.stringify(roles, null, 2));
+export async function writeRoles(roles: Roles, scope: string = scopeDefault()): Promise<void> {
+  await (await getStore()).docs.writeDoc(NS, docId(scope, "roles.json"), JSON.stringify(roles, null, 2));
 }
 
 export function activeRoles(roles: Roles): string[] {
@@ -76,10 +93,10 @@ export function rawResumePath(): string {
   return join(profileDir(), "raw-resume.txt");
 }
 
-export async function writeRawResume(text: string): Promise<void> {
-  await (await getStore()).docs.writeDoc(NS, "raw-resume.txt", text);
+export async function writeRawResume(text: string, scope: string = scopeDefault()): Promise<void> {
+  await (await getStore()).docs.writeDoc(NS, docId(scope, "raw-resume.txt"), text);
 }
 
-export async function readRawResume(): Promise<string> {
-  return (await (await getStore()).docs.readDoc(NS, "raw-resume.txt")) ?? "";
+export async function readRawResume(scope: string = scopeDefault()): Promise<string> {
+  return (await (await getStore()).docs.readDoc(NS, docId(scope, "raw-resume.txt"))) ?? "";
 }
