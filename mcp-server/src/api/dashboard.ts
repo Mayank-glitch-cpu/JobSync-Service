@@ -83,7 +83,18 @@ function agentCatalog() {
 
 // ── Run lifecycle ─────────────────────────────────────────────────────────────
 
+// Max log lines retained per run. Kept generous so the right-side log panel can
+// show the full trace of a run (live and after the fact), not just a tail.
+const MAX_LOG_LINES = 300;
+
 type RunStatus = "queued" | "running" | "succeeded" | "failed";
+
+/** Append a timestamped line to a run's log, trimming to the retention cap. */
+function appendLog(run: RunRecord, msg: string): void {
+  const ts = new Date().toISOString().slice(11, 19); // HH:MM:SS (UTC)
+  (run.progress ??= []).push(`[${ts}] ${msg}`);
+  if (run.progress.length > MAX_LOG_LINES) run.progress.shift();
+}
 
 interface RunRecord {
   id: string;
@@ -126,22 +137,22 @@ function startSearchRun(uid: string, params: SearchParams): RunRecord {
     createdAt: new Date().toISOString(),
     progress: [],
   };
+  appendLog(run, "Search run started.");
   liveRuns.set(run.id, run);
   activeByUid.set(uid, run.id);
   void persistRun(uid, run).catch(() => {});
 
-  runSearchAgent(uid, params, (msg) => {
-    run.progress!.push(msg);
-    if (run.progress!.length > 30) run.progress!.shift();
-  })
+  runSearchAgent(uid, params, (msg) => appendLog(run, msg))
     .then((result) => {
       run.status = "succeeded";
       run.result = { added: result.added, updated: result.updated };
       run.summary = result.summary;
+      appendLog(run, `Done — added ${result.added}, updated ${result.updated}.`);
     })
     .catch((err: unknown) => {
       run.status = "failed";
       run.error = err instanceof Error ? err.message : String(err);
+      appendLog(run, `Failed: ${run.error}`);
     })
     .finally(() => {
       run.finishedAt = new Date().toISOString();
@@ -350,7 +361,9 @@ export async function handleDashboardApi(
           params,
           status: "queued",
           createdAt: new Date().toISOString(),
+          progress: [],
         };
+        appendLog(run, "Auto-Apply requested — queued for the next release.");
         await persistRun(uid, run);
         sendJson(res, 202, { run, message: "Auto-Apply ships in the next release — your request is saved." });
         return true;
