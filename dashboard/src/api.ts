@@ -56,4 +56,51 @@ export interface Run {
   agent: string;
   status: string;
   createdAt: string;
+  finishedAt?: string;
+  progress?: string[];
+  result?: { added: number; updated: number };
+  summary?: string;
+  error?: string;
+}
+
+export interface Roles {
+  detected: string[];
+  custom: string[];
+  excluded: string[];
+}
+
+export interface Personal {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  linkedinUrl?: string;
+  githubUrl?: string;
+  portfolioUrl?: string;
+}
+
+export interface Profile {
+  roles: Roles;
+  activeRoles: string[];
+  skills: string;
+  experience: string;
+  projects: string;
+  personal: Personal;
+  hasResume: boolean;
+}
+
+/** Read a File as base64 (no data: prefix). */
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result);
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }

@@ -4,6 +4,7 @@ import { useAuth } from "../auth";
 import { apiFetch } from "../api";
 import Agents from "../components/Agents";
 import Pipeline from "../components/Pipeline";
+import Profile from "../components/Profile";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -24,6 +25,7 @@ export default function Dashboard() {
         <nav>
           <NavLink to="/agents">Agents</NavLink>
           <NavLink to="/pipeline">Pipeline</NavLink>
+          <NavLink to="/profile">Profile</NavLink>
         </nav>
         <div className="sidebar-footer">
           <div className="muted email">{user?.email}</div>
@@ -41,6 +43,7 @@ export default function Dashboard() {
           <Routes>
             <Route path="/agents" element={<Agents />} />
             <Route path="/pipeline" element={<Pipeline />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<Navigate to="/agents" replace />} />
           </Routes>
         )}

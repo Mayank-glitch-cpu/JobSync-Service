@@ -1,10 +1,17 @@
 import { join } from "node:path";
 import { CONFIG_DIR } from "../config.js";
 import { getStore } from "./store/index.js";
+import { currentScope } from "./run-context.js";
 
 const NS = "pipeline";
-/** Default scope for the single-user (local/stdio) path. Multi-user callers pass a uid. */
-const DEFAULT_SCOPE = "default";
+/**
+ * Resolve the default pipeline scope: the ambient run uid when inside a scoped
+ * agent run, else "default" (the single-user local/stdio path). Explicit callers
+ * (the dashboard API) still pass a uid directly.
+ */
+function scopeDefault(): string {
+  return currentScope() ?? "default";
+}
 
 export type ApplicationStatus =
   | "pending"
@@ -49,7 +56,7 @@ function escape(value: string): string {
   return (value ?? "").replace(/[\t\n\r]/g, " ");
 }
 
-export async function readPipeline(scope: string = DEFAULT_SCOPE): Promise<PipelineEntry[]> {
+export async function readPipeline(scope: string = scopeDefault()): Promise<PipelineEntry[]> {
   const raw = await (await getStore()).docs.readDoc(NS, scope);
   if (!raw) return [];
 
@@ -64,7 +71,7 @@ export async function readPipeline(scope: string = DEFAULT_SCOPE): Promise<Pipel
   });
 }
 
-export async function writePipeline(entries: PipelineEntry[], scope: string = DEFAULT_SCOPE): Promise<void> {
+export async function writePipeline(entries: PipelineEntry[], scope: string = scopeDefault()): Promise<void> {
   const header = HEADERS.join("\t");
   const rows = entries.map((e) =>
     HEADERS.map((k) => escape((e as unknown as Record<string, string>)[k] ?? "")).join("\t")
@@ -75,7 +82,7 @@ export async function writePipeline(entries: PipelineEntry[], scope: string = DE
 
 export async function upsertPipelineEntries(
   incoming: Array<Partial<PipelineEntry> & { positionTitle: string; company: string; applyLink: string }>,
-  scope: string = DEFAULT_SCOPE,
+  scope: string = scopeDefault(),
 ): Promise<{ added: number; updated: number }> {
   const existing = await readPipeline(scope);
   const byId = new Map(existing.map((e) => [e.id, e]));
@@ -130,7 +137,7 @@ export async function upsertPipelineEntries(
 
 export async function markApplied(
   applyLinks: string[],
-  scope: string = DEFAULT_SCOPE,
+  scope: string = scopeDefault(),
 ): Promise<{ matched: number; notFound: string[] }> {
   const entries = await readPipeline(scope);
   const linkSet = new Set(applyLinks.map((l) => l.trim()));
@@ -153,7 +160,7 @@ export async function markApplied(
 
 export async function updateStatuses(
   updates: Array<{ applyLink?: string; id?: string; status: ApplicationStatus; notes?: string }>,
-  scope: string = DEFAULT_SCOPE,
+  scope: string = scopeDefault(),
 ): Promise<{ matched: number; invalid: string[] }> {
   const entries = await readPipeline(scope);
   const now = new Date().toISOString().slice(0, 10);
@@ -185,7 +192,7 @@ export async function updateStatuses(
 
 export async function getPipelineGrouped(
   statusFilter?: ApplicationStatus[],
-  scope: string = DEFAULT_SCOPE,
+  scope: string = scopeDefault(),
 ): Promise<{ summary: Record<string, number>; byStatus: Record<string, PipelineEntry[]> }> {
   const all = await readPipeline(scope);
   const entries = statusFilter

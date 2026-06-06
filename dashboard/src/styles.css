@@ -137,3 +137,32 @@ button.link {
   padding: 4px 6px;
   font-size: 12px;
 }
+
+/* Profile */
+.card h3 { margin-top: 0; }
+.card input {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: var(--text);
+  font-size: 14px;
+  width: 100%;
+}
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid2 label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.skills-pre { white-space: pre-wrap; font-family: inherit; margin: 0; }
+.file-btn {
+  display: inline-block;
+  background: var(--accent);
+  color: #1a0f0e;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Run panel */
+.run-panel { margin: 18px 0 28px; }
+.progress { margin: 8px 0 0; padding-left: 18px; }
+.progress li { list-style: none; }
