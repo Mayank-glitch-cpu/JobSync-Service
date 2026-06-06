@@ -36,16 +36,6 @@ WORKDIR /app
 
 RUN corepack enable
 
-# Install system dependencies for Playwright and Chromium
-# We use pnpm dlx to run the exact playwright version installer with system dependencies
-# libgomp1 is required by onnxruntime-node (e5-base-v2 embeddings).
-RUN apt-get update && \
-    apt-get install -y wget gnupg libgomp1 && \
-    mkdir -p /ms-playwright && \
-    pnpm dlx playwright@1.44.0 install --with-deps chromium && \
-    chmod -R 755 /ms-playwright && \
-    rm -rf /var/lib/apt/lists/*
-
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY mcp-server/package.json ./mcp-server/package.json
 COPY dashboard/package.json ./dashboard/package.json
@@ -53,6 +43,20 @@ COPY legacy/backend/package.json ./legacy/backend/package.json
 COPY legacy/frontend/package.json ./legacy/frontend/package.json
 
 RUN pnpm install --frozen-lockfile --prod --filter jobsync-mcp
+
+# Install the Chromium build that matches the INSTALLED playwright version.
+# Driving the install through the locally installed playwright (not a hard-pinned
+# `pnpm dlx playwright@x`) guarantees the downloaded browser revision — including
+# chrome-headless-shell, which production launches headless — matches
+# node_modules/playwright. Pinning the installer to a different version downloads
+# the wrong revision and headless launch fails with "Executable doesn't exist".
+# libgomp1 is required by onnxruntime-node (e5-base-v2 embeddings).
+RUN apt-get update && \
+    apt-get install -y wget gnupg libgomp1 && \
+    mkdir -p /ms-playwright && \
+    pnpm --filter jobsync-mcp exec playwright install --with-deps chromium && \
+    chmod -R 755 /ms-playwright && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/mcp-server/dist ./mcp-server/dist
 # Dashboard static build served by http.js (PUBLIC_DIR = ./public next to the bundle).
