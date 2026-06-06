@@ -19,7 +19,7 @@ function credsFromConfig(): AirtableCredentials {
   };
 }
 
-function coerceProcessedJob(raw: Record<string, unknown>): ProcessedJob {
+export function coerceProcessedJob(raw: Record<string, unknown>): ProcessedJob {
   return {
     id: String(raw.id ?? ""),
     positionTitle: String(raw.positionTitle ?? ""),

@@ -95,14 +95,15 @@ Ashby's public API returns \`datePosted: null\`. For any **Ashby** jobs (URL mat
 - Overwrite each surviving Ashby job's \`datePosted\` with the resolved value before upsert.
 
 ## Step 6: dedup (hybrid)
-For jobs that passed link verification, call \`cache_is_seen\` with their apply links. For any that show \`seen: false\`, also call \`airtable_list_recent_jobs\` with lookbackDays=14 and cross-check — the cache can be stale.
+For jobs that passed link verification, call \`cache_is_seen\` with their apply links. For any that show \`seen: false\`, also reconcile against the authoritative store — call \`elasticsearch_list_recent_jobs\` (default sink) or, if the sink is Airtable, \`airtable_list_recent_jobs\` with lookbackDays=14 — and cross-check, since the cache can be stale.
 
 ## Step 7: enrich & write
-For jobs that are new (not in cache, not in Airtable), write them using the sink configured in \`~/.jobsync/config.json\`:
+For jobs that are new (not in cache, not in the store), write them using the sink configured in \`~/.jobsync/config.json\`:
+- If \`sink\` is \`"elasticsearch"\` (the default): call \`elasticsearch_index_jobs\`. This indexes each job into the \`jobs_v2\` index and (when embeddings are enabled) attaches an e5-base-v2 vector for semantic search.
 - If \`sink\` is \`"airtable"\` or \`"both"\`: call \`airtable_upsert_job\`.
 - If \`sink\` is \`"markdown"\` or \`"both"\`: call \`markdown_append_jobs\` to append a row to the local markdown log.
 
-If unsure which sink is active, call \`profile_read\` first — you can also check config via \`airtable_get_schema\` (it returns the active baseId/tableName; empty strings mean markdown-only). Only include jobs posted within the last ${lookbackHours} hours based on their datePosted. Discard older postings.
+Only include jobs posted within the last ${lookbackHours} hours based on their datePosted. Discard older postings.
 
 ## Step 8: update cache
 After successful upsert, call \`cache_mark_seen\` with the created jobs so the next run skips them.

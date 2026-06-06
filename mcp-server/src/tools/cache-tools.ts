@@ -10,7 +10,7 @@ import { errorResult, textResult, type ToolDefinition } from "./index.js";
 export const cacheIsSeenTool: ToolDefinition = {
   name: "cache_is_seen",
   description:
-    "Check whether a job URL has already been seen (local SQLite cache at ~/.jobsync/cache.db). Returns { seen: boolean, record?: {...} }. On a cache miss, the caller should fall back to `airtable_list_recent_jobs` to reconcile against the authoritative store. Accepts a single applyLink or a batch. ⚡ [Model hint: haiku]",
+    "Check whether a job URL has already been seen (cache backend: local SQLite or Firestore). Returns { seen: boolean, record?: {...} }. On a cache miss, the caller should fall back to `elasticsearch_list_recent_jobs` (or `airtable_list_recent_jobs` when the sink is Airtable) to reconcile against the authoritative store. Accepts a single applyLink or a batch. ⚡ [Model hint: haiku]",
   recommendedModel: "haiku",
   inputSchema: {
     type: "object",

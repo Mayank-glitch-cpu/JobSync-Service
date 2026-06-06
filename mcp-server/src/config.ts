@@ -2,7 +2,26 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-export type JobSink = "airtable" | "markdown" | "both";
+export type JobSink = "airtable" | "markdown" | "both" | "elasticsearch";
+
+/**
+ * Elasticsearch sink (mutu.dev `jobs_v2` index). When `sink` is "elasticsearch",
+ * scraped jobs are indexed here instead of Airtable. `embeddings` controls
+ * whether each doc gets an e5-base-v2 768-dim vector for semantic search.
+ */
+export interface ElasticsearchConfig {
+  url: string;
+  index: string;
+  /** Optional ES API key (the service is currently open; future-proofing). */
+  apiKey?: string;
+  embeddings: boolean;
+}
+
+export const DEFAULT_ELASTICSEARCH: ElasticsearchConfig = {
+  url: "",
+  index: "jobs_v2",
+  embeddings: true,
+};
 
 /** Inclusive `[min, max]` millisecond range; a value is drawn uniformly from it. */
 export type MsRange = [number, number];
@@ -66,6 +85,7 @@ export interface JobSyncConfig {
   brandedOutput: boolean;
   applyHumanize: ApplyHumanizeConfig;
   storage: StorageConfig;
+  elasticsearch: ElasticsearchConfig;
 }
 
 export const DEFAULT_APPLY_HUMANIZE: ApplyHumanizeConfig = {
@@ -90,7 +110,7 @@ export const DEFAULT_STORAGE: StorageConfig = {
 };
 
 const DEFAULTS: Omit<JobSyncConfig, "airtable"> = {
-  sink: "airtable",
+  sink: "elasticsearch",
   markdownPath: join(homedir(), ".jobsync", "jobs.md"),
   lookbackHours: 12,
   usOnly: true,
@@ -99,7 +119,21 @@ const DEFAULTS: Omit<JobSyncConfig, "airtable"> = {
   brandedOutput: true,
   applyHumanize: DEFAULT_APPLY_HUMANIZE,
   storage: DEFAULT_STORAGE,
+  elasticsearch: DEFAULT_ELASTICSEARCH,
 };
+
+/** Build the Elasticsearch config from env, layered over defaults. */
+function elasticsearchFromEnv(base?: Partial<ElasticsearchConfig>): ElasticsearchConfig {
+  return {
+    url: process.env.JOBSYNC_ES_URL ?? base?.url ?? DEFAULT_ELASTICSEARCH.url,
+    index: process.env.JOBSYNC_ES_INDEX ?? base?.index ?? DEFAULT_ELASTICSEARCH.index,
+    apiKey: process.env.JOBSYNC_ES_API_KEY ?? base?.apiKey,
+    embeddings:
+      process.env.JOBSYNC_ES_EMBEDDINGS === "false"
+        ? false
+        : base?.embeddings ?? DEFAULT_ELASTICSEARCH.embeddings,
+  };
+}
 
 export const CONFIG_DIR = join(homedir(), ".jobsync");
 export const CONFIG_PATH = join(CONFIG_DIR, "config.json");
@@ -136,11 +170,17 @@ export function loadConfig(): JobSyncConfig {
       ...DEFAULT_STORAGE,
       ...raw.storage,
     },
+    elasticsearch: elasticsearchFromEnv(raw.elasticsearch),
   };
   const needsAirtable = merged.sink === "airtable" || merged.sink === "both";
   if (needsAirtable && (!merged.airtable.pat || !merged.airtable.baseId)) {
     throw new Error(
       `Config at ${CONFIG_PATH} has sink=${merged.sink} but is missing airtable.pat or airtable.baseId.`,
+    );
+  }
+  if (merged.sink === "elasticsearch" && !merged.elasticsearch.url) {
+    throw new Error(
+      `Config has sink=elasticsearch but is missing elasticsearch.url (set JOBSYNC_ES_URL or run \`jobsync-mcp init\`).`,
     );
   }
   return merged;
@@ -149,9 +189,13 @@ export function loadConfig(): JobSyncConfig {
 function loadConfigFromEnv(): JobSyncConfig | null {
   const pat = process.env.AIRTABLE_PAT ?? process.env.AIRTABLE_API_KEY;
   const baseId = process.env.AIRTABLE_BASE_ID;
-  if (!pat || !baseId) return null;
+  const esUrl = process.env.JOBSYNC_ES_URL;
+  // Build a config from env if any sink is configured via env — Airtable creds,
+  // an Elasticsearch URL, or an explicit JOBSYNC_SINK. This lets the cloud deploy
+  // run with the ES sink and no Airtable credentials.
+  if (!pat && !esUrl && !process.env.JOBSYNC_SINK) return null;
 
-  const sink = (process.env.JOBSYNC_SINK ?? "airtable") as JobSink;
+  const sink = (process.env.JOBSYNC_SINK ?? (esUrl ? "elasticsearch" : "airtable")) as JobSink;
   const lookbackHours = Number(process.env.JOBSYNC_LOOKBACK_HOURS ?? 12);
   return {
     ...DEFAULTS,
@@ -163,13 +207,14 @@ function loadConfigFromEnv(): JobSyncConfig | null {
     profileDir: process.env.JOBSYNC_PROFILE_DIR ?? DEFAULTS.profileDir,
     brandedOutput: process.env.JOBSYNC_BRANDED_OUTPUT === "false" ? false : DEFAULTS.brandedOutput,
     airtable: {
-      pat,
-      baseId,
+      pat: pat ?? "",
+      baseId: baseId ?? "",
       tableName: process.env.AIRTABLE_TABLE_NAME ?? "Jobs",
       fieldMap: {},
     },
     applyHumanize: DEFAULT_APPLY_HUMANIZE,
     storage: getStorageConfig(),
+    elasticsearch: elasticsearchFromEnv(),
   };
 }
 

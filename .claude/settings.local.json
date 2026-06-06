@@ -86,7 +86,15 @@
       "Bash(cat pnpm-workspace.yaml)",
       "Bash(node -e \"console.log\\(require\\('./package.json'\\).packageManager\\)\")",
       "Bash(pnpm --filter jobsync-mcp install)",
-      "Bash(pnpm test *)"
+      "Bash(pnpm test *)",
+      "Bash(curl -s -m 30 https://jobsync-mcp-484939946930.us-central1.run.app/healthz)",
+      "Bash(curl -s -m 20 https://job-hunt-elasticsearch-274835708611.us-east1.run.app/jobs_v2/_mapping)",
+      "WebFetch(domain:huggingface.co)",
+      "Bash(node -e \"import\\('@huggingface/transformers'\\).then\\(async\\({pipeline}\\)=>{const p=await pipeline\\('feature-extraction','Xenova/e5-base-v2'\\);const o=await p\\(['passage: senior backend engineer','query: backend role'],{pooling:'mean',normalize:true}\\);const a=o.tolist\\(\\);const norm=v=>Math.sqrt\\(v.reduce\\(\\(s,x\\)=>s+x*x,0\\)\\);console.log\\('passage dims',a[0].length,'norm',norm\\(a[0]\\).toFixed\\(4\\)\\);console.log\\('query dims',a[1].length,'norm',norm\\(a[1]\\).toFixed\\(4\\)\\);}\\).catch\\(e=>{console.error\\('FAIL',e.message\\);process.exit\\(1\\)}\\)\")",
+      "Bash(grep -vE \"dtype|onnx|warn|Some|^$\")",
+      "Bash(grep -vE \"dtype|onnx|warn|Some weights|^\\\\s*$\")",
+      "Bash(rm es-smoke.mjs)",
+      "Bash(git -C \"c:\\\\Users\\\\vyasm\\\\OneDrive\\\\Desktop\\\\JobsList\" status --short mcp-server/)"
     ],
     "additionalDirectories": [
       "c:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory"

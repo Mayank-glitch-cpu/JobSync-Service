@@ -57,7 +57,8 @@ gcloud run deploy "$SERVICE_NAME" \
   --platform managed \
   --region "$REGION" \
   --allow-unauthenticated \
-  --set-env-vars="JOBSYNC_HEADLESS=true,NODE_ENV=production,JOBSYNC_STORAGE_BACKEND=firestore,GOOGLE_CLOUD_PROJECT=$PROJECT_ID"
+  --memory 2Gi \
+  --set-env-vars="JOBSYNC_HEADLESS=true,NODE_ENV=production,JOBSYNC_STORAGE_BACKEND=firestore,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,JOBSYNC_SINK=elasticsearch,JOBSYNC_ES_URL=https://job-hunt-elasticsearch-274835708611.us-east1.run.app,JOBSYNC_ES_INDEX=jobs_v2,JOBSYNC_ES_EMBEDDINGS=true"
 
 echo "=========================================================="
 echo "🎉 Deployment Successful!"

@@ -43,6 +43,11 @@ import {
 } from "./airtable-tools.js";
 import { markdownAppendJobsTool } from "./markdown-tools.js";
 import {
+  elasticsearchIndexJobsTool,
+  elasticsearchListRecentJobsTool,
+  elasticsearchSearchJobsTool,
+} from "./elasticsearch-tools.js";
+import {
   cacheIsSeenTool,
   cacheMarkSeenTool,
   cachePruneTool,
@@ -214,6 +219,9 @@ export function registerTools(): ToolDefinition[] {
     airtableListBasesTool,
     airtableCreateBaseTool,
     markdownAppendJobsTool,
+    elasticsearchIndexJobsTool,
+    elasticsearchListRecentJobsTool,
+    elasticsearchSearchJobsTool,
     cacheIsSeenTool,
     cacheMarkSeenTool,
     cachePruneTool,

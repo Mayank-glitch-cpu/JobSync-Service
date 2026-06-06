@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline/promises";
-import { CONFIG_PATH, DEFAULT_APPLY_HUMANIZE, DEFAULT_STORAGE, configExists, loadConfig, saveConfig, type JobSink, type JobSyncConfig, type StorageBackend } from "./config.js";
+import { CONFIG_PATH, DEFAULT_APPLY_HUMANIZE, DEFAULT_STORAGE, DEFAULT_ELASTICSEARCH, configExists, loadConfig, saveConfig, type JobSink, type JobSyncConfig, type StorageBackend } from "./config.js";
 import { createJobSyncBase, listBases } from "./lib/airtable-meta.js";
 import { parseResume } from "./lib/resume-parser.js";
 import { ensureProfileDir, rawResumePath, writeRawResume } from "./lib/profile.js";
@@ -26,12 +26,33 @@ async function runInit() {
 
   console.log(`\njobsync-mcp init — writing to ${CONFIG_PATH}\n`);
   console.log(`Pick a sink for job records:`);
-  console.log(`  1) airtable  — write to your Airtable base (recommended)`);
-  console.log(`  2) markdown  — append to a local markdown file (no Airtable needed)`);
-  console.log(`  3) both      — write to both\n`);
+  console.log(`  1) elasticsearch — index to an Elasticsearch service (recommended; semantic search)`);
+  console.log(`  2) airtable      — write to your Airtable base`);
+  console.log(`  3) markdown      — append to a local markdown file (no external service)`);
+  console.log(`  4) both          — write to Airtable + markdown\n`);
 
-  const sinkAns = (await ask("Sink (1/2/3)", existing.sink === "markdown" ? "2" : existing.sink === "both" ? "3" : "1")).trim();
-  const sink: JobSink = sinkAns === "2" ? "markdown" : sinkAns === "3" ? "both" : "airtable";
+  const sinkDefault =
+    existing.sink === "airtable" ? "2" : existing.sink === "markdown" ? "3" : existing.sink === "both" ? "4" : "1";
+  const sinkAns = (await ask("Sink (1/2/3/4)", sinkDefault)).trim();
+  const sink: JobSink =
+    sinkAns === "2" ? "airtable" : sinkAns === "3" ? "markdown" : sinkAns === "4" ? "both" : "elasticsearch";
+
+  let esUrl = existing.elasticsearch?.url ?? "";
+  let esIndex = existing.elasticsearch?.index ?? "jobs_v2";
+  let esEmbeddings = existing.elasticsearch?.embeddings ?? true;
+  if (sink === "elasticsearch") {
+    console.log(`\nElasticsearch service URL (e.g. https://job-hunt-elasticsearch-....run.app):`);
+    esUrl = await ask("Elasticsearch URL", esUrl);
+    if (!esUrl) {
+      console.error("\nElasticsearch URL is required when sink=elasticsearch. Aborting.");
+      rl.close();
+      process.exit(2);
+    }
+    esIndex = await ask("Index name", esIndex);
+    esEmbeddings = (await ask("Generate e5-base-v2 embeddings for semantic search? (y/n)", esEmbeddings ? "y" : "n"))
+      .toLowerCase()
+      .startsWith("y");
+  }
 
   let pat = existing.airtable?.pat ?? "";
   let baseId = existing.airtable?.baseId ?? "";
@@ -126,6 +147,13 @@ async function runInit() {
       backend: storageBackend,
       projectId: firestoreProjectId,
       databaseId: firestoreDatabaseId,
+    },
+    elasticsearch: {
+      ...DEFAULT_ELASTICSEARCH,
+      ...existing.elasticsearch,
+      url: esUrl,
+      index: esIndex,
+      embeddings: esEmbeddings,
     },
   };
   saveConfig(cfg);
