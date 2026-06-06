@@ -1,5 +1,6 @@
 packages:
   - 'mcp-server'
+  - 'dashboard'
   - 'legacy/backend'
   - 'legacy/frontend'
 

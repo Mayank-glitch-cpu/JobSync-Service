@@ -184,7 +184,11 @@ function profileDir(): string {
 // Map a (namespace, id) pair to a file path, preserving the historical
 // ~/.jobsync layout so existing local installs keep their files in place.
 function docPath(namespace: string, id: string): string {
-  if (namespace === "pipeline") return join(CONFIG_DIR, "pipeline.tsv");
+  // The single-user (stdio/local) path uses id "default" → the historical file
+  // name; multi-user callers pass a uid → a per-user file so they don't collide.
+  if (namespace === "pipeline") {
+    return join(CONFIG_DIR, id === "default" ? "pipeline.tsv" : `pipeline-${id}.tsv`);
+  }
   if (namespace === "portals") return join(CONFIG_DIR, "portals.yml");
   if (namespace === "profile") return join(profileDir(), id);
   return join(CONFIG_DIR, "docs", namespace, id);

@@ -10,7 +10,7 @@ export default defineConfig({
   splitting: false,
   shims: true,
   platform: "node",
-  external: ["node:sqlite", "@huggingface/transformers", "onnxruntime-node"],
+  external: ["node:sqlite", "@huggingface/transformers", "onnxruntime-node", "firebase-admin"],
   define: {
     __JOBSYNC_VERSION__: JSON.stringify(pkg.version),
   },
