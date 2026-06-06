@@ -3,7 +3,8 @@ import { CONFIG_DIR } from "../config.js";
 import { getStore } from "./store/index.js";
 
 const NS = "pipeline";
-const ID = "default";
+/** Default scope for the single-user (local/stdio) path. Multi-user callers pass a uid. */
+const DEFAULT_SCOPE = "default";
 
 export type ApplicationStatus =
   | "pending"
@@ -48,8 +49,8 @@ function escape(value: string): string {
   return (value ?? "").replace(/[\t\n\r]/g, " ");
 }
 
-export async function readPipeline(): Promise<PipelineEntry[]> {
-  const raw = await (await getStore()).docs.readDoc(NS, ID);
+export async function readPipeline(scope: string = DEFAULT_SCOPE): Promise<PipelineEntry[]> {
+  const raw = await (await getStore()).docs.readDoc(NS, scope);
   if (!raw) return [];
 
   const lines = raw.split("\n").filter(Boolean);
@@ -63,19 +64,20 @@ export async function readPipeline(): Promise<PipelineEntry[]> {
   });
 }
 
-export async function writePipeline(entries: PipelineEntry[]): Promise<void> {
+export async function writePipeline(entries: PipelineEntry[], scope: string = DEFAULT_SCOPE): Promise<void> {
   const header = HEADERS.join("\t");
   const rows = entries.map((e) =>
     HEADERS.map((k) => escape((e as unknown as Record<string, string>)[k] ?? "")).join("\t")
   );
   const body = [header, ...rows].join("\n") + "\n";
-  await (await getStore()).docs.writeDoc(NS, ID, body);
+  await (await getStore()).docs.writeDoc(NS, scope, body);
 }
 
 export async function upsertPipelineEntries(
-  incoming: Array<Partial<PipelineEntry> & { positionTitle: string; company: string; applyLink: string }>
+  incoming: Array<Partial<PipelineEntry> & { positionTitle: string; company: string; applyLink: string }>,
+  scope: string = DEFAULT_SCOPE,
 ): Promise<{ added: number; updated: number }> {
-  const existing = await readPipeline();
+  const existing = await readPipeline(scope);
   const byId = new Map(existing.map((e) => [e.id, e]));
   const byLink = new Map(existing.map((e) => [e.applyLink, e]));
 
@@ -122,12 +124,15 @@ export async function upsertPipelineEntries(
     }
   }
 
-  await writePipeline(Array.from(byId.values()));
+  await writePipeline(Array.from(byId.values()), scope);
   return { added, updated };
 }
 
-export async function markApplied(applyLinks: string[]): Promise<{ matched: number; notFound: string[] }> {
-  const entries = await readPipeline();
+export async function markApplied(
+  applyLinks: string[],
+  scope: string = DEFAULT_SCOPE,
+): Promise<{ matched: number; notFound: string[] }> {
+  const entries = await readPipeline(scope);
   const linkSet = new Set(applyLinks.map((l) => l.trim()));
   const now = new Date().toISOString().slice(0, 10);
   let matched = 0;
@@ -141,15 +146,16 @@ export async function markApplied(applyLinks: string[]): Promise<{ matched: numb
     }
   }
 
-  await writePipeline(entries);
+  await writePipeline(entries, scope);
   const notFound = applyLinks.filter((l) => !entries.some((e) => e.applyLink === l));
   return { matched, notFound };
 }
 
 export async function updateStatuses(
-  updates: Array<{ applyLink?: string; id?: string; status: ApplicationStatus; notes?: string }>
+  updates: Array<{ applyLink?: string; id?: string; status: ApplicationStatus; notes?: string }>,
+  scope: string = DEFAULT_SCOPE,
 ): Promise<{ matched: number; invalid: string[] }> {
-  const entries = await readPipeline();
+  const entries = await readPipeline(scope);
   const now = new Date().toISOString().slice(0, 10);
   let matched = 0;
   const invalid: string[] = [];
@@ -173,14 +179,15 @@ export async function updateStatuses(
     matched++;
   }
 
-  await writePipeline(entries);
+  await writePipeline(entries, scope);
   return { matched, invalid };
 }
 
 export async function getPipelineGrouped(
-  statusFilter?: ApplicationStatus[]
+  statusFilter?: ApplicationStatus[],
+  scope: string = DEFAULT_SCOPE,
 ): Promise<{ summary: Record<string, number>; byStatus: Record<string, PipelineEntry[]> }> {
-  const all = await readPipeline();
+  const all = await readPipeline(scope);
   const entries = statusFilter
     ? all.filter((e) => statusFilter.includes(e.status))
     : all;

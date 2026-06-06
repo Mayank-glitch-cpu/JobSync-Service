@@ -27,16 +27,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
+
+      # Use corepack (built into Node) to provide the pnpm version pinned in
+      # package.json's `packageManager`. Avoids pnpm/action-setup@v4, whose
+      # self-installer crashes parsing this repo's onlyBuiltDependencies config
+      # (`onlyBuiltDependencies?.sort is not a function`).
+      - name: Setup pnpm via corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.2 --activate
+          pnpm --version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

@@ -148,6 +148,33 @@ Firestore options:
 Collections used: `seen_jobs`, `mcp_cache` (with an `expiresAt` TTL policy), and
 `jobsync_docs`. The runtime service account needs `roles/datastore.user`.
 
+## Dashboard + User Auth (Firebase)
+
+The server also hosts a self-serve **dashboard** (a React SPA in `dashboard/`,
+served by `http.js` from `./public`). Users sign up with email + password via
+**Firebase Auth**; the SPA sends the Firebase ID token as a bearer token and the
+server verifies it with `firebase-admin` ([lib/firebase-auth.ts](../mcp-server/src/lib/firebase-auth.ts)).
+Every `/api/*` dashboard route is per-user — the uid comes from the verified token,
+and pipeline/runs are scoped to it. `/mcp` keeps its own bearer-token auth.
+
+One-time setup (project `jobsync-mcp`):
+
+1. Enable Firebase Auth (Identity Platform) and add the **Email/Password** provider:
+   - In the [Firebase console](https://console.firebase.google.com/), add Firebase
+     to the GCP project, then Authentication → Sign-in method → enable Email/Password.
+2. Create a **Web app** in Firebase project settings and copy its `apiKey`.
+3. Set `FIREBASE_API_KEY` (the web apiKey — public, not a secret) in the Cloud Run
+   env. `FIREBASE_PROJECT_ID` defaults to `GOOGLE_CLOUD_PROJECT`; `authDomain`
+   defaults to `<project>.firebaseapp.com`.
+
+`firebase-admin` verifies tokens using Google's public certs over ADC — the runtime
+service account needs no extra role. User records and pipelines live in Firestore
+(already provisioned). Routes: `GET /api/config` (public web config), `GET /api/me`,
+`GET /api/pipeline`, `PATCH /api/pipeline/:id`, `GET /api/agents`, `GET|POST /api/runs`.
+
+> Note: running the Search/Auto-Apply agents server-side from the dashboard is the
+> next phase; today the agent cards record a queued run but don't execute.
+
 ## Google Cloud Run
 
 For GCP, use Cloud Run with the included root `Dockerfile`. The `gcp-deploy.sh`

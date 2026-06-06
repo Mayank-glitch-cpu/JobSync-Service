@@ -1,0 +1,139 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1f242d;
+  --border: #2a313c;
+  --text: #e6e9ef;
+  --muted: #8b95a5;
+  --accent: #ff6b5e; /* coral */
+  --accent-2: #4f8cff;
+  --ok: #3fb950;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+a { color: var(--accent-2); }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.error { color: var(--accent); }
+.notice { color: var(--ok); }
+
+.center {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--accent);
+}
+
+button {
+  background: var(--accent);
+  color: #1a0f0e;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.6; cursor: default; }
+button.link {
+  background: none;
+  color: var(--accent-2);
+  padding: 0;
+  font-weight: 600;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.auth-card { width: 340px; display: flex; flex-direction: column; gap: 12px; }
+.auth-card label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.auth-card input {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: var(--text);
+  font-size: 14px;
+}
+.auth-card .switch { text-align: center; margin: 4px 0 0; }
+.boot-error { max-width: 480px; margin: 15vh auto; text-align: center; }
+
+/* App shell */
+.app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sidebar .brand { font-size: 20px; }
+.sidebar nav { display: flex; flex-direction: column; gap: 4px; }
+.sidebar nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+.sidebar nav a:hover { background: var(--panel-2); color: var(--text); }
+.sidebar nav a.active { background: var(--panel-2); color: var(--text); }
+.sidebar-footer { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
+.sidebar-footer .email { font-size: 12px; word-break: break-all; }
+
+.content { padding: 28px 32px; overflow: auto; }
+.content h1 { margin-top: 0; }
+
+/* Agents */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin: 16px 0 28px; }
+.agent-card { display: flex; flex-direction: column; gap: 10px; }
+.agent-head { display: flex; align-items: center; justify-content: space-between; }
+.agent-head h3 { margin: 0; }
+
+.badge {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.table th { color: var(--muted); font-weight: 600; font-size: 13px; }
+
+/* Pipeline board */
+.board { display: grid; grid-template-columns: repeat(6, minmax(180px, 1fr)); gap: 12px; margin-top: 16px; }
+.column { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px; min-height: 120px; }
+.column-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.col-title { text-transform: capitalize; font-weight: 600; font-size: 13px; }
+.job-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+.job-title { font-weight: 600; font-size: 13px; }
+.job-actions { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; }
+.job-actions select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+}

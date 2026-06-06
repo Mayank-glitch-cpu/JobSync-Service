@@ -1,13 +1,62 @@
 #!/usr/bin/env node
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { existsSync, readFileSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, extname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createJobSyncServer } from "./server.js";
 import { inspectForm, fillAndSubmit, saveApplyDraft, saveFormState } from "./lib/browser-apply.js";
 import { fillFields } from "./lib/ai-fill.js";
 import { uploadScreenshotToGcs } from "./lib/gcs.js";
+import { handleDashboardApi } from "./api/dashboard.js";
+
+// Static dashboard build (the SPA). In the Docker image the dashboard's dist is
+// copied next to this bundle as ./public; override with JOBSYNC_PUBLIC_DIR.
+const PUBLIC_DIR = resolve(
+  process.env.JOBSYNC_PUBLIC_DIR ?? fileURLToPath(new URL("./public", import.meta.url)),
+);
+
+const CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+  ".map": "application/json; charset=utf-8",
+};
+
+/**
+ * Serve the dashboard SPA: a real file if it exists (hashed assets get long
+ * cache), otherwise fall back to index.html so client-side routes resolve.
+ * Returns false if there's no build to serve.
+ */
+function serveStatic(res: ServerResponse, pathname: string): boolean {
+  if (!existsSync(PUBLIC_DIR)) return false;
+  // Resolve the request under PUBLIC_DIR; `resolve` normalizes separators and
+  // collapses any `..`, and the prefix check blocks path traversal.
+  const rel = decodeURIComponent(pathname).replace(/^[/\\]+/, "");
+  let filePath = resolve(PUBLIC_DIR, rel);
+  const indexHtml = join(PUBLIC_DIR, "index.html");
+  if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + sep)) filePath = indexHtml;
+
+  const isFile = existsSync(filePath) && extname(filePath) !== "";
+  if (!isFile) filePath = indexHtml; // SPA fallback
+  if (!existsSync(filePath)) return false;
+
+  const ext = extname(filePath);
+  const cacheable = ext !== ".html" && rel.startsWith("assets/");
+  res.writeHead(200, {
+    "content-type": CONTENT_TYPES[ext] ?? "application/octet-stream",
+    "cache-control": cacheable ? "public, max-age=31536000, immutable" : "no-cache",
+  });
+  res.end(readFileSync(filePath));
+  return true;
+}
 
 const port = Number(process.env.PORT ?? 3000);
 const bearerToken = process.env.JOBSYNC_REMOTE_BEARER_TOKEN;
@@ -80,6 +129,12 @@ export const httpServer = createServer(async (req, res) => {
 
   if (req.method === "GET" && pathname === "/healthz") {
     sendJson(res, 200, { ok: true, service: "jobsync-mcp" });
+    return;
+  }
+
+  // Dashboard API (/api/* except /api/auto-apply): Firebase-authenticated,
+  // per-user. Returns true when it owns the route.
+  if (await handleDashboardApi(req, res, pathname)) {
     return;
   }
 
@@ -367,6 +422,8 @@ export const httpServer = createServer(async (req, res) => {
 
   // Handle standard MCP SSE / HTTP Endpoint
   if (pathname !== "/mcp") {
+    // Non-MCP, non-API request: serve the dashboard SPA if it's built in.
+    if (req.method === "GET" && serveStatic(res, pathname)) return;
     sendJson(res, 404, { error: "not found" });
     return;
   }
