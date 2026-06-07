@@ -9,6 +9,7 @@ export default function Pipeline() {
   const [data, setData] = useState<PipelineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
+  const [autonomous, setAutonomous] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
 
   async function refresh() {
@@ -34,6 +35,12 @@ export default function Pipeline() {
             applyLink: entry.applyLink,
             company: entry.company,
             jobTitle: entry.positionTitle,
+            location: entry.location,
+            datePosted: entry.datePosted,
+            industry: entry.industry,
+            tags: entry.tags,
+            fitScore: entry.fitScore,
+            autonomous: autonomous[entry.id] === true,
           },
         }),
       });
@@ -104,13 +111,25 @@ export default function Pipeline() {
                     </select>
                   </div>
                   {col === "pending" && entry.applyLink && (
-                    <button
-                      className="apply-btn"
-                      onClick={() => autoApply(entry)}
-                      disabled={applying === entry.id}
-                    >
-                      {applying === entry.id ? "Starting…" : "Auto-Apply"}
-                    </button>
+                    <div className="apply-controls">
+                      <button
+                        className="apply-btn"
+                        onClick={() => autoApply(entry)}
+                        disabled={applying === entry.id}
+                      >
+                        {applying === entry.id ? "Starting…" : "Auto-Apply"}
+                      </button>
+                      <label className="autonomous-toggle small muted">
+                        <input
+                          type="checkbox"
+                          checked={autonomous[entry.id] === true}
+                          onChange={(e) =>
+                            setAutonomous((s) => ({ ...s, [entry.id]: e.target.checked }))
+                          }
+                        />
+                        Autonomous
+                      </label>
+                    </div>
                   )}
                 </div>
               ))}

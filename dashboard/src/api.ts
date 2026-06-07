@@ -59,6 +59,26 @@ export interface PreviewFrame {
   at: string;
 }
 
+export interface ProposedField {
+  selector: string;
+  label: string;
+  value: string;
+  type: string;
+  required: boolean;
+  /** AI-composed open text — the console offers tweak buttons for these. */
+  editable: boolean;
+}
+
+export interface RunMeta {
+  location?: string;
+  datePosted?: string;
+  industry?: string;
+  tags?: string;
+  fitScore?: string;
+  atsHint?: string;
+  totalFields?: number;
+}
+
 export interface Run {
   id: string;
   agent: string;
@@ -71,17 +91,41 @@ export interface Run {
   error?: string;
   // Auto-Apply
   previews?: PreviewFrame[];
-  proposed?: { filled: Array<{ label: string; value: string; type: string }>; unfilledRequired: string[] };
+  proposed?: { filled: ProposedField[]; unfilledRequired: string[] };
   applyLink?: string;
   jobId?: string;
   company?: string;
   jobTitle?: string;
+  meta?: RunMeta;
+  autonomous?: boolean;
 }
+
+/** The tweak transforms the console exposes as one-click buttons. */
+export const TWEAKS: Array<{ id: string; label: string }> = [
+  { id: "formal", label: "Make formal" },
+  { id: "shorten", label: "Shorten" },
+  { id: "humanize", label: "Humanize" },
+  { id: "informal", label: "Make informal" },
+  { id: "more-facts", label: "Add facts" },
+];
 
 /** Render a preview frame to an <img>-ready src (GCS url or inline base64). */
 export function previewSrc(p: PreviewFrame): string | undefined {
   if (p.url) return p.url;
   if (p.base64) return `data:image/png;base64,${p.base64}`;
+  return undefined;
+}
+
+/** Fetch the latest live-browser frame for a run (or undefined when none yet). */
+export async function fetchLiveFrame(runId: string): Promise<string | undefined> {
+  const user = getAuthOrThrow().currentUser;
+  const headers = new Headers();
+  if (user) headers.set("authorization", `Bearer ${await user.getIdToken()}`);
+  const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/live`, { headers });
+  if (res.status !== 200) return undefined;
+  const data = (await res.json()) as { url?: string; base64?: string };
+  if (data.url) return data.url;
+  if (data.base64) return `data:image/png;base64,${data.base64}`;
   return undefined;
 }
 

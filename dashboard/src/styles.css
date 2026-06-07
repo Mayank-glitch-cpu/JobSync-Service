@@ -250,3 +250,79 @@ button.ghost { background: var(--panel-2); color: var(--text); border: 1px solid
 }
 .log-line { white-space: pre-wrap; word-break: break-word; color: var(--text); }
 .log-foot { padding: 12px 16px; border-top: 1px solid var(--border); }
+
+/* ── Auto-Apply console: job+log on the left, live browser on the right ─────── */
+.console-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 4px 0 14px;
+}
+.console-bar .log-title { gap: 8px; }
+
+.agent-console { min-width: 0; }
+.console-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 460px) 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.console-left { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+@media (max-width: 1000px) {
+  .console-grid { grid-template-columns: 1fr; }
+}
+
+/* Job metadata card (left-top) */
+.job-meta-card { padding: 16px; }
+.job-meta-card h3 { margin: 0 0 10px; }
+.meta-grid { margin: 0 0 10px; display: flex; flex-direction: column; gap: 6px; }
+.meta-row { display: grid; grid-template-columns: 120px 1fr; gap: 8px; }
+.meta-row dt { margin: 0; }
+.meta-row dd { margin: 0; word-break: break-word; }
+
+/* Log + approve card (left-bottom) */
+.log-card {
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - 220px);
+  overflow: hidden;
+}
+.log-subhead { padding: 10px 16px 0; text-transform: uppercase; letter-spacing: 0.04em; }
+.log-card .log-body { max-height: 240px; }
+
+.approve-head { display: flex; align-items: center; justify-content: space-between; }
+.answers { display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; }
+.answer-row {
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  background: var(--panel-2); display: flex; flex-direction: column; gap: 6px;
+}
+.answer-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.answer-label .req { color: #e3b341; font-size: 11px; }
+.answer-value { white-space: pre-wrap; word-break: break-word; }
+.answer-edit textarea {
+  width: 100%; resize: vertical; font: inherit; font-size: 13px;
+  padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text);
+}
+.tweak-hints { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font-size: 12px; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer;
+}
+.chip:hover { border-color: var(--accent-2); }
+.chip.ghost { color: var(--muted); }
+.chip:disabled { opacity: 0.5; cursor: default; }
+.accept-all { background: var(--accent-2); border: none; }
+
+/* Live browser pane (right) */
+.live-browser { padding: 12px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 20px; }
+.live-head { display: flex; align-items: center; gap: 6px; }
+.live-stage {
+  border: 1px solid var(--border); border-radius: 8px; background: #fff;
+  min-height: 420px; display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.live-stage img { width: 100%; display: block; max-height: calc(100vh - 180px); object-fit: contain; object-position: top; }
+.live-stage p { color: #555; }
+.live-caption { text-align: center; }
+
+/* Pipeline auto-apply controls */
+.apply-controls { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.autonomous-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.autonomous-toggle input { margin: 0; }
