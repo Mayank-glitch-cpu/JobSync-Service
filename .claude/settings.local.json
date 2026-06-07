@@ -105,7 +105,10 @@
       "Bash(cd /c/Users/vyasm/OneDrive/Desktop/JobsList && grep -rn \"@anthropic-ai/sdk\" pnpm-lock.yaml | head -5)",
       "Read(//c/c/Users/vyasm/OneDrive/Desktop/JobsList/**)",
       "Bash(pnpm --filter jobsync-mcp build)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(ls dashboard/dist)",
+      "Bash(ls mcp-server/dist/public)",
+      "Bash(ls mcp-server/src/public)"
     ],
     "additionalDirectories": [
       "c:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory"

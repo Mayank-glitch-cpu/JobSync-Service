@@ -28,10 +28,14 @@ import {
   prepareApplication,
   submitPreparedApplication,
   discardPreparedApplication,
+  tweakAnswer,
+  editAnswer,
   type ApplyParams,
   type PreviewFrame,
   type ProposedField,
 } from "../lib/agent/auto-apply-agent.js";
+import { captureLiveFrame } from "../lib/browser-apply.js";
+import { screenshotToData } from "../lib/gcs.js";
 import { getStore } from "../lib/store/index.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -128,6 +132,19 @@ interface RunRecord {
   jobId?: string;
   company?: string;
   jobTitle?: string;
+  // Job metadata for the console's left-top card. Sourced from the pipeline entry
+  // (location/datePosted/…) and enriched with what the agent detected (ats/fields).
+  meta?: {
+    location?: string;
+    datePosted?: string;
+    industry?: string;
+    tags?: string;
+    fitScore?: string;
+    atsHint?: string;
+    totalFields?: number;
+  };
+  /** When true the run auto-submits after a clean preview instead of waiting. */
+  autonomous?: boolean;
 }
 
 /** Attach a preview frame to a run, capping the in-memory history. */
@@ -212,7 +229,7 @@ function startSearchRun(uid: string, params: SearchParams): RunRecord {
 let applyRun: { uid: string; id: string } | null = null;
 
 /** Kick off an Auto-Apply preview run in the background. Returns the initial record. */
-function startApplyRun(uid: string, params: ApplyParams): RunRecord {
+function startApplyRun(uid: string, params: ApplyParams, opts: { autonomous?: boolean; meta?: RunRecord["meta"] } = {}): RunRecord {
   const run: RunRecord = {
     id: randomUUID(),
     agent: "auto-apply",
@@ -225,8 +242,15 @@ function startApplyRun(uid: string, params: ApplyParams): RunRecord {
     jobId: params.jobId,
     company: params.company,
     jobTitle: params.jobTitle,
+    autonomous: opts.autonomous,
+    meta: opts.meta,
   };
-  appendLog(run, "Auto-Apply started — preparing a preview (nothing is submitted yet).");
+  appendLog(
+    run,
+    opts.autonomous
+      ? "Auto-Apply started in autonomous mode — will fill and submit without stopping."
+      : "Auto-Apply started — preparing a preview (nothing is submitted yet).",
+  );
   liveRuns.set(run.id, run);
   applyRun = { uid, id: run.id };
   void persistRun(uid, run).catch(() => {});
@@ -237,10 +261,24 @@ function startApplyRun(uid: string, params: ApplyParams): RunRecord {
     (msg) => appendLog(run, msg),
     (frame) => addPreview(run, frame),
   )
-    .then((prepared) => {
-      run.status = "awaiting_approval";
+    .then(async (prepared) => {
+      run.meta = { ...run.meta, atsHint: prepared.atsHint, totalFields: prepared.totalFields };
       run.proposed = { filled: prepared.filled, unfilledRequired: prepared.unfilledRequired };
-      appendLog(run, "Preview ready — review the filled form, then Approve to submit or Discard.");
+      // Autonomous: submit immediately when nothing required is missing. (CAPTCHA /
+      // email-code gates still surface in the submit result and stop the flow there.)
+      if (opts.autonomous && prepared.unfilledRequired.length === 0) {
+        await approveApplyRun(uid, run);
+        return;
+      }
+      run.status = "awaiting_approval";
+      if (opts.autonomous) {
+        appendLog(
+          run,
+          `Autonomous mode paused — ${prepared.unfilledRequired.length} required field(s) need your input before submitting.`,
+        );
+      } else {
+        appendLog(run, "Preview ready — review the filled form, then Approve to submit or Discard.");
+      }
       void persistRun(uid, run).catch(() => {});
     })
     .catch((err: unknown) => {
@@ -452,6 +490,26 @@ export async function handleDashboardApi(
       return true;
     }
 
+    // GET /api/runs/:id/live — near-live screenshot of the open apply browser.
+    if (pathname.startsWith("/api/runs/") && pathname.endsWith("/live") && method === "GET") {
+      const id = decodeURIComponent(pathname.slice("/api/runs/".length, -"/live".length));
+      // Only the user who owns the in-flight apply session may peek at its browser.
+      if (!applyRun || applyRun.id !== id || applyRun.uid !== uid) {
+        res.writeHead(204, { "access-control-allow-origin": "*", "cache-control": "no-store" });
+        res.end();
+        return true;
+      }
+      const framePath = await captureLiveFrame();
+      const shot = framePath ? await screenshotToData(framePath) : {};
+      res.writeHead(shot.base64 || shot.url ? 200 : 204, {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+      res.end(JSON.stringify(shot));
+      return true;
+    }
+
     // GET /api/runs/:id — live status of a single run
     if (pathname.startsWith("/api/runs/") && method === "GET") {
       const id = decodeURIComponent(pathname.slice("/api/runs/".length));
@@ -470,7 +528,7 @@ export async function handleDashboardApi(
       const slash = rest.lastIndexOf("/");
       const action = slash >= 0 ? rest.slice(slash + 1) : "";
       const id = decodeURIComponent(slash >= 0 ? rest.slice(0, slash) : rest);
-      if (action === "approve" || action === "discard") {
+      if (action === "approve" || action === "discard" || action === "accept-all" || action === "tweak" || action === "edit") {
         const run = liveRuns.get(id);
         if (!run || run.agent !== "auto-apply") {
           sendJson(res, 404, { error: "No live application found for this run." });
@@ -484,7 +542,35 @@ export async function handleDashboardApi(
           sendJson(res, 409, { error: `Run is ${run.status}, not awaiting approval.` });
           return true;
         }
-        const updated = action === "approve" ? await approveApplyRun(uid, run) : await discardApplyRun(uid, run);
+
+        // Rewrite (tweak) or overwrite (edit) one proposed answer, then return the
+        // updated row so the console re-renders it. Run stays awaiting approval.
+        if (action === "tweak" || action === "edit") {
+          const body = await readJsonBody(req);
+          const selector = String(body.selector ?? "");
+          if (!selector) {
+            sendJson(res, 400, { error: "selector is required" });
+            return true;
+          }
+          try {
+            const result =
+              action === "tweak"
+                ? await tweakAnswer(uid, run.applyLink ?? "", selector, String(body.transform ?? "humanize"))
+                : editAnswer(selector, String(body.value ?? ""));
+            // Reflect the new value in the run's proposed list.
+            const row = run.proposed?.filled.find((f) => f.selector === selector);
+            if (row) row.value = result.value;
+            appendLog(run, `${action === "tweak" ? "Tweaked" : "Edited"} answer for "${row?.label ?? selector}".`);
+            void persistRun(uid, run).catch(() => {});
+            sendJson(res, 200, { run, field: row });
+          } catch (err) {
+            sendJson(res, 400, { error: err instanceof Error ? err.message : String(err) });
+          }
+          return true;
+        }
+
+        // "Accept All" is a one-click submit of the prepared draft (same as approve).
+        const updated = action === "discard" ? await discardApplyRun(uid, run) : await approveApplyRun(uid, run);
         sendJson(res, 200, { run: updated });
         return true;
       }
@@ -525,12 +611,26 @@ export async function handleDashboardApi(
           });
           return true;
         }
-        const run = startApplyRun(uid, {
-          applyLink,
-          jobId: typeof params.jobId === "string" ? params.jobId : undefined,
-          company: typeof params.company === "string" ? params.company : undefined,
-          jobTitle: typeof params.jobTitle === "string" ? params.jobTitle : undefined,
-        });
+        const str = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
+        const run = startApplyRun(
+          uid,
+          {
+            applyLink,
+            jobId: str(params.jobId),
+            company: str(params.company),
+            jobTitle: str(params.jobTitle),
+          },
+          {
+            autonomous: params.autonomous === true,
+            meta: {
+              location: str(params.location),
+              datePosted: str(params.datePosted),
+              industry: str(params.industry),
+              tags: str(params.tags),
+              fitScore: str(params.fitScore),
+            },
+          },
+        );
         sendJson(res, 202, { run });
         return true;
       }

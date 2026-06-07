@@ -18,6 +18,8 @@ import {
   closeApplySession,
   fillAndSubmit,
   inspectForm,
+  patchDraftInstruction,
+  readDraftInstruction,
   saveApplyDraft,
   type FillInstruction,
 } from "../browser-apply.js";
@@ -45,10 +47,18 @@ export interface PreviewFrame {
 }
 
 export interface ProposedField {
+  /** CSS selector the value targets — the key for tweak/edit operations. */
+  selector: string;
   label: string;
   value: string;
   type: string;
+  required: boolean;
+  /** True when the answer was AI-composed (open text) and can be re-tweaked. */
+  editable: boolean;
 }
+
+/** A one-word rewrite intent for an AI-composed answer, plus freeform fallback. */
+export type TweakTransform = "formal" | "shorten" | "humanize" | "informal" | "more-facts" | string;
 
 export interface PreparedApplication {
   applyLink: string;
@@ -206,6 +216,10 @@ export async function prepareApplication(
   const instructions: FillInstruction[] = [...fill.instructions];
   onProgress(`Mapped ${instructions.length} field(s) from your profile.`);
 
+  // Selectors whose value was written by Claude (open text/textarea) — only these
+  // are surfaced as "editable" so the UI offers tweak buttons for them.
+  const composedSelectors = new Set<string>();
+
   if (fill.unansweredFields.length > 0) {
     if (isAgentConfigured()) {
       onProgress(`Composing answers for ${fill.unansweredFields.length} remaining question(s)…`);
@@ -218,6 +232,7 @@ export async function prepareApplication(
           projects,
         });
         instructions.push(...composed);
+        for (const c of composed) composedSelectors.add(c.selector);
         onProgress(`Composed ${composed.length} answer(s).`);
       } catch (err) {
         onProgress(`Could not compose answers: ${err instanceof Error ? err.message : String(err)}`);
@@ -226,6 +241,9 @@ export async function prepareApplication(
       onProgress(`Skipping ${fill.unansweredFields.length} open question(s) — agent model not configured.`);
     }
   }
+
+  // Which detected fields are required? Used to flag proposed rows for the UI.
+  const requiredSelectors = new Set(inspect.fields.filter((f) => f.required).map((f) => f.selector));
 
   onProgress("Filling the form (preview only — nothing is submitted)…");
   saveApplyDraft(instructions, [], applyLink);
@@ -247,10 +265,103 @@ export async function prepareApplication(
     applyLink,
     atsHint: inspect.atsHint,
     pageTitle: result.pageTitle,
-    filled: instructions.map((i) => ({ label: i.label ?? i.selector, value: displayValue(i), type: i.type ?? "text" })),
+    filled: instructions.map((i) => ({
+      selector: i.selector,
+      label: i.label ?? i.selector,
+      value: displayValue(i),
+      type: i.type ?? "text",
+      required: requiredSelectors.has(i.selector),
+      // Editable only when Claude wrote it AND it's free text (not a picked option/file).
+      editable: composedSelectors.has(i.selector) && (i.type ?? "text") !== "file",
+    })),
     unfilledRequired,
     totalFields: inspect.fields.length,
   };
+}
+
+// ── Tweak / edit one composed answer ────────────────────────────────────────────
+// The preview leaves the form filled but unsubmitted; before approving, the user can
+// rewrite an AI-composed answer (Formal / Shorten / Humanize / Informal / Add facts,
+// or a freeform instruction). We re-ask Claude for just that field, then patch the
+// saved draft so the eventual submit types the revised value. The browser is NOT
+// re-filled here — the new text is applied on submit (or the user can re-preview).
+
+const TRANSFORM_DIRECTIVE: Record<string, string> = {
+  formal: "Rewrite it in a more formal, professional register. Keep the same facts and meaning.",
+  shorten: "Make it noticeably more concise — cut filler, keep the strongest points. Roughly half the length.",
+  humanize: "Rewrite it to sound warmer and more human — natural first-person voice, less robotic, no clichés.",
+  informal: "Rewrite it in a friendlier, more conversational tone while staying appropriate for a job application.",
+  "more-facts":
+    "Strengthen it with concrete, specific details drawn ONLY from the applicant's profile (technologies, scope, outcomes). Do not invent facts.",
+};
+
+function transformDirective(transform: TweakTransform): string {
+  return TRANSFORM_DIRECTIVE[transform] ?? `Apply this instruction to the answer: ${transform}`;
+}
+
+/**
+ * Rewrite a single AI-composed answer per a tweak transform and patch the saved
+ * draft so the next submit uses it. Returns the new value (masked for preview).
+ */
+export async function tweakAnswer(
+  uid: string,
+  applyLink: string,
+  selector: string,
+  transform: TweakTransform,
+): Promise<{ value: string }> {
+  const current = readDraftInstruction(selector);
+  if (!current) throw new Error("That answer is no longer part of the current application draft.");
+
+  const [experience, skills, projects] = await Promise.all([
+    readProfileFile("experience", uid),
+    readProfileFile("skills", uid),
+    readProfileFile("projects", uid),
+  ]);
+
+  const client = await getAnthropic();
+  const system =
+    "You revise a single answer an applicant wrote on a job application. Preserve first-person voice and stay grounded ONLY in the applicant's profile — never fabricate credentials, employers, dates, or metrics. Return ONLY the revised answer text, with no preamble or quotes.";
+  const prompt = `Applicant profile (for grounding):
+Experience:
+${experience || "(not provided)"}
+
+Skills:
+${skills || "(not provided)"}
+
+Projects:
+${projects || "(not provided)"}
+
+Question: "${current.label ?? selector}"
+Current answer:
+${current.value}
+
+Revision instruction: ${transformDirective(transform)}
+
+Return the revised answer only.`;
+
+  const resp = await client.messages.create({
+    model: agentModel(),
+    max_tokens: 2000,
+    system,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const text = resp.content
+    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+  if (!text) throw new Error("The rewrite came back empty — try again.");
+
+  patchDraftInstruction(selector, text);
+  return { value: displayValue({ ...current, value: text }) };
+}
+
+/** Manually overwrite a draft answer with a user-supplied value (no model call). */
+export function editAnswer(selector: string, value: string): { value: string } {
+  const current = readDraftInstruction(selector);
+  if (!current) throw new Error("That answer is no longer part of the current application draft.");
+  patchDraftInstruction(selector, value);
+  return { value: displayValue({ ...current, value }) };
 }
 
 /** Real submit on the still-open session prepared above; marks the job applied on success. */

@@ -124,6 +124,24 @@ export function saveApplyDraft(
   return state;
 }
 
+/** Read a single draft fill instruction by selector (or null if absent). */
+export function readDraftInstruction(selector: string): FillInstruction | null {
+  const state = loadFormState();
+  return state?.draftInstructions?.find((i) => i.selector === selector) ?? null;
+}
+
+/** Overwrite the value of one draft instruction (by selector) and persist it, so
+ *  the next submit on the open session types the revised answer. */
+export function patchDraftInstruction(selector: string, value: string): void {
+  const state = loadFormState();
+  if (!state?.draftInstructions) return;
+  const instr = state.draftInstructions.find((i) => i.selector === selector);
+  if (!instr) return;
+  instr.value = value;
+  state.timestamp = Date.now();
+  saveFormState(state);
+}
+
 function screenshotDir(): string {
   const dir = join(tmpdir(), "jobsync-screenshots");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -1369,6 +1387,21 @@ export async function closeApplySession(): Promise<void> {
   const s = activeSession;
   activeSession = null;
   if (s) await s.browser.close().catch(() => undefined);
+}
+
+/** Screenshot the live apply page for the near-live browser pane. Best-effort:
+ *  returns the file path, or null when no session is open / the capture fails.
+ *  Playwright serializes protocol calls, so this is safe to call while a fill is
+ *  in flight (it just queues behind the current action). */
+export async function captureLiveFrame(): Promise<string | null> {
+  if (!sessionAlive(activeSession)) return null;
+  try {
+    const path = screenshotPath("live");
+    await activeSession.page.screenshot({ path, fullPage: false });
+    return path;
+  } catch {
+    return null;
+  }
 }
 
 /** Reuse the live session if it is for the same job; otherwise tear down any stale
