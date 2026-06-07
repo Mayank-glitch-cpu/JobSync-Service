@@ -27,6 +27,7 @@ import { runSearchAgent, type SearchParams } from "../lib/agent/search-agent.js"
 import {
   prepareApplication,
   submitPreparedApplication,
+  submitApplicationCode,
   discardPreparedApplication,
   tweakAnswer,
   editAnswer,
@@ -34,7 +35,7 @@ import {
   type PreviewFrame,
   type ProposedField,
 } from "../lib/agent/auto-apply-agent.js";
-import { captureLiveFrame } from "../lib/browser-apply.js";
+import { captureLiveFrame, detectAts } from "../lib/browser-apply.js";
 import { screenshotToData } from "../lib/gcs.js";
 import { getStore } from "../lib/store/index.js";
 
@@ -102,7 +103,16 @@ const MAX_LOG_LINES = 300;
 
 // "awaiting_approval": an Auto-Apply preview is filled and the browser session is
 // held open until the user approves (submit) or discards it. "cancelled": discarded.
-type RunStatus = "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled";
+// "awaiting_code": submit reached an emailed-verification-code gate; the session is
+// held open until the user supplies the code via the /code route.
+type RunStatus =
+  | "queued"
+  | "running"
+  | "awaiting_approval"
+  | "awaiting_code"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
 
 // Max preview screenshots kept per run (in memory, live). Older frames are dropped.
 const MAX_PREVIEWS = 6;
@@ -145,6 +155,10 @@ interface RunRecord {
   };
   /** When true the run auto-submits after a clean preview instead of waiting. */
   autonomous?: boolean;
+  /** Submit hit an emailed-code gate — the console shows a code input. */
+  needsEmailCode?: boolean;
+  /** Submit is blocked by a CAPTCHA — the console tells the user to finish on the apply page. */
+  needsCaptcha?: boolean;
 }
 
 /** Attach a preview frame to a run, capping the in-memory history. */
@@ -295,6 +309,36 @@ function startApplyRun(uid: string, params: ApplyParams, opts: { autonomous?: bo
   return run;
 }
 
+/** Mark a run finished: clear the active-apply lock and schedule its eviction. */
+function finalizeRun(uid: string, run: RunRecord): void {
+  run.finishedAt = new Date().toISOString();
+  applyRun = null;
+  void persistRun(uid, run).catch(() => {});
+  setTimeout(() => liveRuns.delete(run.id), 5 * 60 * 1000).unref?.();
+}
+
+/** Apply a submit outcome to a run. Returns true if the run reached a terminal
+ *  state (or a CAPTCHA dead-end); false when it's paused awaiting a verification
+ *  code (session stays open, run not finalized). */
+function applySubmitOutcome(run: RunRecord, outcome: Awaited<ReturnType<typeof submitPreparedApplication>>): boolean {
+  run.needsEmailCode = outcome.needsEmailCode;
+  run.needsCaptcha = outcome.needsCaptcha;
+  if (outcome.success) {
+    run.status = "succeeded";
+    run.summary = `Applied to ${run.jobTitle ?? "the role"}${run.company ? ` at ${run.company}` : ""}.`;
+    return true;
+  }
+  if (outcome.needsEmailCode) {
+    // Hold the session open for the user to enter the emailed code.
+    run.status = "awaiting_code";
+    return false;
+  }
+  // CAPTCHA or an unconfirmed submit: nothing more we can do automatically.
+  run.status = "failed";
+  run.error = outcome.error ?? "Submit did not confirm.";
+  return true;
+}
+
 /** Approve a prepared application: submit it on the open session, mark applied. */
 async function approveApplyRun(uid: string, run: RunRecord): Promise<RunRecord> {
   run.status = "running";
@@ -306,22 +350,45 @@ async function approveApplyRun(uid: string, run: RunRecord): Promise<RunRecord> 
       (msg) => appendLog(run, msg),
       (frame) => addPreview(run, frame),
     );
-    run.status = outcome.success ? "succeeded" : "failed";
-    run.summary = outcome.success
-      ? `Applied to ${run.jobTitle ?? "the role"}${run.company ? ` at ${run.company}` : ""}.`
-      : undefined;
-    if (!outcome.success) run.error = outcome.error ?? "Submit did not confirm.";
+    if (!applySubmitOutcome(run, outcome)) {
+      await persistRun(uid, run).catch(() => {}); // awaiting code — keep session + lock
+      return run;
+    }
   } catch (err) {
     run.status = "failed";
     run.error = err instanceof Error ? err.message : String(err);
     appendLog(run, `Failed: ${run.error}`);
     await discardPreparedApplication().catch(() => {});
-  } finally {
-    run.finishedAt = new Date().toISOString();
-    applyRun = null;
-    await persistRun(uid, run).catch(() => {});
-    setTimeout(() => liveRuns.delete(run.id), 5 * 60 * 1000).unref?.();
   }
+  finalizeRun(uid, run);
+  return run;
+}
+
+/** Enter a user-supplied verification code on the held-open session. */
+async function submitCodeRun(uid: string, run: RunRecord, code: string): Promise<RunRecord> {
+  run.status = "running";
+  appendLog(run, "Submitting verification code…");
+  try {
+    const outcome = await submitApplicationCode(
+      uid,
+      run.applyLink ?? "",
+      code,
+      (msg) => appendLog(run, msg),
+      (frame) => addPreview(run, frame),
+    );
+    if (!applySubmitOutcome(run, outcome)) {
+      // Still awaiting (wrong/expired code) — keep the session open for a retry.
+      run.status = "awaiting_code";
+      await persistRun(uid, run).catch(() => {});
+      return run;
+    }
+  } catch (err) {
+    run.status = "failed";
+    run.error = err instanceof Error ? err.message : String(err);
+    appendLog(run, `Failed: ${run.error}`);
+    await discardPreparedApplication().catch(() => {});
+  }
+  finalizeRun(uid, run);
   return run;
 }
 
@@ -528,6 +595,28 @@ export async function handleDashboardApi(
       const slash = rest.lastIndexOf("/");
       const action = slash >= 0 ? rest.slice(slash + 1) : "";
       const id = decodeURIComponent(slash >= 0 ? rest.slice(0, slash) : rest);
+      // Enter a verification code on a run paused at an emailed-code gate.
+      if (action === "code") {
+        const run = liveRuns.get(id);
+        if (!run || run.agent !== "auto-apply") {
+          sendJson(res, 404, { error: "No live application found for this run." });
+          return true;
+        }
+        if (!applyRun || applyRun.id !== id || applyRun.uid !== uid || run.status !== "awaiting_code") {
+          sendJson(res, 409, { error: "This application is not awaiting a verification code." });
+          return true;
+        }
+        const body = await readJsonBody(req);
+        const code = String(body.code ?? "").trim();
+        if (!code) {
+          sendJson(res, 400, { error: "code is required" });
+          return true;
+        }
+        const updated = await submitCodeRun(uid, run, code);
+        sendJson(res, 200, { run: updated });
+        return true;
+      }
+
       if (action === "approve" || action === "discard" || action === "accept-all" || action === "tweak" || action === "edit") {
         const run = liveRuns.get(id);
         if (!run || run.agent !== "auto-apply") {
@@ -603,6 +692,15 @@ export async function handleDashboardApi(
         const applyLink = typeof params.applyLink === "string" ? params.applyLink.trim() : "";
         if (!applyLink) {
           sendJson(res, 400, { error: "applyLink is required to auto-apply." });
+          return true;
+        }
+        // Lever postings gate submission behind a CAPTCHA puzzle the agent can't
+        // clear yet (tracked on GitHub). Refuse rather than burn a doomed run.
+        if (detectAts(applyLink) === "lever") {
+          sendJson(res, 422, {
+            error:
+              "Auto-Apply is disabled for Lever postings — they're protected by a CAPTCHA the agent can't solve yet. Open the apply link and submit manually.",
+          });
           return true;
         }
         if (applyRun) {

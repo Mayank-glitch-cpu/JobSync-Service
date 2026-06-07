@@ -322,7 +322,17 @@ button.ghost { background: var(--panel-2); color: var(--text); border: 1px solid
 .live-stage p { color: #555; }
 .live-caption { text-align: center; }
 
+/* CAPTCHA / verification-code gates in the console */
+.captcha-box { border-left: 3px solid #e3b341; }
+.code-box { border-left: 3px solid var(--accent-2); }
+.code-entry { display: flex; gap: 8px; }
+.code-entry input {
+  flex: 1; font: inherit; letter-spacing: 0.15em; padding: 7px 10px;
+  border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text);
+}
+
 /* Pipeline auto-apply controls */
 .apply-controls { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .autonomous-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .autonomous-toggle input { margin: 0; }
+.lever-note { margin-top: 8px; }

@@ -5,6 +5,12 @@ import { apiFetch, type PipelineEntry, type PipelineResponse, type Run } from ".
 const COLUMNS = ["pending", "applied", "interviewing", "offer", "rejected", "withdrawn"] as const;
 const STATUS_OPTIONS = COLUMNS;
 
+/** Lever postings gate submission behind a CAPTCHA the agent can't solve yet, so
+ *  Auto-Apply is disabled for them (the server rejects them too). */
+function isLever(applyLink: string): boolean {
+  return /lever\.co/i.test(applyLink);
+}
+
 export default function Pipeline() {
   const [data, setData] = useState<PipelineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,25 +117,31 @@ export default function Pipeline() {
                     </select>
                   </div>
                   {col === "pending" && entry.applyLink && (
-                    <div className="apply-controls">
-                      <button
-                        className="apply-btn"
-                        onClick={() => autoApply(entry)}
-                        disabled={applying === entry.id}
-                      >
-                        {applying === entry.id ? "Starting…" : "Auto-Apply"}
-                      </button>
-                      <label className="autonomous-toggle small muted">
-                        <input
-                          type="checkbox"
-                          checked={autonomous[entry.id] === true}
-                          onChange={(e) =>
-                            setAutonomous((s) => ({ ...s, [entry.id]: e.target.checked }))
-                          }
-                        />
-                        Autonomous
-                      </label>
-                    </div>
+                    isLever(entry.applyLink) ? (
+                      <p className="lever-note small muted">
+                        Auto-Apply unavailable for Lever (CAPTCHA-protected) — apply via Open.
+                      </p>
+                    ) : (
+                      <div className="apply-controls">
+                        <button
+                          className="apply-btn"
+                          onClick={() => autoApply(entry)}
+                          disabled={applying === entry.id}
+                        >
+                          {applying === entry.id ? "Starting…" : "Auto-Apply"}
+                        </button>
+                        <label className="autonomous-toggle small muted">
+                          <input
+                            type="checkbox"
+                            checked={autonomous[entry.id] === true}
+                            onChange={(e) =>
+                              setAutonomous((s) => ({ ...s, [entry.id]: e.target.checked }))
+                            }
+                          />
+                          Autonomous
+                        </label>
+                      </div>
+                    )
                   )}
                 </div>
               ))}
