@@ -63,6 +63,10 @@ export interface SubmitResult {
    *  agent must ask the user for that code and call apply_submit_code with it —
    *  the code is entered in the same live browser session. */
   needsEmailCode?: boolean;
+  /** The form is protected by a human-verification CAPTCHA (hCaptcha/reCAPTCHA)
+   *  that cannot be solved programmatically. The fields are filled, but the user
+   *  must open the apply link, solve the challenge, and submit it themselves. */
+  needsCaptcha?: boolean;
 }
 
 export interface FormState {
@@ -1081,8 +1085,12 @@ async function clickSubmit(page: BrowserPage): Promise<boolean> {
       if (await locatorUsable(locator)) {
         await locator.scrollIntoViewIfNeeded().catch(() => undefined);
         await moveMouseToLocator(page, locator);
-        await locator.click();
-        return true;
+        // Bounded click: if an overlay (e.g. an undetected CAPTCHA widget)
+        // intercepts pointer events, fail fast instead of blocking the default
+        // 30 s and throwing — the caller surfaces a "couldn't submit" result.
+        if (await locator.click({ timeout: 8000 }).then(() => true).catch(() => false)) {
+          return true;
+        }
       }
     }
 
@@ -1094,8 +1102,9 @@ async function clickSubmit(page: BrowserPage): Promise<boolean> {
         if (await locatorUsable(locator)) {
           await locator.scrollIntoViewIfNeeded().catch(() => undefined);
           await moveMouseToLocator(page, locator);
-          await locator.click();
-          return true;
+          if (await locator.click({ timeout: 8000 }).then(() => true).catch(() => false)) {
+            return true;
+          }
         }
       }
     }
@@ -1187,6 +1196,35 @@ async function detectValidationErrors(
     .slice(0, 30);
 }
 
+// hCaptcha / reCAPTCHA / Cloudflare Turnstile widgets. A visible challenge gates
+// submission with a human check we cannot (and must not) solve programmatically —
+// its overlay also intercepts the submit click. Detect it so we hand off to the
+// user instead of hanging on a doomed click.
+const CAPTCHA_SELECTORS = [
+  'iframe[src*="hcaptcha.com"]',
+  'iframe[src*="recaptcha"]',
+  'iframe[src*="challenges.cloudflare.com"]',
+  ".h-captcha",
+  ".g-recaptcha",
+  '[data-sitekey]',
+];
+
+async function detectCaptcha(page: BrowserPage): Promise<boolean> {
+  for (const ctx of allContexts(page)) {
+    for (const selector of CAPTCHA_SELECTORS) {
+      try {
+        const locator = ctx.locator(selector).first();
+        if ((await locator.count()) > 0 && (await locator.isVisible({ timeout: 500 }).catch(() => false))) {
+          return true;
+        }
+      } catch {
+        // Selector not valid in this context — try the next.
+      }
+    }
+  }
+  return false;
+}
+
 async function newBrowserPage(applyLink: string): Promise<{ browser: import("playwright").Browser; page: BrowserPage; atsHint: string }> {
   let playwright;
   try {
@@ -1208,6 +1246,11 @@ async function newBrowserPage(applyLink: string): Promise<{ browser: import("pla
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
+      // Headless Chromium on Cloud Run renders all-black screenshots when it tries
+      // to use GPU compositing that isn't available in the container. Force the
+      // software path so the filled-form preview actually paints.
+      "--disable-gpu",
+      "--force-color-profile=srgb",
     ],
   });
   const ctx = await browser.newContext({
@@ -1653,15 +1696,42 @@ export async function fillAndSubmit(
     if (dryRun) {
       // Dry run leaves the filled form on screen for review; the session stays open
       // so a follow-up live submit reuses it instead of refilling from scratch.
+      // Flag a CAPTCHA now so the user knows up front that approving won't auto-submit.
+      const captchaPresent = await detectCaptcha(page);
       return {
         success: false,
         screenshotPath: beforePath,
         pageTitle: await page.title(),
-        confirmedText: "Dry run - form filled but not submitted.",
+        confirmedText: captchaPresent
+          ? "Dry run — form filled. NOTE: this posting has a CAPTCHA, so it can't be auto-submitted; you'll need to solve it and submit on the apply page yourself."
+          : "Dry run - form filled but not submitted.",
         filledCount,
         failedFields,
         submitted: false,
         sessionOpen: true,
+        ...(captchaPresent ? { needsCaptcha: true } : {}),
+      };
+    }
+
+    // A human-verification challenge (hCaptcha/reCAPTCHA/Turnstile) gates this form.
+    // We cannot solve it programmatically, and its overlay intercepts the submit
+    // click anyway. Hand off to the user with the form already filled instead of
+    // hanging on a doomed click. Session stays open so they can finish it.
+    if (await detectCaptcha(page)) {
+      const imgPath = screenshotPath("captcha");
+      await page.screenshot({ path: imgPath, fullPage: false }).catch(() => undefined);
+      return {
+        success: false,
+        screenshotPath: imgPath,
+        pageTitle: await page.title(),
+        confirmedText: "",
+        filledCount,
+        failedFields,
+        submitted: false,
+        sessionOpen: true,
+        needsCaptcha: true,
+        error:
+          "This posting is protected by a CAPTCHA (human verification) that can't be completed automatically. Your answers are filled in — open the apply link, solve the CAPTCHA, and click Submit yourself.",
       };
     }
 
