@@ -98,6 +98,8 @@ export interface Run {
   jobTitle?: string;
   meta?: RunMeta;
   autonomous?: boolean;
+  needsEmailCode?: boolean;
+  needsCaptcha?: boolean;
 }
 
 /** The tweak transforms the console exposes as one-click buttons. */

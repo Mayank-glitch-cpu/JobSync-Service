@@ -21,6 +21,7 @@ import {
   patchDraftInstruction,
   readDraftInstruction,
   saveApplyDraft,
+  submitEmailCode,
   type FillInstruction,
 } from "../browser-apply.js";
 import { fillFields, type UnansweredField } from "../ai-fill.js";
@@ -74,6 +75,14 @@ export interface SubmitOutcome {
   success: boolean;
   confirmedText: string;
   error?: string;
+  /** The form is gated behind a verification code emailed to the applicant — the
+   *  UI must ask the user for it and call the code route. Session stays open. */
+  needsEmailCode?: boolean;
+  /** A human-verification CAPTCHA blocks submission — the answers are filled, but
+   *  the user must open the apply link, solve it, and submit themselves. */
+  needsCaptcha?: boolean;
+  /** The live browser session is still open (awaiting a code, or recoverable). */
+  sessionOpen?: boolean;
 }
 
 type ProgressSink = (message: string) => void;
@@ -386,11 +395,57 @@ export async function submitPreparedApplication(
   if (result.success) {
     await markApplied([applyLink], uid).catch(() => undefined);
     onProgress("Submitted ✓ — marked as applied in your pipeline.");
+  } else if (result.needsEmailCode) {
+    onProgress("This form emailed you a verification code — enter it to finish submitting.");
+  } else if (result.needsCaptcha) {
+    onProgress("This posting is CAPTCHA-protected — open the apply link, solve it, and submit there.");
   } else {
     onProgress(result.error ? `Not submitted: ${result.error}` : "Submit did not confirm.");
   }
 
-  return { success: result.success, confirmedText: result.confirmedText, error: result.error };
+  return {
+    success: result.success,
+    confirmedText: result.confirmedText,
+    error: result.error,
+    needsEmailCode: result.needsEmailCode,
+    needsCaptcha: result.needsCaptcha,
+    sessionOpen: result.sessionOpen,
+  };
+}
+
+/** Enter a user-supplied verification code into the still-open session and try to
+ *  confirm submission. Marks the job applied on a confirmed submit. */
+export async function submitApplicationCode(
+  uid: string,
+  applyLink: string,
+  code: string,
+  onProgress: ProgressSink = noopProgress,
+  onPreview: PreviewSink = noopPreview,
+): Promise<SubmitOutcome> {
+  onProgress("Entering the verification code…");
+  const result = await submitEmailCode(code);
+  onPreview(
+    await frame(
+      result.success ? "submitted" : "error",
+      result.success ? "Application submitted" : "Code entered — awaiting confirmation",
+      result.screenshotPath,
+    ),
+  );
+
+  if (result.success) {
+    await markApplied([applyLink], uid).catch(() => undefined);
+    onProgress("Verified and submitted ✓ — marked as applied in your pipeline.");
+  } else {
+    onProgress(result.error ? `Not confirmed: ${result.error}` : "Code entered, but no confirmation yet.");
+  }
+
+  return {
+    success: result.success,
+    confirmedText: result.confirmedText,
+    error: result.error,
+    needsEmailCode: result.needsEmailCode,
+    sessionOpen: result.sessionOpen,
+  };
 }
 
 /** Abandon a prepared application — closes the browser without submitting. */

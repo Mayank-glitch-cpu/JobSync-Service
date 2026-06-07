@@ -22,7 +22,7 @@ function agentLabel(id: string): string {
 // Statuses where the run is finished and polling should stop.
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 // While in one of these the apply browser is open, so the live pane should refresh.
-const LIVE = new Set(["running", "queued", "awaiting_approval"]);
+const LIVE = new Set(["running", "queued", "awaiting_approval", "awaiting_code"]);
 
 export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -147,6 +147,25 @@ export default function Agents() {
     }
   }
 
+  // Enter the emailed verification code on a run paused at the code gate.
+  async function submitCode(id: string, code: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch<{ run: Run }>(`/api/runs/${encodeURIComponent(id)}/code`, {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      });
+      setActive(res.run);
+      if (res.run.status === "running") pollRun(res.run.id);
+      else await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section>
       <h1>Agents</h1>
@@ -163,6 +182,7 @@ export default function Agents() {
           busy={busy}
           onDecide={decide}
           onRevise={reviseField}
+          onSubmitCode={submitCode}
           onClose={() => {
             stopPolling();
             setActive(null);
@@ -229,12 +249,14 @@ function Console({
   busy,
   onDecide,
   onRevise,
+  onSubmitCode,
   onClose,
 }: {
   run: Run;
   busy: boolean;
   onDecide: (id: string, action: "approve" | "discard" | "accept-all") => void;
   onRevise: (id: string, body: Record<string, unknown>, kind: "tweak" | "edit") => Promise<void>;
+  onSubmitCode: (id: string, code: string) => void;
   onClose: () => void;
 }) {
   const live = LIVE.has(run.status);
@@ -259,7 +281,13 @@ function Console({
       <div className="console-grid">
         <div className="console-left">
           <JobMetaCard run={run} />
-          <LogAndApprove run={run} busy={busy} onDecide={onDecide} onRevise={onRevise} />
+          <LogAndApprove
+            run={run}
+            busy={busy}
+            onDecide={onDecide}
+            onRevise={onRevise}
+            onSubmitCode={onSubmitCode}
+          />
         </div>
         <LiveBrowser run={run} />
       </div>
@@ -306,13 +334,16 @@ function LogAndApprove({
   busy,
   onDecide,
   onRevise,
+  onSubmitCode,
 }: {
   run: Run;
   busy: boolean;
   onDecide: (id: string, action: "approve" | "discard" | "accept-all") => void;
   onRevise: (id: string, body: Record<string, unknown>, kind: "tweak" | "edit") => Promise<void>;
+  onSubmitCode: (id: string, code: string) => void;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [code, setCode] = useState("");
   const lines = run.progress ?? [];
   const live = LIVE.has(run.status);
   const awaiting = run.status === "awaiting_approval";
@@ -324,6 +355,49 @@ function LogAndApprove({
 
   return (
     <div className="card log-card">
+      {run.needsCaptcha && (
+        <div className="approve-box captcha-box">
+          <strong className="small">CAPTCHA required</strong>
+          <p className="muted small">
+            This posting is protected by a human-verification challenge the agent can't solve. Your
+            answers are filled in — open the apply link, solve the CAPTCHA, and click Submit yourself.
+          </p>
+          {run.applyLink && (
+            <a className="link small" href={run.applyLink} target="_blank" rel="noreferrer">
+              Open application to finish ↗
+            </a>
+          )}
+        </div>
+      )}
+
+      {run.status === "awaiting_code" && (
+        <div className="approve-box code-box">
+          <strong className="small">Enter verification code</strong>
+          <p className="muted small">
+            The form emailed you a verification code. Check your inbox and enter it to finish
+            submitting.
+          </p>
+          <div className="code-entry">
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="123456"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
+            <button
+              onClick={() => {
+                onSubmitCode(run.id, code.trim());
+                setCode("");
+              }}
+              disabled={busy || !code.trim()}
+            >
+              {busy ? "Verifying…" : "Submit code"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {awaiting && run.proposed && (
         <div className="approve-box">
           <div className="approve-head">
