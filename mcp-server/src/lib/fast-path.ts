@@ -84,36 +84,49 @@ export async function fetchLever(slug: string): Promise<RawJob[]> {
 // ---------- Ashby ----------
 // https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true
 
+// The Ashby posting-api job shape. NOTE: the real field names differ from the
+// obvious guesses — the publish timestamp is `publishedAt` (not publishedDate),
+// the location is `location` (not locationName), the team is `team`, and the
+// pay summary lives under `compensation.compensationTierSummary`. Reading the
+// wrong names silently nulls everything, which made the search agent drop every
+// Ashby job for "unknown post date".
 interface AshbyJob {
   id: string;
   title: string;
   jobUrl: string;
-  publishedDate?: string;
-  locationName?: string;
-  teamName?: string;
+  applyUrl?: string;
+  publishedAt?: string;
+  location?: string;
+  team?: string;
+  department?: string;
   employmentType?: string;
-  compensationTierSummary?: string;
+  isListed?: boolean;
+  compensation?: { compensationTierSummary?: string };
 }
 
 export async function fetchAshby(slug: string): Promise<RawJob[]> {
   const data = await getJson<{ jobs: AshbyJob[] }>(
     `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(slug)}?includeCompensation=true`,
   );
-  return (data.jobs ?? []).map((j) => ({
-    id: `ashby:${slug}:${j.id}`,
-    positionTitle: j.title,
-    company: slug,
-    location: j.locationName ?? null,
-    applyLink: j.jobUrl,
-    datePosted: j.publishedDate ?? null,
-    salary: j.compensationTierSummary ?? null,
-    rawFields: {
-      source: "ashby",
-      slug,
-      team: j.teamName ?? "",
-      employmentType: j.employmentType ?? "",
-    },
-  }));
+  return (data.jobs ?? [])
+    // Drop unpublished/hidden postings — only `isListed` jobs appear on the board.
+    .filter((j) => j.isListed !== false)
+    .map((j) => ({
+      id: `ashby:${slug}:${j.id}`,
+      positionTitle: j.title,
+      company: slug,
+      location: j.location ?? null,
+      // Public posting URL — the apply flow appends `/application` for Ashby itself.
+      applyLink: j.jobUrl,
+      datePosted: j.publishedAt ?? null,
+      salary: j.compensation?.compensationTierSummary ?? null,
+      rawFields: {
+        source: "ashby",
+        slug,
+        team: j.team ?? j.department ?? "",
+        employmentType: j.employmentType ?? "",
+      },
+    }));
 }
 
 // ---------- Workday ----------

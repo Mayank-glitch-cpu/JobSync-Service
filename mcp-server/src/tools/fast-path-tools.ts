@@ -148,8 +148,8 @@ export const fetchAshbyTool: ToolDefinition = {
   name: "fetch_ashby_jobs",
   description:
     "Fast-path: pull all current postings from Ashby boards via api.ashbyhq.com/posting-api/job-board. Slug is the company's Ashby identifier, e.g. 'anthropic' for jobs.ashbyhq.com/anthropic. Disabled by default — set config.enableFastPath. " +
-    "NOTE: Ashby's list API always returns datePosted=null. " +
-    "WORKFLOW: after this call, ALWAYS run scrape_job_details on the returned jobs — it fetches each job page HTML, extracts the JSON-LD datePosted/baseSalary/description, and falls back to today's date so validation passes — then call airtable_upsert_job with the enriched array. ⚡ [Model hint: haiku]",
+    "datePosted comes straight from the list API (the job's publishedAt) — use it directly to apply the lookback window; treat these as real, recent postings. " +
+    "WORKFLOW: after this call, run scrape_job_details on the returned jobs to enrich jobDescription/salary (datePosted is already set), then call airtable_upsert_job with the enriched array. ⚡ [Model hint: haiku]",
   recommendedModel: "haiku",
   inputSchema: slugsSchema,
   handler: async (args) => {
