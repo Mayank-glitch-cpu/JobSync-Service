@@ -110,7 +110,9 @@
       "Bash(ls mcp-server/dist/public)",
       "Bash(ls mcp-server/src/public)",
       "Bash(curl -s \"https://api.ashbyhq.com/posting-api/job-board/linear?includeCompensation=true\")",
-      "Bash(curl -s \"https://api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true\")"
+      "Bash(curl -s \"https://api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true\")",
+      "Bash(pnpm add *)",
+      "Bash(pnpm exec *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory"
