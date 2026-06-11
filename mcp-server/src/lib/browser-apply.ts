@@ -1,11 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir, tmpdir } from "node:os";
+import { fetchEmailCode, emailCodeAutoEnabled } from "./email-code.js";
+import { currentScope } from "./run-context.js";
 
 type BrowserPage = import("playwright").Page;
 type BrowserFrame = import("playwright").Frame;
 type BrowserLocator = import("playwright").Locator;
-type Browser = import("playwright").Browser;
+type BrowserContext = import("playwright").BrowserContext;
 type FormContext = BrowserPage | BrowserFrame;
 
 export interface DetectedField {
@@ -1243,48 +1245,110 @@ async function detectCaptcha(page: BrowserPage): Promise<boolean> {
   return false;
 }
 
-async function newBrowserPage(applyLink: string): Promise<{ browser: import("playwright").Browser; page: BrowserPage; atsHint: string }> {
-  let playwright;
+// Prefer `patchright` — a drop-in Playwright fork that patches the modern fraud
+// tells the manual `navigator.webdriver` shim can't reach (chiefly the CDP
+// `Runtime.enable` leak, plus closed-shadow-root piercing and console hooks that
+// reCAPTCHA v3 / Turnstile score on). We try patchright first and fall back to
+// stock `playwright` if it's not installed OR can't launch a browser (e.g. its
+// Chromium binary was never downloaded with `patchright install chromium`).
+type Driver = typeof import("playwright");
+
+async function loadPatchright(): Promise<Driver | null> {
   try {
-    playwright = await import("playwright");
+    return (await import("patchright")) as unknown as Driver;
   } catch {
+    return null;
+  }
+}
+
+async function loadPlaywright(): Promise<Driver | null> {
+  try {
+    return await import("playwright");
+  } catch {
+    return null;
+  }
+}
+
+/** Per-user Chromium profile dir. A persistent profile accrues cookies/history,
+ *  so reCAPTCHA v3 / Turnstile fraud scoring sees an established visitor instead
+ *  of a blank, zero-reputation context that gets challenged every time. Keyed by
+ *  the run scope (uid) so users don't share a cookie jar. */
+function userProfileDir(): string {
+  const scope = (currentScope() ?? "default").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const dir = join(homedir(), ".jobsync", "browser-profiles", scope);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+const LAUNCH_ARGS = [
+  "--disable-blink-features=AutomationControlled",
+  "--no-default-browser-check",
+  "--no-sandbox",
+  "--disable-setuid-sandbox",
+  "--disable-dev-shm-usage",
+  // Headless Chromium on Cloud Run renders all-black screenshots when it tries
+  // to use GPU compositing that isn't available in the container. Force the
+  // software path so the filled-form preview actually paints.
+  "--disable-gpu",
+  "--force-color-profile=srgb",
+];
+
+const CONTEXT_OPTS = {
+  userAgent:
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  viewport: { width: 1366, height: 768 },
+  locale: "en-US",
+};
+
+/** Bring up a browser context with one driver: persistent profile first (carries
+ *  reputation), then an ephemeral context if the profile is locked/corrupt.
+ *  Returns null if this driver can't launch at all (missing browser binary), so
+ *  the caller can try the next driver. */
+async function launchContext(driver: Driver, headless: boolean): Promise<BrowserContext | null> {
+  try {
+    // Persistent context: the profile dir survives across applications, so the
+    // browser carries cookies/history into each new form instead of looking brand-new.
+    return await driver.chromium.launchPersistentContext(userProfileDir(), {
+      headless,
+      args: LAUNCH_ARGS,
+      ...CONTEXT_OPTS,
+    });
+  } catch {
+    /* profile locked, or this driver has no browser — try ephemeral, then bail */
+  }
+  try {
+    const browser = await driver.chromium.launch({ headless, args: LAUNCH_ARGS });
+    return await browser.newContext(CONTEXT_OPTS);
+  } catch {
+    return null;
+  }
+}
+
+async function newBrowserPage(applyLink: string): Promise<{ context: BrowserContext; page: BrowserPage; atsHint: string }> {
+  const headless = process.env.JOBSYNC_HEADLESS === "true" || process.env.NODE_ENV === "production";
+
+  let ctx: BrowserContext | null = null;
+  const patchright = await loadPatchright();
+  if (patchright) ctx = await launchContext(patchright, headless);
+  if (!ctx) {
+    const playwright = await loadPlaywright();
+    if (playwright) ctx = await launchContext(playwright, headless);
+  }
+  if (!ctx) {
     throw new Error(
-      "Playwright is not installed. Run: npm i -g jobsync-mcp@latest && npx playwright install chromium",
+      "No usable browser. Install Chromium with: npx patchright install chromium  (or: npx playwright install chromium)",
     );
   }
 
-  const browser = await playwright.chromium.launch({
-    headless: process.env.JOBSYNC_HEADLESS === "true" || process.env.NODE_ENV === "production",
-    // Strip the headless/automation banner and the navigator.webdriver flag that
-    // fraud scoring keys on. --disable-blink-features=AutomationControlled is the
-    // single most effective tell to suppress.
-    args: [
-      "--disable-blink-features=AutomationControlled",
-      "--no-default-browser-check",
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      // Headless Chromium on Cloud Run renders all-black screenshots when it tries
-      // to use GPU compositing that isn't available in the container. Force the
-      // software path so the filled-form preview actually paints.
-      "--disable-gpu",
-      "--force-color-profile=srgb",
-    ],
-  });
-  const ctx = await browser.newContext({
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    viewport: { width: 1366, height: 768 },
-    locale: "en-US",
-  });
   // Belt-and-suspenders: blank out navigator.webdriver before any page script runs,
   // in case the launch flag is not honoured by the installed Chromium build.
   await ctx.addInitScript(() => {
     Object.defineProperty(navigator, "webdriver", { get: () => undefined });
   });
-  const startPage = await ctx.newPage();
+  // Reuse the page the persistent context opens with, else create one.
+  const startPage = ctx.pages()[0] ?? (await ctx.newPage());
   const opened = await openApplicationForm(startPage, applyLink);
-  return { browser, page: opened.page, atsHint: opened.atsHint };
+  return { context: ctx, page: opened.page, atsHint: opened.atsHint };
 }
 
 // Open each detected combobox dropdown, read its option list from the popup, then
@@ -1352,7 +1416,7 @@ async function harvestComboboxOptions(page: BrowserPage, fields: DetectedField[]
 // The session is closed only on a confirmed submit or an explicit teardown.
 
 interface ApplySession {
-  browser: Browser;
+  context: BrowserContext;
   page: BrowserPage;
   atsHint: string;
   /** Original apply URL this session was opened for (used to decide reuse). */
@@ -1377,7 +1441,7 @@ function sameJob(a: string, b: string): boolean {
 
 function sessionAlive(s: ApplySession | null): s is ApplySession {
   try {
-    return !!s && s.browser.isConnected() && !s.page.isClosed();
+    return !!s && !s.page.isClosed();
   } catch {
     return false;
   }
@@ -1386,7 +1450,9 @@ function sessionAlive(s: ApplySession | null): s is ApplySession {
 export async function closeApplySession(): Promise<void> {
   const s = activeSession;
   activeSession = null;
-  if (s) await s.browser.close().catch(() => undefined);
+  // Persistent contexts are closed via the context (its browser() is null);
+  // closing the context also shuts down the owning browser process.
+  if (s) await s.context.close().catch(() => undefined);
 }
 
 /** Screenshot the live apply page for the near-live browser pane. Best-effort:
@@ -1412,8 +1478,8 @@ async function getOrOpenSession(applyLink: string): Promise<ApplySession> {
     return activeSession;
   }
   await closeApplySession();
-  const { browser, page, atsHint } = await newBrowserPage(applyLink);
-  activeSession = { browser, page, atsHint, applyLink, filledKeys: new Set() };
+  const { context, page, atsHint } = await newBrowserPage(applyLink);
+  activeSession = { context, page, atsHint, applyLink, filledKeys: new Set() };
   return activeSession;
 }
 
@@ -1465,9 +1531,12 @@ async function detectEmailCodeRequest(page: BrowserPage): Promise<{ selector: st
   return findEmailCodeField(page);
 }
 
-/** Enter a user-supplied verification code into the live session and try to
- *  confirm/submit it — no browser relaunch, the same page the user was waiting on. */
-export async function submitEmailCode(code: string): Promise<SubmitResult> {
+/** Enter a verification code into the live session and try to confirm/submit it —
+ *  no browser relaunch, the same page the user was waiting on. When `code` is
+ *  empty (or "auto"), the code is fetched automatically from the applicant's inbox
+ *  over IMAP; if auto-fetch is unconfigured or times out, returns needsEmailCode
+ *  so the agent falls back to asking the user. */
+export async function submitEmailCode(code?: string): Promise<SubmitResult> {
   if (!sessionAlive(activeSession)) {
     return {
       success: false,
@@ -1478,6 +1547,34 @@ export async function submitEmailCode(code: string): Promise<SubmitResult> {
     };
   }
   const page = activeSession.page;
+
+  let resolvedCode = (code ?? "").trim();
+  if (!resolvedCode || resolvedCode.toLowerCase() === "auto") {
+    const fetched = await fetchEmailCode({ since: new Date(Date.now() - 120_000) });
+    if (!fetched) {
+      const imgPath = screenshotPath("awaitcode");
+      await page.screenshot({ path: imgPath, fullPage: false }).catch(() => undefined);
+      return {
+        success: false,
+        screenshotPath: imgPath,
+        pageTitle: await page.title().catch(() => ""),
+        confirmedText: "",
+        sessionOpen: true,
+        needsEmailCode: true,
+        error: (await emailCodeAutoEnabled())
+          ? "Auto-fetch did not find a verification code in the inbox yet. Ask the user for the code, or call apply_submit_code again to retry the inbox."
+          : "Email-code auto-fetch is not configured. Ask the user for the code and call apply_submit_code with it.",
+      };
+    }
+    resolvedCode = fetched;
+  }
+
+  return enterCodeIntoLiveSession(page, resolvedCode);
+}
+
+/** Type a known code into the live page's code field and click verify/continue,
+ *  then read the result. Shared by the manual and auto-fetch paths. */
+async function enterCodeIntoLiveSession(page: BrowserPage, code: string): Promise<SubmitResult> {
   const target = await findEmailCodeField(page);
   if (!target) {
     const imgPath = screenshotPath("nocodefield");
@@ -1816,6 +1913,17 @@ export async function fillAndSubmit(
     // apply_submit_code in this same live session.
     const codeField = await detectEmailCodeRequest(page);
     if (codeField) {
+      // Try to read the code straight from the applicant's inbox (their account)
+      // so the flow finishes without a human. Only fall back to asking the user
+      // when auto-fetch is unconfigured or the code hasn't arrived in time.
+      if (await emailCodeAutoEnabled()) {
+        const autoCode = await fetchEmailCode({ since: new Date(Date.now() - 120_000) });
+        if (autoCode) {
+          const codeResult = await enterCodeIntoLiveSession(page, autoCode);
+          // Carry forward the fill stats; the code step owns success/session state.
+          return { ...codeResult, filledCount, failedFields: codeResult.failedFields ?? failedFields };
+        }
+      }
       return {
         success: false,
         screenshotPath: afterPath,
@@ -1826,7 +1934,9 @@ export async function fillAndSubmit(
         submitted: true,
         sessionOpen: true,
         needsEmailCode: true,
-        error: "The form is asking for a verification code sent to your email. Ask the user for that code and call apply_submit_code — the browser stays open.",
+        error: (await emailCodeAutoEnabled())
+          ? "The form wants an emailed verification code; auto-fetch hasn't found it yet. Call apply_submit_code (no code) to retry the inbox, or ask the user for the code."
+          : "The form is asking for a verification code sent to your email. Ask the user for that code and call apply_submit_code — the browser stays open.",
       };
     }
 

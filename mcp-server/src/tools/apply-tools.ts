@@ -432,25 +432,29 @@ export const applySubmitCodeTool: ToolDefinition = {
   name: "apply_submit_code",
   description:
     "Enter an email/SMS verification code into the SAME live application browser session (the one left open " +
-    "when apply_submit_form returned needsEmailCode:true). Ask the user for the code first, then call this with it. " +
+    "when apply_submit_form returned needsEmailCode:true). " +
+    "Call with NO code (or code:\"auto\") to auto-fetch the code from the applicant's inbox over IMAP — prefer this " +
+    "when email-code auto-fetch is configured; only pass an explicit `code` when the user gives you one or auto-fetch failed. " +
     "The code is typed into the open page and the verify/continue button is clicked — no relaunch, no refilling. " +
-    "If success:true, the application completed (call pipeline_mark_applied). If success:false with sessionOpen:true, " +
-    "the code was wrong or more steps remain — show the screenshot and ask the user again. ⚙ [Model hint: sonnet]",
+    "If success:true, the application completed (call pipeline_mark_applied). If success:false with needsEmailCode:true, " +
+    "auto-fetch hasn't found it yet — retry this tool (no code) or ask the user. If sessionOpen:true with an error, " +
+    "the code was wrong or more steps remain — show the screenshot and ask again. ⚙ [Model hint: sonnet]",
   recommendedModel: "sonnet",
   inputSchema: {
     type: "object",
     properties: {
       code: {
         type: "string",
-        description: "The verification code the user received by email or SMS.",
+        description:
+          "The verification code the user received by email or SMS. Omit (or pass \"auto\") to auto-fetch it from the applicant's inbox.",
       },
     },
-    required: ["code"],
     additionalProperties: false,
   },
   handler: async (args): Promise<ToolResult> => {
     try {
-      const result = await submitEmailCode(String(args.code ?? "").trim());
+      const raw = args.code === undefined ? undefined : String(args.code).trim();
+      const result = await submitEmailCode(raw);
       return textResult(result);
     } catch (err) {
       return errorResult(String(err));
