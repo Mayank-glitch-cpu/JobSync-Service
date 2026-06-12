@@ -112,10 +112,23 @@
       "Bash(curl -s \"https://api.ashbyhq.com/posting-api/job-board/linear?includeCompensation=true\")",
       "Bash(curl -s \"https://api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true\")",
       "Bash(pnpm add *)",
-      "Bash(pnpm exec *)"
+      "Bash(pnpm exec *)",
+      "WebFetch(domain:www.anthropic.com)",
+      "PowerShell(gh auth status)",
+      "PowerShell(npx tsc --noEmit 2>&1)",
+      "PowerShell($pwd.Path; if \\(Test-Path src/tools/link-check-tools.test.ts\\) { npx vitest run src/tools/link-check-tools.test.ts 2>&1 | Select-Object -Last 15 } else { \"no link-check test file\" })",
+      "PowerShell(npx vitest run src/lib/agent/ 2>&1)",
+      "PowerShell(\"---TESTS---\")",
+      "Bash(printf -- '- [AI-call config file]\\(ai_config_file.md\\) — all 4 Anthropic call sites tuned via mcp-server/ai.config.json; env JOBSYNC_AGENT_MODEL still wins\\\\n' >> \"/c/Users/vyasm/.claude/projects/c--Users-vyasm-OneDrive-Desktop-JobsList/memory/MEMORY.md\")",
+      "PowerShell(npx vitest run src/lib/agent/ src/lib/pipeline.test.ts 2>&1)",
+      "PowerShell(npx tsc -p mcp-server/tsconfig.json --noEmit 2>&1 | Select-String -Pattern \"error TS\" | Select-Object -First 30; \"EXIT:$LASTEXITCODE\")",
+      "PowerShell(npx vitest run mcp-server/src/lib/agent/search-agent.test.ts mcp-server/src/lib/pipeline.test.ts mcp-server/src/lib/agent/search-audit.test.ts 2>&1)",
+      "PowerShell(npx vitest run mcp-server/src/lib/eval/ 2>&1)",
+      "PowerShell(npx vitest run mcp-server/src/lib/agent/ mcp-server/src/lib/pipeline.test.ts mcp-server/src/lib/eval/ 2>&1)"
     ],
     "additionalDirectories": [
-      "c:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory"
+      "c:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory",
+      "C:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory"
     ]
   },
   "enableAllProjectMcpServers": true,

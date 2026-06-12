@@ -12,6 +12,7 @@
   "files": [
     "dist",
     "bin",
+    "ai.config.json",
     "README.md"
   ],
   "scripts": {

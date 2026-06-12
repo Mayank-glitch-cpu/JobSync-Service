@@ -59,6 +59,9 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/mcp-server/dist ./mcp-server/dist
+# Tweakable AI-call config (models/tokens/loop budgets) — ai-config.ts finds it
+# by walking up from dist/ at runtime.
+COPY --from=build /app/mcp-server/ai.config.json ./mcp-server/ai.config.json
 # Dashboard static build served by http.js (PUBLIC_DIR = ./public next to the bundle).
 COPY --from=build /app/dashboard/dist ./mcp-server/dist/public
 

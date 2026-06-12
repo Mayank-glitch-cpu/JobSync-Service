@@ -29,7 +29,8 @@ import { readPersonalProfile } from "../personal-profile.js";
 import { readProfileFile } from "../profile.js";
 import { markApplied } from "../pipeline.js";
 import { screenshotToData } from "../gcs.js";
-import { agentModel, getAnthropic, isAgentConfigured } from "./anthropic.js";
+import { getAnthropic, isAgentConfigured } from "./anthropic.js";
+import { aiRequestParams } from "./ai-config.js";
 
 export interface ApplyParams {
   applyLink: string;
@@ -160,8 +161,7 @@ Return JSON: an object {"answers":[{"selector": <string>, "value": <string>}, ..
   } as const;
 
   const resp = await client.messages.create({
-    model: agentModel(),
-    max_tokens: 8000,
+    ...aiRequestParams("composeAnswers"),
     system,
     output_config: { format: { type: "json_schema", schema } },
     messages: [{ role: "user", content: prompt }],
@@ -349,8 +349,7 @@ Revision instruction: ${transformDirective(transform)}
 Return the revised answer only.`;
 
   const resp = await client.messages.create({
-    model: agentModel(),
-    max_tokens: 2000,
+    ...aiRequestParams("tweakAnswer"),
     system,
     messages: [{ role: "user", content: prompt }],
   });

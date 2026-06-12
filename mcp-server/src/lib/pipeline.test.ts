@@ -24,9 +24,8 @@ vi.mock("./store/index.js", () => ({
   }),
 }));
 
-const { upsertPipelineEntries, getPipelineGrouped, updateStatuses, readPipeline } = await import(
-  "./pipeline.js"
-);
+const { upsertPipelineEntries, getPipelineGrouped, updateStatuses, readPipeline, annotatePipelineEntries } =
+  await import("./pipeline.js");
 
 beforeEach(() => docs.clear());
 
@@ -63,5 +62,49 @@ describe("pipeline tenant isolation (scope = uid)", () => {
   it("defaults to the single-user 'default' scope when no uid is passed", async () => {
     await upsertPipelineEntries([jobFor("Solo")]);
     expect(docs.has("pipeline::default")).toBe(true);
+  });
+});
+
+describe("annotatePipelineEntries (audit flags, notes only)", () => {
+  it("appends a note by apply link without touching status or appliedAt", async () => {
+    await upsertPipelineEntries([jobFor("Acme")], "u");
+    const link = "https://x.test/Acme";
+
+    const res = await annotatePipelineEntries([{ applyLink: link, note: "⚠ audit: stale" }], "u");
+
+    expect(res.matched).toBe(1);
+    const entry = (await readPipeline("u"))[0]!;
+    expect(entry.notes).toBe("⚠ audit: stale");
+    expect(entry.status).toBe("pending"); // unchanged
+    expect(entry.appliedAt).toBe("");
+  });
+
+  it("appends additional distinct notes with a separator", async () => {
+    await upsertPipelineEntries([jobFor("Acme")], "u");
+    const link = "https://x.test/Acme";
+
+    await annotatePipelineEntries([{ applyLink: link, note: "⚠ audit: stale" }], "u");
+    await annotatePipelineEntries([{ applyLink: link, note: "⚠ audit: dead link" }], "u");
+
+    expect((await readPipeline("u"))[0]!.notes).toBe("⚠ audit: stale | ⚠ audit: dead link");
+  });
+
+  it("is idempotent for an identical note (no duplicate piling)", async () => {
+    await upsertPipelineEntries([jobFor("Acme")], "u");
+    const link = "https://x.test/Acme";
+
+    await annotatePipelineEntries([{ applyLink: link, note: "⚠ audit: stale" }], "u");
+    const res = await annotatePipelineEntries([{ applyLink: link, note: "⚠ audit: stale" }], "u");
+
+    expect(res.matched).toBe(1);
+    expect((await readPipeline("u"))[0]!.notes).toBe("⚠ audit: stale");
+  });
+
+  it("ignores links not present in the pipeline", async () => {
+    await upsertPipelineEntries([jobFor("Acme")], "u");
+
+    const res = await annotatePipelineEntries([{ applyLink: "https://x.test/Nope", note: "x" }], "u");
+
+    expect(res.matched).toBe(0);
   });
 });

@@ -3,7 +3,8 @@
 // dashboard flow (where there's no MCP client to drive structuring).
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { agentModel, getAnthropic } from "./agent/anthropic.js";
+import { getAnthropic } from "./agent/anthropic.js";
+import { aiRequestParams } from "./agent/ai-config.js";
 
 export interface StructuredProfile {
   roles: string[];
@@ -34,8 +35,7 @@ const SYSTEM =
 export async function structureResume(rawText: string): Promise<StructuredProfile> {
   const client = await getAnthropic();
   const resp = await client.messages.create({
-    model: agentModel(),
-    max_tokens: 4000,
+    ...aiRequestParams("structureResume"),
     system: SYSTEM,
     output_config: { format: { type: "json_schema", schema: SCHEMA } },
     messages: [
