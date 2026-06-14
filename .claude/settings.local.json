@@ -124,7 +124,11 @@
       "PowerShell(npx tsc -p mcp-server/tsconfig.json --noEmit 2>&1 | Select-String -Pattern \"error TS\" | Select-Object -First 30; \"EXIT:$LASTEXITCODE\")",
       "PowerShell(npx vitest run mcp-server/src/lib/agent/search-agent.test.ts mcp-server/src/lib/pipeline.test.ts mcp-server/src/lib/agent/search-audit.test.ts 2>&1)",
       "PowerShell(npx vitest run mcp-server/src/lib/eval/ 2>&1)",
-      "PowerShell(npx vitest run mcp-server/src/lib/agent/ mcp-server/src/lib/pipeline.test.ts mcp-server/src/lib/eval/ 2>&1)"
+      "PowerShell(npx vitest run mcp-server/src/lib/agent/ mcp-server/src/lib/pipeline.test.ts mcp-server/src/lib/eval/ 2>&1)",
+      "PowerShell(\"---status---\")",
+      "PowerShell(\"---log vs main---\")",
+      "PowerShell(npx vitest run --root mcp-server 2>&1)",
+      "PowerShell(pnpm --filter jobsync-mcp build 2>&1 | Select-Object -Last 15; \"BUILD_EXIT:$LASTEXITCODE\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory",
