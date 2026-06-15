@@ -13,7 +13,6 @@
 // Because the browser session is a process-wide singleton (see browser-apply.ts),
 // only one application can be prepared/awaiting approval at a time.
 
-import type Anthropic from "@anthropic-ai/sdk";
 import {
   closeApplySession,
   fillAndSubmit,
@@ -24,13 +23,15 @@ import {
   submitEmailCode,
   type FillInstruction,
 } from "../browser-apply.js";
+import { rmSync } from "node:fs";
+import { dirname } from "node:path";
 import { fillFields, type UnansweredField } from "../ai-fill.js";
 import { readPersonalProfile } from "../personal-profile.js";
-import { readProfileFile } from "../profile.js";
+import { materializeResumeFile, readProfileFile } from "../profile.js";
+import { readQaMemory, type QaMemory } from "../qa-memory.js";
 import { markApplied } from "../pipeline.js";
 import { screenshotToData } from "../gcs.js";
-import { getAnthropic, isAgentConfigured } from "./anthropic.js";
-import { aiRequestParams } from "./ai-config.js";
+import { isLlmConfigured, llmJson, llmText } from "./llm.js";
 
 export interface ApplyParams {
   applyLink: string;
@@ -69,8 +70,15 @@ export interface PreparedApplication {
   filled: ProposedField[];
   /** Required fields that could not be answered — the user should resolve these before submitting. */
   unfilledRequired: string[];
+  /** Required questions the agent genuinely cannot answer from the profile — the UI
+   *  must ask the user, whose answers are saved to Q&A memory and the draft. */
+  needsInput: UnansweredField[];
   totalFields: number;
 }
+
+/** Sentinel a composed answer carries when the fact is genuinely absent from the
+ *  profile and must be supplied by the user rather than fabricated. */
+const NEEDS_INPUT = "__NEEDS_INPUT__";
 
 export interface SubmitOutcome {
   success: boolean;
@@ -92,6 +100,21 @@ type PreviewSink = (frame: PreviewFrame) => void;
 const noopProgress: ProgressSink = () => {};
 const noopPreview: PreviewSink = () => {};
 
+// Temp file holding the materialized resume for the in-flight apply session. It must
+// outlive the dry-run preview (the real upload happens on submit), so we delete it
+// only when the session ends (submit terminal / discard). Cleared here best-effort.
+let currentResumeTemp: string | null = null;
+
+function cleanupResumeTemp(): void {
+  if (!currentResumeTemp) return;
+  try {
+    rmSync(dirname(currentResumeTemp), { recursive: true, force: true });
+  } catch {
+    /* best effort */
+  }
+  currentResumeTemp = null;
+}
+
 async function frame(stage: PreviewFrame["stage"], caption: string, path: string): Promise<PreviewFrame> {
   const data = await screenshotToData(path).catch(() => ({}));
   return { stage, caption, at: new Date().toISOString(), ...data };
@@ -105,14 +128,12 @@ function displayValue(instr: FillInstruction): string {
 }
 
 // One Claude call to answer every field standard mapping left blank. Returns
-// fill instructions keyed by the field selector; fields the model omits are simply
-// left unanswered (and surface as unfilledRequired if required).
+// fill instructions for what it could answer, plus the subset of fields it could
+// NOT answer from the profile (value === NEEDS_INPUT) so the caller can ask the user.
 async function composeAnswers(
   unanswered: UnansweredField[],
   ctx: { company: string; jobTitle: string; experience: string; skills: string; projects: string },
-): Promise<FillInstruction[]> {
-  const client = await getAnthropic();
-
+): Promise<{ instructions: FillInstruction[]; needsInput: UnansweredField[] }> {
   const fieldList = unanswered
     .map((f, i) => {
       const req = f.required ? " (required)" : "";
@@ -122,9 +143,11 @@ async function composeAnswers(
     .join("\n");
 
   const system =
-    "You fill job application fields on behalf of an applicant. For each field, produce the value to enter, grounded ONLY in the applicant's profile. " +
-    "For select/radio/checkbox fields you MUST pick one of the offered options verbatim. For open text, write a genuine first-person answer (1-3 sentences for short prompts, 150-300 words for cover letters). " +
-    "Never fabricate credentials. If a fact is truly absent, choose a reasonable non-fabricated value. Return an answer for every field.";
+    "You fill job application fields on behalf of an applicant, grounded ONLY in the applicant's profile. " +
+    "For select/radio/checkbox fields you MUST pick one of the offered options verbatim. " +
+    "For open text (cover letters, 'why this company?', 'tell us about yourself', motivation/essay prompts) ALWAYS write a genuine first-person answer (1-3 sentences for short prompts, 150-300 words for cover letters) — these are never blocking. " +
+    `For specific FACTUAL questions whose answer is genuinely NOT derivable from the profile (e.g. a personal identifier, salary expectation, exact graduation date, a yes/no about a credential the profile doesn't mention, work-eligibility specifics), DO NOT guess or fabricate — return the value exactly "${NEEDS_INPUT}" so the applicant can supply it. ` +
+    "Never fabricate credentials, employers, dates, or metrics. Return an answer for every field.";
 
   const prompt = `Applicant profile:
 Experience:
@@ -160,30 +183,34 @@ Return JSON: an object {"answers":[{"selector": <string>, "value": <string>}, ..
     additionalProperties: false,
   } as const;
 
-  const resp = await client.messages.create({
-    ...aiRequestParams("composeAnswers"),
+  const text = await llmJson("composeAnswers", {
     system,
-    output_config: { format: { type: "json_schema", schema } },
-    messages: [{ role: "user", content: prompt }],
+    prompt,
+    schema: schema as unknown as Record<string, unknown>,
+    schemaName: "application_answers",
   });
-
-  const text = resp.content
-    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
 
   let answers: Array<{ selector: string; value: string }> = [];
   try {
     answers = (JSON.parse(text) as { answers?: Array<{ selector: string; value: string }> }).answers ?? [];
   } catch {
-    return [];
+    // Couldn't parse — treat every field as needing input rather than silently dropping.
+    return { instructions: [], needsInput: unanswered };
   }
 
   const bySelector = new Map(unanswered.map((f) => [f.selector, f]));
+  const answeredSelectors = new Set<string>();
   const instructions: FillInstruction[] = [];
+  const needsInput: UnansweredField[] = [];
   for (const a of answers) {
     const field = bySelector.get(a.selector);
-    if (!field || !a.value?.trim()) continue;
+    if (!field) continue;
+    answeredSelectors.add(field.selector);
+    const value = (a.value ?? "").trim();
+    if (!value || value === NEEDS_INPUT) {
+      needsInput.push(field);
+      continue;
+    }
     instructions.push({
       selector: field.selector,
       label: field.label,
@@ -192,7 +219,11 @@ Return JSON: an object {"answers":[{"selector": <string>, "value": <string>}, ..
       ...(field.frameUrl ? { frameUrl: field.frameUrl } : {}),
     });
   }
-  return instructions;
+  // Any field the model omitted entirely also needs input.
+  for (const f of unanswered) {
+    if (!answeredSelectors.has(f.selector)) needsInput.push(f);
+  }
+  return { instructions, needsInput };
 }
 
 /**
@@ -209,28 +240,44 @@ export async function prepareApplication(
   const company = params.company ?? "the company";
   const jobTitle = params.jobTitle ?? "this role";
 
-  const [personal, experience, skills, projects] = await Promise.all([
+  const [personal, experience, skills, projects, resumePath, qaMem] = await Promise.all([
     readPersonalProfile(uid),
     readProfileFile("experience", uid),
     readProfileFile("skills", uid),
     readProfileFile("projects", uid),
+    materializeResumeFile(uid),
+    readQaMemory(uid),
   ]);
+  // Flatten remembered answers to a normalizedLabel→value map for ai-fill.
+  const qaMemory = Object.fromEntries(
+    Object.entries(qaMem as QaMemory).map(([k, v]) => [k, v.value]),
+  );
+
+  // Stale temp from an aborted prior run, if any. Then point the profile's resume
+  // upload at the freshly materialized file (overriding any stored path).
+  cleanupResumeTemp();
+  if (resumePath) {
+    currentResumeTemp = resumePath;
+    personal.resumePath = resumePath;
+  }
 
   onProgress(`Opening application form for ${jobTitle} at ${company}…`);
   const inspect = await inspectForm(applyLink);
   onPreview(await frame("inspect", "Application form opened", inspect.screenshotPath));
   onProgress(`Detected ${inspect.fields.length} field(s) on a ${inspect.atsHint} form.`);
 
-  const fill = fillFields(inspect.fields, personal, company, jobTitle, experience, skills, projects);
+  const fill = fillFields(inspect.fields, personal, company, jobTitle, experience, skills, projects, qaMemory);
   const instructions: FillInstruction[] = [...fill.instructions];
   onProgress(`Mapped ${instructions.length} field(s) from your profile.`);
 
   // Selectors whose value was written by Claude (open text/textarea) — only these
   // are surfaced as "editable" so the UI offers tweak buttons for them.
   const composedSelectors = new Set<string>();
+  // Required questions the agent genuinely can't answer — surfaced to the user.
+  let needsInput: UnansweredField[] = [];
 
   if (fill.unansweredFields.length > 0) {
-    if (isAgentConfigured()) {
+    if (isLlmConfigured()) {
       onProgress(`Composing answers for ${fill.unansweredFields.length} remaining question(s)…`);
       try {
         const composed = await composeAnswers(fill.unansweredFields, {
@@ -240,9 +287,15 @@ export async function prepareApplication(
           skills,
           projects,
         });
-        instructions.push(...composed);
-        for (const c of composed) composedSelectors.add(c.selector);
-        onProgress(`Composed ${composed.length} answer(s).`);
+        instructions.push(...composed.instructions);
+        for (const c of composed.instructions) composedSelectors.add(c.selector);
+        // Only block on REQUIRED fields the agent couldn't answer; optional unknowns
+        // are left blank rather than nagging the user.
+        needsInput = composed.needsInput.filter((f) => f.required);
+        onProgress(
+          `Composed ${composed.instructions.length} answer(s)` +
+            (needsInput.length ? `; ${needsInput.length} required question(s) need your input.` : "."),
+        );
       } catch (err) {
         onProgress(`Could not compose answers: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -284,6 +337,7 @@ export async function prepareApplication(
       editable: composedSelectors.has(i.selector) && (i.type ?? "text") !== "file",
     })),
     unfilledRequired,
+    needsInput,
     totalFields: inspect.fields.length,
   };
 }
@@ -327,7 +381,6 @@ export async function tweakAnswer(
     readProfileFile("projects", uid),
   ]);
 
-  const client = await getAnthropic();
   const system =
     "You revise a single answer an applicant wrote on a job application. Preserve first-person voice and stay grounded ONLY in the applicant's profile — never fabricate credentials, employers, dates, or metrics. Return ONLY the revised answer text, with no preamble or quotes.";
   const prompt = `Applicant profile (for grounding):
@@ -348,16 +401,7 @@ Revision instruction: ${transformDirective(transform)}
 
 Return the revised answer only.`;
 
-  const resp = await client.messages.create({
-    ...aiRequestParams("tweakAnswer"),
-    system,
-    messages: [{ role: "user", content: prompt }],
-  });
-  const text = resp.content
-    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("")
-    .trim();
+  const text = (await llmText("tweakAnswer", { system, prompt })).trim();
   if (!text) throw new Error("The rewrite came back empty — try again.");
 
   patchDraftInstruction(selector, text);
@@ -393,6 +437,7 @@ export async function submitPreparedApplication(
 
   if (result.success) {
     await markApplied([applyLink], uid).catch(() => undefined);
+    cleanupResumeTemp();
     onProgress("Submitted ✓ — marked as applied in your pipeline.");
   } else if (result.needsEmailCode) {
     onProgress("This form emailed you a verification code — enter it to finish submitting.");
@@ -433,6 +478,7 @@ export async function submitApplicationCode(
 
   if (result.success) {
     await markApplied([applyLink], uid).catch(() => undefined);
+    cleanupResumeTemp();
     onProgress("Verified and submitted ✓ — marked as applied in your pipeline.");
   } else {
     onProgress(result.error ? `Not confirmed: ${result.error}` : "Code entered, but no confirmation yet.");
@@ -450,5 +496,6 @@ export async function submitApplicationCode(
 /** Abandon a prepared application — closes the browser without submitting. */
 export async function discardPreparedApplication(onProgress: ProgressSink = noopProgress): Promise<void> {
   await closeApplySession();
+  cleanupResumeTemp();
   onProgress("Discarded — the application was not submitted.");
 }

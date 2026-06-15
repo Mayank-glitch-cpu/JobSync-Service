@@ -69,7 +69,7 @@ export default function Profile() {
     <label>
       {label}
       <input
-        value={personal[key] ?? ""}
+        value={(personal[key] as string) ?? ""}
         onChange={(e) => setPersonal({ ...personal, [key]: e.target.value })}
       />
     </label>

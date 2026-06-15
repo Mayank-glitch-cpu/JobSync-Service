@@ -10,6 +10,13 @@
 // JOBSYNC_AI_CONFIG=<absolute path> points the loader at an alternate JSON file.
 // The file is read once per process and cached (Cloud Run filesystems are
 // immutable anyway); call resetAiConfigCache() in tests to re-read.
+//
+// PROVIDER: the model id resolved here is sent to whichever provider lib/agent/llm.ts
+// selects. By default that's Anthropic. Set JOBSYNC_LLM_PROVIDER=openai (+ key + base
+// url) to route the lightweight Auto-Apply / resume calls to a cheaper/free
+// OpenAI-compatible provider for testing — in that case set the model below to one
+// that provider understands (e.g. "gemini-2.0-flash"). The Search agent always uses
+// Anthropic regardless.
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";

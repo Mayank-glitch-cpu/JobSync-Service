@@ -336,3 +336,51 @@ button.ghost { background: var(--panel-2); color: var(--text); border: 1px solid
 .autonomous-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .autonomous-toggle input { margin: 0; }
 .lever-note { margin-top: 8px; }
+
+/* ── Onboarding (typeform-style) ─────────────────────────────────────────────── */
+.onboarding {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 12px;
+}
+.ob-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 32px;
+  width: 100%;
+  max-width: 640px;
+}
+.ob-progress { display: flex; gap: 6px; margin-bottom: 6px; }
+.ob-dot { flex: 1; height: 4px; border-radius: 4px; background: var(--panel-2); }
+.ob-dot.on { background: var(--accent); }
+.ob-step-count { margin-bottom: 12px; }
+.ob-card h1 { margin: 0 0 6px; font-size: 24px; }
+.ob-body { margin: 20px 0 24px; }
+.ob-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ob-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.ob-field input, .ob-field select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: var(--text);
+  font-size: 14px;
+}
+.ob-check { flex-direction: row; align-items: center; gap: 8px; grid-column: 1 / -1; color: var(--text); }
+.ob-check input { width: auto; }
+.ob-resume { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.ob-actions { display: flex; justify-content: space-between; align-items: center; }
+@media (max-width: 560px) { .ob-grid { grid-template-columns: 1fr; } }
+
+/* ── Auto-Apply: agent needs answers ─────────────────────────────────────────── */
+.needs-input-box select, .needs-input-box input, .needs-input-box textarea {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+}

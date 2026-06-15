@@ -24,8 +24,11 @@ vi.mock("./store/index.js", () => ({
   }),
 }));
 
-const { readRoles, writeRoles, readProfileFile, writeProfileFile } = await import("./profile.js");
+const { readRoles, writeRoles, readProfileFile, writeProfileFile, writeResumeBlob, readResumeBlob, materializeResumeFile } =
+  await import("./profile.js");
 const { runWithScope } = await import("./run-context.js");
+const { readFileSync, existsSync } = await import("node:fs");
+const { basename } = await import("node:path");
 
 beforeEach(() => docs.clear());
 
@@ -45,6 +48,38 @@ describe("profile tenant isolation (scope = uid)", () => {
     await writeRoles({ detected: ["X"], custom: [], excluded: [] }, "default");
     expect(docs.has("profile::roles.json")).toBe(true);
     expect(docs.has("profile::default__roles.json")).toBe(false);
+  });
+});
+
+describe("resume blob persistence (for Auto-Apply file upload)", () => {
+  const base64 = Buffer.from("%PDF-1.4 fake resume bytes").toString("base64");
+
+  it("round-trips the stored bytes + filename when no GCS bucket is set", async () => {
+    await writeResumeBlob(base64, "My Résumé!.pdf", "userR");
+    const blob = await readResumeBlob("userR");
+    expect(blob).not.toBeNull();
+    expect(blob!.buffer.toString("base64")).toBe(base64);
+    // Filename is sanitized for safe filesystem use.
+    expect(blob!.filename).toBe("My_R_sum__.pdf");
+  });
+
+  it("materializes the resume to a readable temp file", async () => {
+    await writeResumeBlob(base64, "resume.pdf", "userR");
+    const path = await materializeResumeFile("userR");
+    expect(path).toBeTruthy();
+    expect(existsSync(path!)).toBe(true);
+    expect(basename(path!)).toBe("resume.pdf");
+    expect(readFileSync(path!).toString("base64")).toBe(base64);
+  });
+
+  it("returns null when the user has no resume", async () => {
+    expect(await readResumeBlob("nobody")).toBeNull();
+    expect(await materializeResumeFile("nobody")).toBeNull();
+  });
+
+  it("keeps resumes isolated per user", async () => {
+    await writeResumeBlob(base64, "a.pdf", "userA");
+    expect(await readResumeBlob("userB")).toBeNull();
   });
 });
 

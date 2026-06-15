@@ -3,11 +3,14 @@
 // Firestore). The agent reads these at the start of every scrape run so role
 // targeting reflects the real user.
 
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { getStorageConfig, loadConfig } from "../config.js";
 import { getStore } from "./store/index.js";
 import { currentScope } from "./run-context.js";
+import { downloadGcsObject, uploadBufferToGcs } from "./gcs.js";
 
 export type ProfileFile = "skills" | "experience" | "projects";
 
@@ -99,4 +102,78 @@ export async function writeRawResume(text: string, scope: string = scopeDefault(
 
 export async function readRawResume(scope: string = scopeDefault()): Promise<string> {
   return (await (await getStore()).docs.readDoc(NS, docId(scope, "raw-resume.txt"))) ?? "";
+}
+
+// ── Resume binary (for file-upload fields on application forms) ──────────────────
+// We keep the ORIGINAL resume bytes (not just the parsed text) so Auto-Apply can
+// attach the real file to a "Resume/CV" upload field. Storage strategy:
+//   - GCS bucket configured → store the bytes in GCS (object path in the meta doc),
+//     avoiding Firestore's ~1MB per-document cap.
+//   - otherwise → base64 in the docs store (fine for local SQLite/files).
+
+interface ResumeMeta {
+  filename: string;
+  /** GCS object path when stored in GCS; absent when bytes live in the docs store. */
+  gcsObject?: string;
+  updatedAt: string;
+}
+
+/** Persist the original resume bytes + filename for later upload. */
+export async function writeResumeBlob(
+  base64: string,
+  filename: string,
+  scope: string = scopeDefault(),
+): Promise<void> {
+  const store = (await getStore()).docs;
+  const safeName = filename.replace(/[^\w.\-]/g, "_") || "resume.pdf";
+  const gcsObject = await uploadBufferToGcs(
+    Buffer.from(base64, "base64"),
+    `resumes/${scope}/${safeName}`,
+  );
+  const meta: ResumeMeta = { filename: safeName, updatedAt: new Date().toISOString() };
+  if (gcsObject) {
+    meta.gcsObject = gcsObject;
+    // Drop any stale inline copy so we don't keep two sources of truth.
+    await store.deleteDoc(NS, docId(scope, "resume.b64")).catch(() => {});
+  } else {
+    await store.writeDoc(NS, docId(scope, "resume.b64"), base64);
+  }
+  await store.writeDoc(NS, docId(scope, "resume.meta.json"), JSON.stringify(meta));
+}
+
+/** Read the stored resume bytes + filename, or null when none uploaded. */
+export async function readResumeBlob(
+  scope: string = scopeDefault(),
+): Promise<{ buffer: Buffer; filename: string } | null> {
+  const store = (await getStore()).docs;
+  const rawMeta = await store.readDoc(NS, docId(scope, "resume.meta.json"));
+  if (!rawMeta) return null;
+  let meta: ResumeMeta;
+  try {
+    meta = JSON.parse(rawMeta) as ResumeMeta;
+  } catch {
+    return null;
+  }
+  if (meta.gcsObject) {
+    const buf = await downloadGcsObject(meta.gcsObject);
+    return buf ? { buffer: buf, filename: meta.filename } : null;
+  }
+  const b64 = await store.readDoc(NS, docId(scope, "resume.b64"));
+  if (!b64) return null;
+  return { buffer: Buffer.from(b64, "base64"), filename: meta.filename };
+}
+
+/**
+ * Write the stored resume to an OS temp file and return its absolute path so a
+ * browser file-upload field can attach it. Returns null when no resume is stored.
+ * The caller is responsible for cleaning up the returned file when done.
+ */
+export async function materializeResumeFile(scope: string = scopeDefault()): Promise<string | null> {
+  const blob = await readResumeBlob(scope);
+  if (!blob) return null;
+  const dir = join(tmpdir(), `jobsync-resume-${randomUUID()}`);
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, blob.filename);
+  writeFileSync(path, blob.buffer);
+  return path;
 }
