@@ -1,5 +1,9 @@
 import type { DetectedField, FillInstruction } from "./browser-apply.js";
 import type { PersonalProfile } from "./personal-profile.js";
+import { normalizeLabel } from "./qa-memory.js";
+
+/** Remembered answers keyed by normalized label (see qa-memory.ts). */
+export type QaMemoryMap = Record<string, string>;
 
 const STANDARD_MAP: Record<string, keyof PersonalProfile> = {
   "first name": "firstName",
@@ -23,6 +27,14 @@ const STANDARD_MAP: Record<string, keyof PersonalProfile> = {
   "website": "portfolioUrl",
   "personal website": "portfolioUrl",
   "portfolio url": "portfolioUrl",
+  "twitter": "twitterUrl",
+  "twitter url": "twitterUrl",
+  "x url": "twitterUrl",
+  "x profile": "twitterUrl",
+  "x (twitter)": "twitterUrl",
+  "google scholar": "scholarUrl",
+  "scholar": "scholarUrl",
+  "google scholar url": "scholarUrl",
   "city": "city",
   "state": "state",
   "province": "state",
@@ -51,6 +63,9 @@ const SPONSORSHIP_PATTERNS = [
 const ETHNICITY_PATTERNS = [/race/i, /ethnicity/i, /ethnic\s+group/i, /hispanic\s+or\s+latino/i];
 const VETERAN_PATTERNS = [/veteran/i, /protected\s+veteran/i, /military\s+service/i];
 const DISABILITY_PATTERNS = [/disabilit/i, /disabled/i];
+// Gender / sex. Kept narrow so it can't hijack unrelated questions ("gender of the
+// team", etc. are vanishingly rare on application forms).
+const GENDER_PATTERNS = [/\bgender\b/i, /\bsex\b/i, /gender\s+identity/i];
 
 export const ESSAY_PATTERNS = [
   /cover letter/i,
@@ -175,6 +190,8 @@ function fuzzyStandardKey(label: string): keyof PersonalProfile | undefined {
   if (/\be-?mail\b/.test(label)) return "email";
   if (/linkedin/.test(label)) return "linkedinUrl";
   if (/github/.test(label)) return "githubUrl";
+  if (/google\s+scholar|\bscholar\b/.test(label)) return "scholarUrl";
+  if (/\btwitter\b|\bx\.com\b|^x\b.*\b(url|profile|handle)\b/.test(label)) return "twitterUrl";
   if (/\bportfolio\b|personal\s+website|^website$/.test(label)) return "portfolioUrl";
   return undefined;
 }
@@ -182,6 +199,7 @@ function fuzzyStandardKey(label: string): keyof PersonalProfile | undefined {
 export function mapStandardFields(
   fields: DetectedField[],
   profile: Partial<PersonalProfile>,
+  qaMemory: QaMemoryMap = {},
 ): FillInstruction[] {
   const instructions: FillInstruction[] = [];
   const pushInstr = (field: DetectedField, value: string, type?: string) =>
@@ -236,6 +254,12 @@ export function mapStandardFields(
       }
       continue;
     }
+    if (GENDER_PATTERNS.some((p) => p.test(labelLower))) {
+      if (profile.gender && String(profile.gender).trim()) {
+        pushInstr(field, String(profile.gender));
+      }
+      continue;
+    }
     if (VETERAN_PATTERNS.some((p) => p.test(labelLower))) {
       if (profile.veteranStatus && String(profile.veteranStatus).trim()) {
         pushInstr(field, String(profile.veteranStatus));
@@ -274,7 +298,15 @@ export function mapStandardFields(
       const value = profile[profileKey];
       if (value !== undefined && value !== null && String(value).trim() !== "") {
         pushInstr(field, String(value));
+        continue;
       }
+    }
+
+    // Q&A memory: a question the user answered before (on this or another form).
+    // Fill it automatically so we never ask the same thing twice.
+    const remembered = qaMemory[normalizeLabel(field.label)];
+    if (remembered && remembered.trim()) {
+      pushInstr(field, remembered);
     }
   }
   return instructions;
@@ -400,8 +432,9 @@ export function fillFields(
   experience: string,
   skills: string,
   projects: string,
+  qaMemory: QaMemoryMap = {},
 ): FillResult & { essayPromptBlock: string } {
-  const instructions = mapStandardFields(fields, profile);
+  const instructions = mapStandardFields(fields, profile, qaMemory);
   const mappedSelectors = new Set(instructions.map((i) => i.selector));
   const essayFields = identifyEssayFields(fields, mappedSelectors);
   const unansweredFields = identifyUnansweredFields(fields, mappedSelectors);

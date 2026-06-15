@@ -6,6 +6,7 @@ import {
   previewSrc,
   TWEAKS,
   type Agent,
+  type NeededInput,
   type ProposedField,
   type Run,
 } from "../api";
@@ -22,7 +23,7 @@ function agentLabel(id: string): string {
 // Statuses where the run is finished and polling should stop.
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 // While in one of these the apply browser is open, so the live pane should refresh.
-const LIVE = new Set(["running", "queued", "awaiting_approval", "awaiting_code"]);
+const LIVE = new Set(["running", "queued", "awaiting_approval", "awaiting_input", "awaiting_code"]);
 
 export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -57,8 +58,13 @@ export default function Agents() {
       try {
         const run = await apiFetch<Run>(`/api/runs/${encodeURIComponent(id)}`);
         setActive((cur) => (cur && cur.id === id ? run : cur));
-        // Stop on terminal OR awaiting_approval (now it's the user's move).
-        if (TERMINAL.has(run.status) || run.status === "awaiting_approval") {
+        // Stop when it's the user's move (approve / answer questions / enter code) or terminal.
+        if (
+          TERMINAL.has(run.status) ||
+          run.status === "awaiting_approval" ||
+          run.status === "awaiting_input" ||
+          run.status === "awaiting_code"
+        ) {
           stopPolling();
           await refresh();
         }
@@ -147,6 +153,26 @@ export default function Agents() {
     }
   }
 
+  // Supply answers to questions the agent couldn't fill — saved to Q&A memory, then
+  // the application is re-prepared with them.
+  async function submitAnswers(id: string, answers: Array<{ label: string; value: string }>) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch<{ run: Run }>(`/api/runs/${encodeURIComponent(id)}/answers`, {
+        method: "POST",
+        body: JSON.stringify({ answers }),
+      });
+      setActive(res.run);
+      if (res.run.status === "running") pollRun(res.run.id);
+      else await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // Enter the emailed verification code on a run paused at the code gate.
   async function submitCode(id: string, code: string) {
     setBusy(true);
@@ -183,6 +209,7 @@ export default function Agents() {
           onDecide={decide}
           onRevise={reviseField}
           onSubmitCode={submitCode}
+          onSubmitAnswers={submitAnswers}
           onClose={() => {
             stopPolling();
             setActive(null);
@@ -250,6 +277,7 @@ function Console({
   onDecide,
   onRevise,
   onSubmitCode,
+  onSubmitAnswers,
   onClose,
 }: {
   run: Run;
@@ -257,6 +285,7 @@ function Console({
   onDecide: (id: string, action: "approve" | "discard" | "accept-all") => void;
   onRevise: (id: string, body: Record<string, unknown>, kind: "tweak" | "edit") => Promise<void>;
   onSubmitCode: (id: string, code: string) => void;
+  onSubmitAnswers: (id: string, answers: Array<{ label: string; value: string }>) => void;
   onClose: () => void;
 }) {
   const live = LIVE.has(run.status);
@@ -287,6 +316,7 @@ function Console({
             onDecide={onDecide}
             onRevise={onRevise}
             onSubmitCode={onSubmitCode}
+            onSubmitAnswers={onSubmitAnswers}
           />
         </div>
         <LiveBrowser run={run} />
@@ -335,12 +365,14 @@ function LogAndApprove({
   onDecide,
   onRevise,
   onSubmitCode,
+  onSubmitAnswers,
 }: {
   run: Run;
   busy: boolean;
   onDecide: (id: string, action: "approve" | "discard" | "accept-all") => void;
   onRevise: (id: string, body: Record<string, unknown>, kind: "tweak" | "edit") => Promise<void>;
   onSubmitCode: (id: string, code: string) => void;
+  onSubmitAnswers: (id: string, answers: Array<{ label: string; value: string }>) => void;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const [code, setCode] = useState("");
@@ -368,6 +400,14 @@ function LogAndApprove({
             </a>
           )}
         </div>
+      )}
+
+      {run.status === "awaiting_input" && run.needsInput && run.needsInput.length > 0 && (
+        <NeedsInputBox
+          questions={run.needsInput}
+          busy={busy}
+          onSubmit={(answers) => onSubmitAnswers(run.id, answers)}
+        />
       )}
 
       {run.status === "awaiting_code" && (
@@ -529,6 +569,72 @@ function AnswerRow({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function NeedsInputBox({
+  questions,
+  busy,
+  onSubmit,
+}: {
+  questions: NeededInput[];
+  busy: boolean;
+  onSubmit: (answers: Array<{ label: string; value: string }>) => void;
+}) {
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  const set = (selector: string, v: string) => setValues((prev) => ({ ...prev, [selector]: v }));
+  const answers = questions
+    .map((q) => ({ label: q.label, value: (values[q.selector] ?? "").trim() }))
+    .filter((a) => a.value);
+  const allRequiredAnswered = questions
+    .filter((q) => q.required)
+    .every((q) => (values[q.selector] ?? "").trim());
+
+  return (
+    <div className="approve-box needs-input-box">
+      <strong className="small">The agent needs a few answers</strong>
+      <p className="muted small">
+        These required questions aren't in your profile. Answer them once — they're saved to your
+        profile memory and reused automatically next time.
+      </p>
+      <div className="answers">
+        {questions.map((q) => (
+          <div className="answer-row" key={q.selector}>
+            <div className="answer-label small">
+              <span className="muted">{q.label}</span>
+              {q.required && <span className="req">required</span>}
+            </div>
+            {q.options.length > 0 ? (
+              <select value={values[q.selector] ?? ""} onChange={(e) => set(q.selector, e.target.value)}>
+                <option value="">Select…</option>
+                {q.options.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            ) : q.type === "textarea" ? (
+              <textarea
+                rows={3}
+                value={values[q.selector] ?? ""}
+                onChange={(e) => set(q.selector, e.target.value)}
+              />
+            ) : (
+              <input
+                value={values[q.selector] ?? ""}
+                onChange={(e) => set(q.selector, e.target.value)}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="approve-actions">
+        <button onClick={() => onSubmit(answers)} disabled={busy || !allRequiredAnswered}>
+          {busy ? "Saving…" : "Save answers & continue"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -2,8 +2,7 @@
 // call. This replaces the interactive MCP onboarding prompt for the self-serve
 // dashboard flow (where there's no MCP client to drive structuring).
 
-import type Anthropic from "@anthropic-ai/sdk";
-import { agentModel, getAnthropic } from "./agent/anthropic.js";
+import { llmJson } from "./agent/llm.js";
 
 export interface StructuredProfile {
   roles: string[];
@@ -32,24 +31,12 @@ const SYSTEM =
   "You structure a candidate's resume into a job-search profile. Infer realistic target job titles (roles) from their experience and skills. Be faithful to the resume — do not invent experience.";
 
 export async function structureResume(rawText: string): Promise<StructuredProfile> {
-  const client = await getAnthropic();
-  const resp = await client.messages.create({
-    model: agentModel(),
-    max_tokens: 4000,
+  const text = await llmJson("structureResume", {
     system: SYSTEM,
-    output_config: { format: { type: "json_schema", schema: SCHEMA } },
-    messages: [
-      {
-        role: "user",
-        content: `Structure this resume into the required JSON profile:\n\n${rawText.slice(0, 40000)}`,
-      },
-    ],
+    prompt: `Structure this resume into the required JSON profile:\n\n${rawText.slice(0, 40000)}`,
+    schema: SCHEMA as unknown as Record<string, unknown>,
+    schemaName: "resume_profile",
   });
-
-  const text = resp.content
-    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
 
   const parsed = JSON.parse(text) as StructuredProfile;
   return {

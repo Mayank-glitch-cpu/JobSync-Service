@@ -288,6 +288,17 @@ function verifyCached(url: string): Promise<LinkStatus> {
   return withCache(cacheKey("verify_job_link", url), () => verifyDispatch(url), LINK_CHECK_TTL_SECONDS);
 }
 
+/**
+ * Reusable link-liveness check (same board-specific logic + cache the tools use).
+ * Exposed so the post-run audit can re-verify what the agent landed without
+ * going through the MCP tool/JSON round-trip. Returns the raw status struct.
+ */
+export async function checkJobLinkLive(url: string): Promise<LinkStatus> {
+  return verifyCached(url);
+}
+
+export type { LinkStatus };
+
 // ── Tool definitions ─────────────────────────────────────────────────────────
 
 export const verifyJobLinkTool: ToolDefinition = {

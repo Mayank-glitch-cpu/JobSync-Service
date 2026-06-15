@@ -573,3 +573,51 @@ describe("buildAnswerPromptBlock", () => {
     expect(block).toContain("(not provided)");
   });
 });
+// ─── gender + extra social links + Q&A memory ──────────────────────────────
+
+describe("gender, social links, and Q&A memory", () => {
+  const field = (
+    f: Pick<DetectedField, "selector" | "label" | "type"> & Partial<DetectedField>,
+  ): DetectedField => ({ placeholder: "", required: false, options: [], ...f });
+
+  it("maps a gender select from the profile", () => {
+    const fields = [
+      field({ selector: "#g", label: "Gender", type: "select", options: ["Male", "Female", "Non-binary", "Decline to self-identify"] }),
+    ];
+    const result = mapStandardFields(fields, { gender: "Female" });
+    expect(result.find((r) => r.selector === "#g")?.value).toBe("Female");
+  });
+
+  it("does not fill gender when the profile omits it", () => {
+    const fields = [field({ selector: "#g", label: "Gender", type: "select", options: ["Male", "Female"] })];
+    expect(mapStandardFields(fields, {})).toHaveLength(0);
+  });
+
+  it("maps X (Twitter) and Google Scholar links", () => {
+    const fields = [
+      field({ selector: "#x", label: "X (Twitter)", type: "text" }),
+      field({ selector: "#sch", label: "Google Scholar", type: "text" }),
+    ];
+    const result = mapStandardFields(fields, {
+      twitterUrl: "https://x.com/prisha",
+      scholarUrl: "https://scholar.google.com/citations?user=abc",
+    });
+    const by = Object.fromEntries(result.map((r) => [r.selector, r.value]));
+    expect(by["#x"]).toBe("https://x.com/prisha");
+    expect(by["#sch"]).toBe("https://scholar.google.com/citations?user=abc");
+  });
+
+  it("fills an otherwise-unmapped field from Q&A memory", () => {
+    const fields = [field({ selector: "#yrs", label: "Years of experience?", type: "text", required: true })];
+    // normalizeLabel("Years of experience?") => "years of experience"
+    const result = mapStandardFields(fields, {}, { "years of experience": "5" });
+    expect(result.find((r) => r.selector === "#yrs")?.value).toBe("5");
+  });
+
+  it("a remembered field is no longer reported as unanswered", () => {
+    const fields = [field({ selector: "#yrs", label: "Years of experience?", type: "text", required: true })];
+    const out = fillFields(fields, {}, "Acme", "Engineer", "", "", "", { "years of experience": "5" });
+    expect(out.unansweredFields.find((f) => f.selector === "#yrs")).toBeUndefined();
+    expect(out.unfilledRequired).not.toContain("Years of experience?");
+  });
+});

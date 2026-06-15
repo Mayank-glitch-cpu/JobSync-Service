@@ -158,6 +158,41 @@ export async function markApplied(
   return { matched, notFound };
 }
 
+/**
+ * Annotate pipeline entries by apply link without touching status/appliedAt — used
+ * by the Search agent's post-run audit to flag jobs that failed a verifier
+ * (stale, dead link, off-target, possibly fabricated). Each note is appended to any
+ * existing notes (deduped on the exact note string) so repeated audits don't pile up.
+ * Returns how many entries were matched and flagged.
+ */
+export async function annotatePipelineEntries(
+  notesByLink: Array<{ applyLink: string; note: string }>,
+  scope: string = scopeDefault(),
+): Promise<{ matched: number }> {
+  if (notesByLink.length === 0) return { matched: 0 };
+  const entries = await readPipeline(scope);
+  const byLink = new Map(entries.map((e) => [e.applyLink, e]));
+  const now = new Date().toISOString().slice(0, 10);
+  let matched = 0;
+
+  for (const { applyLink, note } of notesByLink) {
+    const entry = byLink.get(applyLink.trim());
+    if (!entry || !note.trim()) continue;
+    const existing = entry.notes.trim();
+    // Skip if this exact note is already present (idempotent re-audits).
+    if (existing.split(" | ").map((s) => s.trim()).includes(note.trim())) {
+      matched++;
+      continue;
+    }
+    entry.notes = existing ? `${existing} | ${note.trim()}` : note.trim();
+    entry.updatedAt = now;
+    matched++;
+  }
+
+  await writePipeline(entries, scope);
+  return { matched };
+}
+
 export async function updateStatuses(
   updates: Array<{ applyLink?: string; id?: string; status: ApplicationStatus; notes?: string }>,
   scope: string = scopeDefault(),

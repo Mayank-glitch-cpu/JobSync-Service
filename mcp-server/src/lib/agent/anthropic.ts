@@ -1,14 +1,15 @@
 // Anthropic client for the server-side agent runtime. One shared deployment key
-// (ANTHROPIC_API_KEY); the model is configurable via JOBSYNC_AGENT_MODEL and
-// defaults to claude-sonnet-4-6 (cheaper/faster for the high-volume scrape loop).
+// (ANTHROPIC_API_KEY); models + per-call tuning live in ai.config.json (see
+// ai-config.ts), with JOBSYNC_AGENT_MODEL as the deploy-level model override.
 // Lazily imported so installs that never run an agent don't pay the dependency.
 
 import type Anthropic from "@anthropic-ai/sdk";
+import { globalModel } from "./ai-config.js";
 
-export const DEFAULT_AGENT_MODEL = "claude-sonnet-4-6";
+export { DEFAULT_AGENT_MODEL } from "./ai-config.js";
 
 export function agentModel(): string {
-  return process.env.JOBSYNC_AGENT_MODEL ?? DEFAULT_AGENT_MODEL;
+  return globalModel();
 }
 
 export function isAgentConfigured(): boolean {

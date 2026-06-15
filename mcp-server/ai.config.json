@@ -1,0 +1,22 @@
+{
+  "$comment": "Tuning for every AI call the agent runtime makes (loaded by src/lib/agent/ai-config.ts). Model precedence: JOBSYNC_AGENT_MODEL env > calls.<name>.model > model > built-in default. Every call accepts: model, maxTokens, temperature (0-1, omit for API default). searchAgent extras: maxIterations (loop round-trip cap), toolResultMaxChars (per-tool-result truncation), maxJobsPerRun (soft cap told to the model), webSearch (expose Anthropic's web_search server tool).",
+  "model": "claude-sonnet-4-6",
+  "calls": {
+    "searchAgent": {
+      "maxTokens": 16000,
+      "maxIterations": 40,
+      "toolResultMaxChars": 60000,
+      "maxJobsPerRun": 25,
+      "webSearch": true
+    },
+    "composeAnswers": {
+      "maxTokens": 8000
+    },
+    "tweakAnswer": {
+      "maxTokens": 2000
+    },
+    "structureResume": {
+      "maxTokens": 4000
+    }
+  }
+}

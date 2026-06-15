@@ -17,12 +17,16 @@ import {
   readRoles,
   writeProfileFile,
   writeRawResume,
+  writeResumeBlob,
   writeRoles,
 } from "../lib/profile.js";
 import { readPersonalProfile, writePersonalProfile, type PersonalProfile } from "../lib/personal-profile.js";
+import { rememberAnswers } from "../lib/qa-memory.js";
+import type { UnansweredField } from "../lib/ai-fill.js";
 import { parseResume } from "../lib/resume-parser.js";
 import { structureResume } from "../lib/profile-extract.js";
 import { isAgentConfigured } from "../lib/agent/anthropic.js";
+import { isLlmConfigured } from "../lib/agent/llm.js";
 import { runSearchAgent, type SearchParams } from "../lib/agent/search-agent.js";
 import {
   prepareApplication,
@@ -109,6 +113,7 @@ type RunStatus =
   | "queued"
   | "running"
   | "awaiting_approval"
+  | "awaiting_input"
   | "awaiting_code"
   | "succeeded"
   | "failed"
@@ -138,6 +143,9 @@ interface RunRecord {
   // Auto-Apply: live screenshot previews + the proposed answers awaiting approval.
   previews?: PreviewFrame[];
   proposed?: { filled: ProposedField[]; unfilledRequired: string[] };
+  /** Required questions the agent can't answer from the profile — the console asks
+   *  the user, and the answers are saved to per-user Q&A memory. */
+  needsInput?: UnansweredField[];
   applyLink?: string;
   jobId?: string;
   company?: string;
@@ -278,6 +286,18 @@ function startApplyRun(uid: string, params: ApplyParams, opts: { autonomous?: bo
     .then(async (prepared) => {
       run.meta = { ...run.meta, atsHint: prepared.atsHint, totalFields: prepared.totalFields };
       run.proposed = { filled: prepared.filled, unfilledRequired: prepared.unfilledRequired };
+      run.needsInput = prepared.needsInput;
+      // The agent hit required questions it can't answer from the profile — pause and
+      // ask the user (their answers are saved to Q&A memory and reused next time).
+      if (prepared.needsInput.length > 0) {
+        run.status = "awaiting_input";
+        appendLog(
+          run,
+          `Paused — ${prepared.needsInput.length} required question(s) need your input. Answer them to continue.`,
+        );
+        void persistRun(uid, run).catch(() => {});
+        return;
+      }
       // Autonomous: submit immediately when nothing required is missing. (CAPTCHA /
       // email-code gates still surface in the submit result and stop the flow there.)
       if (opts.autonomous && prepared.unfilledRequired.length === 0) {
@@ -307,6 +327,58 @@ function startApplyRun(uid: string, params: ApplyParams, opts: { autonomous?: bo
     });
 
   return run;
+}
+
+/** Apply a freshly prepared application to a run: pause for user input, auto-submit
+ *  (autonomous), or move to awaiting approval. Shared by the initial prepare and the
+ *  post-answers re-prepare. */
+async function applyPreparedResult(
+  uid: string,
+  run: RunRecord,
+  prepared: Awaited<ReturnType<typeof prepareApplication>>,
+): Promise<void> {
+  run.meta = { ...run.meta, atsHint: prepared.atsHint, totalFields: prepared.totalFields };
+  run.proposed = { filled: prepared.filled, unfilledRequired: prepared.unfilledRequired };
+  run.needsInput = prepared.needsInput;
+  if (prepared.needsInput.length > 0) {
+    run.status = "awaiting_input";
+    appendLog(
+      run,
+      `Paused — ${prepared.needsInput.length} required question(s) need your input. Answer them to continue.`,
+    );
+    await persistRun(uid, run).catch(() => {});
+    return;
+  }
+  if (run.autonomous && prepared.unfilledRequired.length === 0) {
+    await approveApplyRun(uid, run);
+    return;
+  }
+  run.status = "awaiting_approval";
+  appendLog(run, "Preview ready — review the filled form, then Approve to submit or Discard.");
+  await persistRun(uid, run).catch(() => {});
+}
+
+/** Re-prepare an application after the user supplied missing answers (now in Q&A
+ *  memory). Reuses the open browser session; updates the run in place. */
+async function reprepareAfterAnswers(uid: string, run: RunRecord): Promise<void> {
+  run.status = "running";
+  appendLog(run, "Re-checking the form with your answers…");
+  const params = run.params as unknown as ApplyParams;
+  try {
+    const prepared = await prepareApplication(
+      uid,
+      params,
+      (msg) => appendLog(run, msg),
+      (frame) => addPreview(run, frame),
+    );
+    await applyPreparedResult(uid, run, prepared);
+  } catch (err) {
+    run.status = "failed";
+    run.error = err instanceof Error ? err.message : String(err);
+    appendLog(run, `Failed: ${run.error}`);
+    await discardPreparedApplication().catch(() => {});
+    finalizeRun(uid, run);
+  }
 }
 
 /** Mark a run finished: clear the active-apply lock and schedule its eviction. */
@@ -500,8 +572,10 @@ export async function handleDashboardApi(
 
     // POST /api/profile/resume — base64 resume → parse → structure → store (scoped)
     if (pathname === "/api/profile/resume" && method === "POST") {
-      if (!isAgentConfigured()) {
-        sendJson(res, 503, { error: "Resume structuring needs ANTHROPIC_API_KEY (not configured)." });
+      if (!isLlmConfigured()) {
+        sendJson(res, 503, {
+          error: "Resume structuring needs an LLM configured (ANTHROPIC_API_KEY, or JOBSYNC_LLM_PROVIDER=openai + JOBSYNC_LLM_API_KEY).",
+        });
         return true;
       }
       const body = await readJsonBody(req);
@@ -518,6 +592,9 @@ export async function handleDashboardApi(
         writeFileSync(path, Buffer.from(base64, "base64"));
         const text = await parseResume(path);
         await writeRawResume(text, uid);
+        // Keep the ORIGINAL bytes so Auto-Apply can attach the real file to a
+        // resume/CV upload field (the temp dir below is deleted in `finally`).
+        await writeResumeBlob(base64, filename, uid);
         const structured = await structureResume(text);
         await Promise.all([
           writeRoles({ detected: structured.roles, custom: [], excluded: [] }, uid),
@@ -614,6 +691,37 @@ export async function handleDashboardApi(
         }
         const updated = await submitCodeRun(uid, run, code);
         sendJson(res, 200, { run: updated });
+        return true;
+      }
+
+      // Supply answers to questions the agent couldn't fill from the profile. They're
+      // saved to per-user Q&A memory and the application is re-prepared with them.
+      if (action === "answers") {
+        const run = liveRuns.get(id);
+        if (!run || run.agent !== "auto-apply") {
+          sendJson(res, 404, { error: "No live application found for this run." });
+          return true;
+        }
+        if (!applyRun || applyRun.id !== id || applyRun.uid !== uid || run.status !== "awaiting_input") {
+          sendJson(res, 409, { error: "This application is not awaiting your input." });
+          return true;
+        }
+        const body = await readJsonBody(req);
+        const raw = Array.isArray(body.answers) ? body.answers : [];
+        const answers = raw
+          .map((a) => ({
+            label: String((a as Record<string, unknown>).label ?? "").trim(),
+            value: String((a as Record<string, unknown>).value ?? "").trim(),
+          }))
+          .filter((a) => a.label && a.value);
+        if (answers.length === 0) {
+          sendJson(res, 400, { error: "At least one answer (label + value) is required." });
+          return true;
+        }
+        await rememberAnswers(answers, uid);
+        appendLog(run, `Saved ${answers.length} answer(s) to your profile memory.`);
+        await reprepareAfterAnswers(uid, run);
+        sendJson(res, 200, { run });
         return true;
       }
 

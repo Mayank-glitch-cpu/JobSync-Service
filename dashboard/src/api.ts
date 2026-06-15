@@ -69,6 +69,16 @@ export interface ProposedField {
   editable: boolean;
 }
 
+/** A required question the agent couldn't answer from the profile — the console
+ *  asks the user, and the answer is saved to per-user Q&A memory. */
+export interface NeededInput {
+  selector: string;
+  label: string;
+  type: string;
+  required: boolean;
+  options: string[];
+}
+
 export interface RunMeta {
   location?: string;
   datePosted?: string;
@@ -92,6 +102,7 @@ export interface Run {
   // Auto-Apply
   previews?: PreviewFrame[];
   proposed?: { filled: ProposedField[]; unfilledRequired: string[] };
+  needsInput?: NeededInput[];
   applyLink?: string;
   jobId?: string;
   company?: string;
@@ -148,6 +159,18 @@ export interface Personal {
   linkedinUrl?: string;
   githubUrl?: string;
   portfolioUrl?: string;
+  twitterUrl?: string;
+  scholarUrl?: string;
+  otherUrls?: string;
+  // Work authorization
+  workAuthorization?: string;
+  requiresSponsorship?: boolean;
+  // Voluntary EEO self-identification (all optional)
+  gender?: string;
+  pronouns?: string;
+  ethnicity?: string;
+  veteranStatus?: string;
+  disabilityStatus?: string;
 }
 
 export interface Profile {

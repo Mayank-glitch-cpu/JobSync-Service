@@ -12,6 +12,7 @@
   "files": [
     "dist",
     "bin",
+    "ai.config.json",
     "README.md"
   ],
   "scripts": {
@@ -36,6 +37,7 @@
     "firebase-admin": "^13.0.0",
     "imapflow": "^1.4.0",
     "mammoth": "^1.8.0",
+    "openai": "^6.42.0",
     "patchright": "^1.60.2",
     "pdf-parse": "^1.1.1",
     "playwright": "1.59.1",

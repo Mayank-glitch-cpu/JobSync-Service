@@ -21,6 +21,11 @@ export interface PersonalProfile {
   linkedinUrl: string;
   githubUrl: string;
   portfolioUrl: string;
+  // Additional social / professional links.
+  twitterUrl: string;
+  scholarUrl: string;
+  // Free-form extra links (comma/newline-separated), surfaced to the AI as context.
+  otherUrls: string;
   // "US Citizen" | "Green Card" | "H1B Visa" | "OPT" | "CPT" | "TN Visa" | "Other"
   workAuthorization: string;
   requiresSponsorship: boolean;
@@ -34,6 +39,10 @@ export interface PersonalProfile {
   // e.g. "Asian" | "White" | "Black or African American" | "Hispanic or Latino" |
   //      "Native American" | "Two or More Races" | "Decline to self-identify"
   ethnicity: string;
+  // "Male" | "Female" | "Non-binary" | "Decline to self-identify"
+  gender: string;
+  // Optional pronouns, e.g. "he/him", "she/her", "they/them".
+  pronouns: string;
   // "Yes" | "No" | "Decline to self-identify" (protected-veteran status)
   veteranStatus: string;
   // "Yes" | "No" | "Decline to self-identify"
