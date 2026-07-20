@@ -11,6 +11,7 @@ import { fillFields } from "./lib/ai-fill.js";
 import { screenshotToData } from "./lib/gcs.js";
 import { handleDashboardApi } from "./api/dashboard.js";
 import { handleExternalApi } from "./api/external.js";
+import { handleMutuApi } from "./api/mutu.js";
 
 // Static dashboard build (the SPA). In the Docker image the dashboard's dist is
 // copied next to this bundle as ./public; override with JOBSYNC_PUBLIC_DIR.
@@ -130,6 +131,19 @@ export const httpServer = createServer(async (req, res) => {
       return;
     }
     if (await handleExternalApi(req, res, url)) {
+      return;
+    }
+  }
+
+  // Mutu integration API (/api/mutu/*): machine-to-machine surface for the Mutu
+  // AI app (demographics, resume parsing, role synthesis, job retrieval). Same
+  // service bearer token as /api/external. See docs/mutu-integration.md.
+  if (pathname.startsWith("/api/mutu/")) {
+    if (!isAuthorized(req)) {
+      sendJson(res, 401, { error: "unauthorized" });
+      return;
+    }
+    if (await handleMutuApi(req, res, url)) {
       return;
     }
   }

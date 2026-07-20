@@ -52,6 +52,7 @@ interface AiConfigFile {
     composeAnswers?: CallTuning;
     tweakAnswer?: CallTuning;
     structureResume?: CallTuning;
+    roleSynthesis?: CallTuning;
   };
 }
 
@@ -66,6 +67,7 @@ const DEFAULTS = {
   composeAnswers: { maxTokens: 8000 },
   tweakAnswer: { maxTokens: 2000 },
   structureResume: { maxTokens: 4000 },
+  roleSynthesis: { maxTokens: 4000 },
 } as const;
 
 export type AiCallName = keyof typeof DEFAULTS;

@@ -1,0 +1,8 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+transformers>=4.57
+accelerate>=1.0
+torch>=2.4
+pillow>=10.0
+pypdfium2>=4.30
