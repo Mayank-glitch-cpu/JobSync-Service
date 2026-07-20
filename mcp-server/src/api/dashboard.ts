@@ -207,8 +207,18 @@ async function persistRun(uid: string, run: RunRecord): Promise<void> {
   await (await getStore()).docs.writeDoc("runs", uid, JSON.stringify(runs.slice(0, 100)));
 }
 
+/** True when this user already has a Search run in flight (one at a time). */
+export function hasActiveSearch(uid: string): boolean {
+  return activeByUid.has(uid);
+}
+
+/** Look up a single run for a user — live in-memory record if present, else persisted. */
+export async function getRun(uid: string, id: string): Promise<RunRecord | undefined> {
+  return liveRuns.get(id) ?? (await readRuns(uid)).find((r) => r.id === id);
+}
+
 /** Kick off a Search agent run in the background. Returns the initial record. */
-function startSearchRun(uid: string, params: SearchParams): RunRecord {
+export function startSearchRun(uid: string, params: SearchParams): RunRecord {
   const run: RunRecord = {
     id: randomUUID(),
     agent: "search",

@@ -128,7 +128,8 @@
       "PowerShell(\"---status---\")",
       "PowerShell(\"---log vs main---\")",
       "PowerShell(npx vitest run --root mcp-server 2>&1)",
-      "PowerShell(pnpm --filter jobsync-mcp build 2>&1 | Select-Object -Last 15; \"BUILD_EXIT:$LASTEXITCODE\")"
+      "PowerShell(pnpm --filter jobsync-mcp build 2>&1 | Select-Object -Last 15; \"BUILD_EXIT:$LASTEXITCODE\")",
+      "Bash(npx tsc *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\vyasm\\.claude\\projects\\c--Users-vyasm-OneDrive-Desktop-JobsList\\memory",

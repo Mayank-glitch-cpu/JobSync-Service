@@ -20,6 +20,7 @@ REST API reference for the JobSync pipeline backend.
 - [Logs (SSE)](#logs-sse)
 - [Job Sources & Rate Limits](#job-sources--rate-limits)
 - [Environment Variables](#environment-variables)
+- [External Agent API](#external-agent-api)
 
 ---
 
@@ -313,3 +314,24 @@ Fetches job listings from the JSearch API on RapidAPI. Supports configurable sea
 | `PORT`                 | No       | Backend server port                          | `3001`                               |
 
 *Required only when using the corresponding step/source.
+
+---
+
+## External Agent API
+
+> **Different service.** The endpoints above belong to the legacy pipeline
+> backend (port 3001). The **External Agent API** is a separate machine-to-machine
+> surface hosted by the **MCP server** (`mcp-server`, default port 3000), under the
+> `/api/external/*` prefix and gated by the `JOBSYNC_REMOTE_BEARER_TOKEN` service
+> bearer token.
+
+It lets other apps drive JobSync without a browser (so Firebase login doesn't
+apply), in two tiers:
+
+| Endpoint | Style | Intelligence | Persistence |
+|----------|-------|--------------|-------------|
+| `POST /api/external/search` (+ `GET /api/external/search/:runId`) | Async, poll for result | LLM-vetted agentic search | Writes to a user's pipeline |
+| `POST /api/external/jobs/breadth` | Synchronous | Non-LLM keyword/location filters | None — returns candidates only |
+
+See **[external-agent-api.md](./external-agent-api.md)** for full request/response
+shapes, error codes, and caveats.
