@@ -5,26 +5,13 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { AuthError, requireUser, upsertUser, type AuthUser } from "../lib/firebase-auth.js";
 import { getPipelineGrouped, updateStatuses, type ApplicationStatus } from "../lib/pipeline.js";
-import {
-  activeRoles,
-  readProfileFile,
-  readRawResume,
-  readRoles,
-  writeProfileFile,
-  writeRawResume,
-  writeResumeBlob,
-  writeRoles,
-} from "../lib/profile.js";
-import { readPersonalProfile, writePersonalProfile, type PersonalProfile } from "../lib/personal-profile.js";
+import { readRoles, writeProfileFile, writeRoles } from "../lib/profile.js";
+import { ingestResume, profileSnapshot } from "../lib/profile-ingest.js";
+import { writePersonalProfile, type PersonalProfile } from "../lib/personal-profile.js";
 import { rememberAnswers } from "../lib/qa-memory.js";
 import type { UnansweredField } from "../lib/ai-fill.js";
-import { parseResume } from "../lib/resume-parser.js";
-import { structureResume } from "../lib/profile-extract.js";
 import { isAgentConfigured } from "../lib/agent/anthropic.js";
 import { isLlmConfigured } from "../lib/agent/llm.js";
 import { runSearchAgent, type SearchParams } from "../lib/agent/search-agent.js";
@@ -493,25 +480,7 @@ async function listRuns(uid: string): Promise<RunRecord[]> {
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 
-async function getProfile(uid: string) {
-  const [roles, skills, experience, projects, personal, rawResume] = await Promise.all([
-    readRoles(uid),
-    readProfileFile("skills", uid),
-    readProfileFile("experience", uid),
-    readProfileFile("projects", uid),
-    readPersonalProfile(uid),
-    readRawResume(uid),
-  ]);
-  return {
-    roles,
-    activeRoles: activeRoles(roles),
-    skills,
-    experience,
-    projects,
-    personal,
-    hasResume: rawResume.length > 0,
-  };
-}
+const getProfile = profileSnapshot;
 
 /**
  * Handle a dashboard API request. Returns true if it owned the route (response
@@ -595,27 +564,8 @@ export async function handleDashboardApi(
         sendJson(res, 400, { error: "base64 file content is required" });
         return true;
       }
-      const dir = join(tmpdir(), `jobsync-resume-${randomUUID()}`);
-      const path = join(dir, filename.replace(/[^\w.\-]/g, "_"));
-      try {
-        mkdirSync(dir, { recursive: true });
-        writeFileSync(path, Buffer.from(base64, "base64"));
-        const text = await parseResume(path);
-        await writeRawResume(text, uid);
-        // Keep the ORIGINAL bytes so Auto-Apply can attach the real file to a
-        // resume/CV upload field (the temp dir below is deleted in `finally`).
-        await writeResumeBlob(base64, filename, uid);
-        const structured = await structureResume(text);
-        await Promise.all([
-          writeRoles({ detected: structured.roles, custom: [], excluded: [] }, uid),
-          writeProfileFile("skills", structured.skills.map((s) => `- ${s}`).join("\n"), uid),
-          writeProfileFile("experience", structured.experience, uid),
-          writeProfileFile("projects", structured.projects, uid),
-        ]);
-        sendJson(res, 200, { ok: true, chars: text.length, ...(await getProfile(uid)) });
-      } finally {
-        if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
-      }
+      const { chars } = await ingestResume(uid, { base64, filename });
+      sendJson(res, 200, { ok: true, chars, ...(await getProfile(uid)) });
       return true;
     }
 

@@ -326,10 +326,11 @@ Fetches job listings from the JSearch API on RapidAPI. Supports configurable sea
 > bearer token.
 
 It lets other apps drive JobSync without a browser (so Firebase login doesn't
-apply), in two tiers:
+apply):
 
 | Endpoint | Style | Intelligence | Persistence |
 |----------|-------|--------------|-------------|
+| `POST /api/external/profile` (+ `GET /api/external/profile?uid=`) | Synchronous | LLM resume structuring | Creates the user's search profile |
 | `POST /api/external/search` (+ `GET /api/external/search/:runId`) | Async, poll for result | LLM-vetted agentic search | Writes to a user's pipeline |
 | `POST /api/external/jobs/breadth` | Synchronous | Non-LLM keyword/location filters | None — returns candidates only |
 
