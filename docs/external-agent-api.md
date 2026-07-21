@@ -9,7 +9,11 @@ var is unset the server runs authless, same as the rest of the HTTP surface.)
 Implemented in [`mcp-server/src/api/external.ts`](../mcp-server/src/api/external.ts),
 dispatched from [`mcp-server/src/http.ts`](../mcp-server/src/http.ts).
 
-There are two tiers — slow-but-smart and fast-but-dumb:
+Onboarding a user is a two-call flow: **`POST /api/external/profile`** to create
+their profile from metadata + a resume, then **`POST /api/external/search`** to
+run the agent against it.
+
+There are two search tiers — slow-but-smart and fast-but-dumb:
 
 | | `POST /api/external/search` | `POST /api/external/jobs/breadth` |
 |---|---|---|
@@ -18,6 +22,82 @@ There are two tiers — slow-but-smart and fast-but-dumb:
 | Persistence | Writes to a user's pipeline | None — returns candidates only |
 | Speed | Minutes | Seconds |
 | Scope | Requires an explicit `uid` | Anonymous |
+
+---
+
+## `POST /api/external/profile` — create the search profile
+
+The machine-to-machine equivalent of the dashboard's resume upload. Give it your
+own user identifier as `uid` (any stable string — it namespaces that user's
+profile, pipeline and runs) plus their metadata and resume file, and JobSync
+builds the profile the Search and Auto-Apply agents read.
+
+What it does with the resume: extracts the text (`.pdf`, `.docx`, `.txt`, `.md`),
+keeps the **original bytes** so Auto-Apply can attach the real file to a résumé
+upload field, and runs one LLM call to structure it into target roles, skills,
+experience and projects.
+
+**Request**
+```json
+{
+  "uid": "acme-user-123",
+  "personal": {
+    "firstName": "Ada",
+    "lastName": "Lovelace",
+    "email": "ada@example.com",
+    "phone": "+1-555-0100",
+    "city": "Phoenix", "state": "AZ", "country": "USA",
+    "linkedinUrl": "https://linkedin.com/in/ada",
+    "githubUrl": "https://github.com/ada",
+    "workAuthorization": "US Citizen",
+    "requiresSponsorship": false
+  },
+  "resume": { "filename": "ada.pdf", "base64": "JVBERi0xLjQK…" },
+  "roles": ["Backend Engineer"]
+}
+```
+
+- `uid` — **required**.
+- `personal` — optional; keys accept `camelCase` or `snake_case`, and may also be
+  passed flat alongside `uid` instead of nested. Unknown keys are ignored.
+  Demographic/EEO fields (`ethnicity`, `gender`, `pronouns`, `veteranStatus`,
+  `disabilityStatus`) are accepted too and used only to fill voluntary
+  self-identification questions on application forms.
+- `resume` — optional; `{ filename, base64 }`. Body limit 25 MB.
+- `roles` — optional explicit target titles; overrides the LLM-detected roles.
+
+At least one of `resume`, `personal`, or `roles` must be present. Calls are
+**merge-style upserts**, so you can send metadata first and the resume later.
+
+**Response — `200 OK`**
+```json
+{
+  "ok": true,
+  "uid": "acme-user-123",
+  "resumeChars": 4821,
+  "profile": {
+    "roles": { "detected": ["Backend Engineer", "Platform Engineer"], "custom": ["Backend Engineer"], "excluded": [] },
+    "activeRoles": ["Backend Engineer"],
+    "skills": "- Python\n- Go\n…",
+    "experience": "…markdown…",
+    "projects": "…markdown…",
+    "personal": { "firstName": "Ada", "…": "…" },
+    "hasResume": true
+  },
+  "next": "POST /api/external/search with { \"uid\": \"acme-user-123\" }"
+}
+```
+
+**Errors**
+- `400` — `uid` missing, or nothing to write.
+- `503` — a resume was supplied but no LLM is configured (`ANTHROPIC_API_KEY`, or
+  `JOBSYNC_LLM_PROVIDER=openai` + `JOBSYNC_LLM_API_KEY`).
+- `500` — unsupported resume format (only `.pdf`, `.docx`, `.txt`, `.md`).
+
+### `GET /api/external/profile?uid=<uid>` — read it back
+
+Returns `{ uid, profile }` with the same `profile` shape as above. `400` if `uid`
+is missing; an unknown `uid` returns an empty profile rather than a 404.
 
 ---
 
